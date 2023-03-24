@@ -2195,6 +2195,10 @@ do i=1,n_vertex_max
                     amat_n(var_psi,var_T) = - v * tauIC/(r0_corr*BB2) * F0**3/BigR**3 * r0 * T_p       * xjac * theta * tstep
                   end if ! (with_TiTe) *************************************************************
 
+                  if (with_impurities) then
+                    amat(var_psi,var_rhoimp) = - deta_drimp0 * v * rhoimp * (zj0-current_source(ms,mt)-Jb) / BigR * xjac * theta * tstep
+                  endif
+
                   !###################################################################################################
                   !#  Perpendicular Momentum Equation                                                                #
                   !###################################################################################################
