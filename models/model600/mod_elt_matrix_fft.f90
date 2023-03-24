@@ -5061,7 +5061,7 @@ subroutine construct_imp_charge_states()
   ! We estimate coefficients assuming a density of 10^20/m^3.
   ! Later maybe we should implement an iterative method.
 
-  if (allocated(imp_adas(1)%ionisation_energy)) then
+  if (allocated(imp_adas(1)%ionisation_energy) .and. (.not. use_marker)) then
 
      call imp_cor(1)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ), &
           p_out=P_imp,p_Te_out=dP_imp_dT,z_avg=Z_imp,z_avg_Te=dZ_imp_dT,                     &
@@ -5085,7 +5085,7 @@ subroutine construct_imp_charge_states()
      dE_ion_dT = dE_ion_dT * dTe_corr_eV_dT * EL_CHG / K_BOLTZ ! Convert gradient from /K to /JOREK unit     
      E_ion_bg  = E_ion_bg * EL_CHG*MU_ZERO*central_density*1.d20
 
-  else
+  else if (.not. use_marker) then
 
      call imp_cor(1)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ), &
           p_out=P_imp,p_Te_out=dP_imp_dT,                                                    &
@@ -5094,6 +5094,49 @@ subroutine construct_imp_charge_states()
      E_ion     = 0.
      dE_ion_dT = 0.
      E_ion_bg  = 0.
+
+  else
+
+     E_ion     = 0.
+     dE_ion_dT = 0.
+     E_ion_bg  = 13.6
+     E_ion_bg  = E_ion_bg * EL_CHG*MU_ZERO*central_density*1.d20
+     Z_imp     = 0.
+     dZ_imp_dT = 0.
+     aux_dEion_dt = eq_aux_g(mp,1,ms,mt) ! Accumulated ionization energy change
+     aux_rad    = max(eq_aux_g(mp,2,ms,mt),0.0)   ! The radiation power density
+     Z_eff      = max(eq_aux_g(mp,3,ms,mt),0.0)   ! The sum (q^2) divided by the impurity number density
+     Z_imp      = max(eq_aux_g(mp,4,ms,mt),0.0)   ! The sum (q) divided by the impurity number density
+     n_imp      = eq_aux_g(mp,5,ms,mt)            ! The time averaged impurity number density
+     n_imp      = max(n_imp,1.d-2)!corr_neg_dens(n_imp, (/ 1.d-1, 1.d-1 /),1.d-3)
+     Z_imp      = Z_imp / n_imp
+     Z_eff      = Z_eff / n_imp
+
+     ! This is the total derivative of n_imp*Z_imp, need to separate the two
+     Z_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,4,ms,mt) - y_s(ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
+     Z_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,4,ms,mt) + x_s(ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
+     Z_imp_p    = eq_aux_p(mp,4,ms,mt)
+     Z_imp_s    = eq_aux_s(mp,4,ms,mt)
+     Z_imp_t    = eq_aux_t(mp,4,ms,mt)
+
+     delta_Z_imp = delta_aux_g(mp,4,ms,mt)
+     delta_n_imp = delta_aux_g(mp,5,ms,mt)
+     delta_Z_imp = (delta_Z_imp - Z_imp * delta_n_imp) / n_imp
+
+     n_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,5,ms,mt) - y_s(ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
+     n_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,5,ms,mt) + x_s(ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
+     n_imp_p    = eq_aux_p(mp,5,ms,mt)
+     n_imp_s    = eq_aux_s(mp,5,ms,mt)
+     n_imp_t    = eq_aux_t(mp,5,ms,mt)
+
+     ! Separating the two derivatives
+     Z_imp_x    = (Z_imp_x - n_imp_x * Z_imp) / n_imp
+     Z_imp_y    = (Z_imp_y - n_imp_y * Z_imp) / n_imp
+     Z_imp_p    = (Z_imp_p - n_imp_p * Z_imp) / n_imp
+     Z_imp_s    = (Z_imp_s - n_imp_s * Z_imp) / n_imp
+     Z_imp_t    = (Z_imp_t - n_imp_t * Z_imp) / n_imp
+
+
   end if
 
   dZ_imp_dT = dZ_imp_dT * dTe_corr_eV_dT * EL_CHG / K_BOLTZ ! Convert gradient from /K to /JOREK unit
@@ -5132,56 +5175,68 @@ subroutine construct_imp_charge_states()
   alpha_imp_bis   = alpha_imp + dalpha_imp_dT*T0
   alpha_imp_tri   = 2. * dalpha_imp_dT + d2alpha_imp_dT2 * T0
 
+  ! This is used to provide the pressure gradient in the case of projected Z_imp (which do NOT depend on Te)
+  alpha_e_x     = m_i_over_m_imp*Z_imp_x
+  alpha_e_y     = m_i_over_m_imp*Z_imp_y
+  alpha_e_p     = m_i_over_m_imp*Z_imp_p
+  alpha_e_s     = m_i_over_m_imp*Z_imp_s
+  alpha_e_t     = m_i_over_m_imp*Z_imp_t
+
+  delta_alpha_e = 0.d0
+  if (use_marker) delta_alpha_e = m_i_over_m_imp * delta_Z_imp
+
   ne_JOREK    = r0_corr + alpha_e * rimp0_corr                             ! Electron density in JOREK unit
   ne_JOREK    = corr_neg_dens(ne_JOREK,(/1.d-1,1.d-1/),1.d-3)           
-     
-  Z_eff          = 0. ! Effective charge including all ion species
-  dZ_eff_dT      = 0.
-  dZ_eff_dr0     = 0.
-  dZ_eff_drimp0  = 0.
 
-  Z_eff_imp      = 0. ! Effective charge including impurities only
-  dZ_eff_imp_dT  = 0.
+  if (.not. use_marker) then     
+    Z_eff = r0_corr - rimp0_corr ! Contribution from main ions
+    ! Contribution from each impurity charge state
+    do ion_i=1, imp_adas(1)%n_Z
+       Z_eff         = Z_eff + m_i_over_m_imp * rimp0_corr * P_imp(ion_i) * real(ion_i,8)**2
+       Z_eff_imp     = Z_eff_imp + P_imp(ion_i) * real(ion_i,8)**2 
+       dZ_eff_imp_dT = dZ_eff_imp_dT + dP_imp_dT(ion_i) * real(ion_i,8)**2
+    end do
+    Z_eff = Z_eff / ne_JOREK
+    dZ_eff_imp_dT = dZ_eff_imp_dT * dTe_corr_eV_dT * EL_CHG / K_BOLTZ ! Convert gradient from /K to /JOREK unit
 
-  Z_eff = r0_corr - rimp0_corr ! Contribution from main ions
-  ! Contribution from each impurity charge state
-  do ion_i=1, imp_adas(1)%n_Z
-     Z_eff         = Z_eff + m_i_over_m_imp * rimp0_corr * P_imp(ion_i) * real(ion_i,8)**2
-     Z_eff_imp     = Z_eff_imp + P_imp(ion_i) * real(ion_i,8)**2 
-     dZ_eff_imp_dT = dZ_eff_imp_dT + dP_imp_dT(ion_i) * real(ion_i,8)**2
-  end do
-  Z_eff = Z_eff / ne_JOREK
-  dZ_eff_imp_dT = dZ_eff_imp_dT * dTe_corr_eV_dT * EL_CHG / K_BOLTZ ! Convert gradient from /K to /JOREK unit
+    if ((Z_eff_imp < 0.d0) .or. (Z_eff_imp > imp_adas(1)%n_Z**2)) then
+      Z_eff_imp = min(max(Z_eff_imp,0.d0),real(imp_adas(1)%n_Z)**2)
+      dZ_eff_imp_dT = 0.d0
+    endif
 
-  if ((Z_eff_imp < 0.d0) .or. (Z_eff_imp > imp_adas(1)%n_Z**2)) then
-    Z_eff_imp = min(max(Z_eff_imp,0.d0),real(imp_adas(1)%n_Z)**2)
-    dZ_eff_imp_dT = 0.d0
-  endif
+    ! Z_eff gradients wrt. T, r0 and rimp0
+    if ( (Z_eff >= 1.d0) .and. (Z_eff <= imp_adas(1)%n_Z) ) then
+       do ion_i=1, imp_adas(1)%n_Z
+          dZ_eff_dT  = dZ_eff_dT + m_i_over_m_imp * rimp0_corr * dP_imp_dT(ion_i) * real(ion_i,8)**2
+       end do
+       dZ_eff_dT = dZ_eff_dT / ne_JOREK
+       dZ_eff_dT = dZ_eff_dT * dTe_corr_eV_dT * EL_CHG / K_BOLTZ ! Convert gradient from /K to /JOREK unit
+       dZ_eff_dT = dZ_eff_dT - Z_eff * dalpha_e_dT * rimp0_corr / ne_JOREK
 
-  ! Z_eff gradients wrt. T, r0 and rimp0
-  if ( (Z_eff >= 1.d0) .and. (Z_eff <= imp_adas(1)%n_Z) ) then
-     do ion_i=1, imp_adas(1)%n_Z
-        dZ_eff_dT  = dZ_eff_dT + m_i_over_m_imp * rimp0_corr * dP_imp_dT(ion_i) * real(ion_i,8)**2
-     end do
-     dZ_eff_dT = dZ_eff_dT / ne_JOREK
-     dZ_eff_dT = dZ_eff_dT * dTe_corr_eV_dT * EL_CHG / K_BOLTZ ! Convert gradient from /K to /JOREK unit
-     dZ_eff_dT = dZ_eff_dT - Z_eff * dalpha_e_dT * rimp0_corr / ne_JOREK
+       dZ_eff_dr0 = (1.-Z_eff)/ne_JOREK
 
-     dZ_eff_dr0 = (1.-Z_eff)/ne_JOREK
+       dZ_eff_drimp0 = -1. ! Contribution from main ions
+       do ion_i=1, imp_adas(1)%n_Z
+          dZ_eff_drimp0 = dZ_eff_drimp0 + m_i_over_m_imp * P_imp(ion_i) * real(ion_i,8)**2
+       end do
+       dZ_eff_drimp0 = dZ_eff_drimp0 / ne_JOREK
+       dZ_eff_drimp0 = dZ_eff_drimp0 - Z_eff * alpha_e / ne_JOREK
+    else
+       if (Z_eff < 1.) Z_eff = 1.
+       if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
+       dZ_eff_dT     = 0.d0 
+       dZ_eff_dr0    = 0.d0 
+       dZ_eff_drimp0 = 0.d0 
+    end if
 
-     dZ_eff_drimp0 = -1. ! Contribution from main ions
-     do ion_i=1, imp_adas(1)%n_Z
-        dZ_eff_drimp0 = dZ_eff_drimp0 + m_i_over_m_imp * P_imp(ion_i) * real(ion_i,8)**2
-     end do
-     dZ_eff_drimp0 = dZ_eff_drimp0 / ne_JOREK
-     dZ_eff_drimp0 = dZ_eff_drimp0 - Z_eff * alpha_e / ne_JOREK
-  else
-     if (Z_eff < 1.) Z_eff = 1.
-     if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
-     dZ_eff_dT     = 0.d0 
-     dZ_eff_dr0    = 0.d0 
-     dZ_eff_drimp0 = 0.d0 
-  end if
+  else ! use_marker
+
+    Z_eff_imp = Z_eff       ! The summation of normalized nZ**2 for impurity
+    Z_eff     = Z_eff * n_imp
+    Z_eff     = Z_eff + max((r0_corr - rimp0_corr),0.)
+    Z_eff     = max(Z_eff / ne_JOREK, 1.)
+
+  end if 
   
 end subroutine construct_imp_charge_states
 
@@ -5487,19 +5542,37 @@ subroutine construct_radiation_parameters()
   Lrad     = 0.
   dLrad_dT = 0.
 
-  if (with_impurities) then     
-    if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. rimp0 > 0.d0) then
-      call radiation_function_linear(imp_adas(index_main_imp),imp_cor(index_main_imp),log10(ne_SI), &
-                                     log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad,dLrad_dT)
-      Lrad     = Lrad * m_i_over_m_imp
-      dLrad_dT = dLrad_dT * m_i_over_m_imp * dTe0_corr_dT
+  if (with_impurities) then 
+
+    if (.not. use_marker) then
+
+      if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. rimp0 > 0.d0) then
+        call radiation_function_linear(imp_adas(index_main_imp),imp_cor(index_main_imp),log10(ne_SI), &
+                                       log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad,dLrad_dT)
+        Lrad     = Lrad * m_i_over_m_imp
+        dLrad_dT = dLrad_dT * m_i_over_m_imp * dTe0_corr_dT
+
+        if (Lrad < 0.d0) then 
+          Lrad     = 0.d0
+          dLrad_dT = 0.d0
+        end if
+
+      end if
+
+      ! detect N/A
+      if (Lrad/=Lrad .or. dLrad_dT/=dLrad_dT .or. E_ion/=E_ion .or. dE_ion_dT/=dE_ion_dT) then
+        write(*,*) "WARNING: Lrad, dLrad_dT, E_ion/=E_ion, dE_ion_dT/=dE_ion_dT = ", &
+                             Lrad, dLrad_dT, E_ion, dE_ion_dT
+        stop
+      end if
+
+    else
+
+      Lrad     = 0.d0
+      dLrad_dT = 0.d0
+
     end if
 
-    if (Lrad/=Lrad .or. dLrad_dT/=dLrad_dT .or. E_ion/=E_ion .or. dE_ion_dT/=dE_ion_dT) then
-      write(*,*) "WARNING: Lrad, dLrad_dT, E_ion/=E_ion, dE_ion_dT/=dE_ion_dT = ", &
-                           Lrad, dLrad_dT, E_ion, dE_ion_dT
-      stop
-    end if
   end if
   
 end subroutine construct_radiation_parameters
