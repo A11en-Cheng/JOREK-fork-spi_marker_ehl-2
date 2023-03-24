@@ -392,18 +392,19 @@ do while (.not. sim%stop_now)
     spi_source_phi = pellets(1)%spi_phi
     
     do spi_i=1, n_spi_tot
+      if (pellets(spi_i)%spi_species > 0.) then ! to avoid regions with pre-existing pure D shards (if there is any)
+        ns_radius_local   = pellets(spi_i)%spi_radius * ns_radius_ratio
+        if (ns_radius_local < ns_radius_min) then
+          ns_radius_local = ns_radius_min
+        end if
 
-      ns_radius_local   = pellets(spi_i)%spi_radius * ns_radius_ratio
-      if (ns_radius_local < ns_radius_min) then
-        ns_radius_local = ns_radius_min
+        spi_source_R(1) = min(spi_source_R(1),pellets(spi_i)%spi_R - 5.*ns_radius_local)
+        spi_source_R(2) = max(spi_source_R(2),pellets(spi_i)%spi_R + 5.*ns_radius_local)
+        spi_source_Z(1) = min(spi_source_Z(1),pellets(spi_i)%spi_Z - 5.*ns_radius_local)
+        spi_source_Z(2) = max(spi_source_Z(2),pellets(spi_i)%spi_Z + 5.*ns_radius_local)
+
+        spi_source_imp = spi_source_imp + pellets(spi_i)%spi_abl * pellets(spi_i)%spi_species
       end if
-
-      spi_source_R(1) = min(spi_source_R(1),pellets(spi_i)%spi_R - 5.*ns_radius_local)
-      spi_source_R(2) = max(spi_source_R(2),pellets(spi_i)%spi_R + 5.*ns_radius_local)
-      spi_source_Z(1) = min(spi_source_Z(1),pellets(spi_i)%spi_Z - 5.*ns_radius_local)
-      spi_source_Z(2) = max(spi_source_Z(2),pellets(spi_i)%spi_Z + 5.*ns_radius_local)
-
-      spi_source_imp = spi_source_imp + pellets(spi_i)%spi_abl * pellets(spi_i)%spi_species
     enddo
   elseif (t_now .gt. minval(t_ns)) then
     spi_source_R(1) = minval(ns_R) - 5.* ns_radius
