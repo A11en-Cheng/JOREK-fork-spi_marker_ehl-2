@@ -1349,31 +1349,6 @@ do i=1,n_vertex_max
 
           endif  ! with_neutrals
           ! ------------
- 
-          ! --- Source of impurities (e.g. from MGI or SPI) and main ions (e.g. for mixed SPI)
-          source_imp      = 0.d0; source_imp_arr      = 0.d0
-          source_bg       = 0.d0; source_bg_arr       = 0.d0
-          source_bg_drift = 0.d0; source_bg_drift_arr = 0.d0
-
-          if (with_impurities) then
-            call total_imp_source(x_g(ms,mt),y_g(ms,mt),phi,ps0,source_bg_arr,source_imp_arr,m_i_over_m_imp,index_main_imp, source_bg_drift_arr)
-            do i_inj = 1,n_inj
-              source_imp      = source_imp + source_imp_arr(i_inj)
-              source_bg       = source_bg  + source_bg_arr(i_inj)
-              source_bg_drift = source_bg_drift + source_bg_drift_arr(i_inj)
-            end do
-            ! This is to detect N/A
-            if (source_imp /= source_imp .or. source_bg /= source_bg .or. source_bg_drift /= source_bg_drift) then
-              write(*,*) "WARNING: source_imp = ", source_imp
-              write(*,*) "WARNING: source_bg = ", source_bg
-              write(*,*) "WARNING: source_bg_drift = ", source_bg_drift
-              stop
-            end if
-            source_imp      = max(source_imp,0.d0)
-            source_bg       = max(source_bg,0.d0)
-            source_bg_drift = max(source_bg_drift,0.d0)
-          endif
-          source_imp = source_imp + constant_imp_source
 
           !------------------------------------------------------------------------------------------
           ! ---Calculate energy teleported in JOREK unit (sink at R and source at R + drift_distance)
