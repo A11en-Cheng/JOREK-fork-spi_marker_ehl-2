@@ -1350,23 +1350,6 @@ do i=1,n_vertex_max
           endif  ! with_neutrals
           ! ------------
 
-          !------------------------------------------------------------------------------------------
-          ! ---Calculate energy teleported in JOREK unit (sink at R and source at R + drift_distance)
-          !------------------------------------------------------------------------------------------
-          ! Input energy_teleported is in eV
-          power_dens_teleport_ju = 0.d0; power_dens_teleport_ju_arr = 0.d0
-          do i_inj = 1,n_inj
-            if (with_neutrals .and. energy_teleported(i_inj) /= 0.d0) then
-              power_dens_teleport_ju_arr(i_inj) = (-source_neutral_arr(i_inj) + source_neutral_drift_arr(i_inj))  * energy_teleported(i_inj) * &
-                                                  EL_CHG * (GAMMA-1) * MU_ZERO * 1.d20 * central_density
-              power_dens_teleport_ju = power_dens_teleport_ju + power_dens_teleport_ju_arr(i_inj)
-            else if (with_impurities .and. energy_teleported(i_inj) /= 0.d0) then
-              power_dens_teleport_ju_arr(i_inj) = (-source_bg_arr(i_inj) + source_bg_drift_arr(i_inj))  * energy_teleported(i_inj) * &
-                                                  EL_CHG * (GAMMA-1) * MU_ZERO * 1.d20 * central_density
-              power_dens_teleport_ju = power_dens_teleport_ju + power_dens_teleport_ju_arr(i_inj)
-            end if
-          end do
-
           ! --- Source of impurities (e.g. from MGI or SPI) and main ions (e.g. for mixed SPI)
           if (.not. (with_neutrals .and. with_impurities)) then ! if with_neutrals and with_impurities we should already have called this once above
             source_imp       = 0.d0; source_imp_arr       = 0.d0
@@ -1402,6 +1385,23 @@ do i=1,n_vertex_max
           endif
           source_imp       = source_imp + constant_imp_source
           source_imp_drift = source_imp_drift + constant_imp_source
+
+          !------------------------------------------------------------------------------------------
+          ! ---Calculate energy teleported in JOREK unit (sink at R and source at R + drift_distance)
+          !------------------------------------------------------------------------------------------
+          ! Input energy_teleported is in eV
+          power_dens_teleport_ju = 0.d0; power_dens_teleport_ju_arr = 0.d0
+          do i_inj = 1,n_inj
+            if (with_neutrals .and. energy_teleported(i_inj) /= 0.d0) then
+              power_dens_teleport_ju_arr(i_inj) = (-source_neutral_arr(i_inj) + source_neutral_drift_arr(i_inj))  * energy_teleported(i_inj) * &
+                                                  EL_CHG * (GAMMA-1) * MU_ZERO * 1.d20 * central_density
+              power_dens_teleport_ju = power_dens_teleport_ju + power_dens_teleport_ju_arr(i_inj)
+            else if (with_impurities .and. energy_teleported(i_inj) /= 0.d0) then
+              power_dens_teleport_ju_arr(i_inj) = (-source_bg_arr(i_inj) + source_bg_drift_arr(i_inj))  * energy_teleported(i_inj) * &
+                                                  EL_CHG * (GAMMA-1) * MU_ZERO * 1.d20 * central_density
+              power_dens_teleport_ju = power_dens_teleport_ju + power_dens_teleport_ju_arr(i_inj)
+            end if
+          end do
 
           ! --- Construction of radiative terms, using ADAS (by default)
           call construct_radiation_parameters()
