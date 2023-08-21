@@ -317,9 +317,9 @@ real*8 :: n_norm !< temperature normalisation
 
 call fields%interp_PRZ(time,i_elm,&
 #ifdef WITH_TiTe
-      [var_rho,var_Te, var_rhon],& ! electron temperature
+      [var_rho,var_Te, var_rhoimp],& ! electron temperature
 #else
-      [var_rho,var_T, var_rhon],& ! electron temperature + ion temperature (assumed equal)
+      [var_rho,var_T, var_rhoimp],& ! electron temperature + ion temperature (assumed equal)
 #endif
           3,st(1),st(2),phi,P,P_s,P_t,P_phi,P_time,R,R_s,R_t,Z,Z_s,Z_t)
 
