@@ -69,6 +69,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 xampl,xwidth,xsig,xtheta,xshift,xleft, xpoint,      &
                 xcase, D_perp_file, D_perp_imp_file, ZK_perp_file,  &
                 rho_file, T_file, ffprime_file, rot_file,           &
+                forceSDN,                                           &
                 normalized_velocity_profile, SDN_threshold,         &
                 freeboundary_equil, freeboundary,  freeb_change_indices, &
                 resistive_wall,                                     &
