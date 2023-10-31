@@ -4,7 +4,7 @@ program jorek2_IDS
 #ifdef USE_IMAS
   use ids_schemas 
   use ids_routines, only: imas_open_env, &
-     imas_create_env, imas_close, ids_get, ids_put
+     imas_create_env, imas_close, ids_get, ids_put, ids_put_slice
 
   use mod_jorek2IMAS 
   use nodes_elements
@@ -18,12 +18,18 @@ program jorek2_IDS
   character(len=200):: user, database
   character(len=64) :: file_name
   integer :: shot_number, run_number, i_begin, i_end, i_step
-  integer :: ierr, idx, stat, n_grid
+  integer :: ierr, idx, stat_mhd, stat_core, stat_rad, stat_eq, n_grid, stat
   logical :: first_step
-  logical :: export_MHD, export_radiation, export_core_profiles
+  logical :: export_MHD, export_radiation, export_core_profiles, export_equilibrium
+
+  type(ids_mhd), target   :: mhd_ids
+  type(ids_equilibrium)   :: equilibrium_ids
+  type(ids_core_profiles) :: core_profiles_ids
+  type(ids_radiation)     :: radiation_ids
 
   namelist /imas_params/ shot_number, run_number, user, database, i_begin, i_end, &
-                         export_mhd, export_radiation, export_core_profiles, n_grid
+                         export_mhd, export_radiation, export_core_profiles, n_grid, &
+                         export_equilibrium
 
   ! --- Necessary initialization ------------------
   ! --- Initialize mode and mode_type arrays
@@ -47,7 +53,8 @@ program jorek2_IDS
   export_MHD           = .true.
   export_radiation     = .false.
   export_core_profiles = .false. 
-  n_grid               = 100              !< Number of radial points used for 1D profiles  
+  export_equilibrium   = .false.
+  n_grid               = 100              !< Number of points used for 1D and 2D profiles  
 
   call getenv('USER',user)
   
@@ -89,10 +96,13 @@ program jorek2_IDS
     endif
 
     ! --- Fill and export an MHD IDS
-    if (export_mhd)  call fill_mhd_IDS(first_step, idx)  
+    if (export_mhd)  call fill_mhd_IDS(first_step, mhd_ids)  
 
     ! --- Fill and export a core_profiles IDS
-    if (export_core_profiles)  call fill_core_profiles_IDS(first_step, idx, n_grid)  
+    if (export_core_profiles)  call fill_core_profiles_IDS(first_step, core_profiles_ids, n_grid)  
+
+    ! --- Fill and export an equilibrium IDS
+    if (export_equilibrium)  call fill_equilibrium_IDS(first_step, equilibrium_ids, n_grid)
 
     ! --- Fill and export a radiation IDS
     if (export_radiation) then
@@ -102,8 +112,33 @@ program jorek2_IDS
         write(*,*) ' Could not open projections file were radiation is stored'
         stop
       endif
-      call fill_radiation_IDS(first_step, idx)  
+      call fill_radiation_IDS(first_step, radiation_ids)  
     endif
+
+    stat_mhd = 1;   stat_core = 1;   stat_rad = 1;   stat_eq = 1;
+
+    ! --- Put IDSs into database
+    if (first_step) then  
+      if (export_mhd)              call ids_put(idx,'mhd',mhd_ids,stat_mhd)
+      if (export_core_profiles)    call ids_put(idx,'core_profiles',core_profiles_ids,stat_core)
+      if (export_equilibrium)      call ids_put(idx,'equilibrium',equilibrium_ids,stat_eq)
+      if (export_radiation)        call ids_put(idx,'radiation',radiation_ids,stat_rad)
+    else
+      if (export_mhd)              call ids_put_slice(idx,'mhd',mhd_ids,stat_mhd)
+      if (export_core_profiles)    call ids_put_slice(idx,'core_profiles',core_profiles_ids,stat_core)
+      if (export_equilibrium)      call ids_put_slice(idx,'equilibrium',equilibrium_ids,stat_eq)
+      if (export_radiation)        call ids_put_slice(idx,'radiation',radiation_ids,stat_rad)
+    endif
+
+    if (export_mhd           .and. (stat_mhd==0 ))   write(*,*) '    MHD IDS exported'
+    if (export_core_profiles .and. (stat_core==0))   write(*,*) '    Core profiles IDS exported'
+    if (export_equilibrium   .and. (stat_eq==0  ))   write(*,*) '    Equlibrium IDS exported'
+    if (export_radiation     .and. (stat_rad==0 ))   write(*,*) '    Radiation IDS exported'
+
+    if (export_mhd           .and. (stat_mhd/=0 ))   write(*,*) '    Problem saving MHD IDS'
+    if (export_core_profiles .and. (stat_core/=0))   write(*,*) '    Problem saving Core profiles IDS'
+    if (export_equilibrium   .and. (stat_eq/=0  ))   write(*,*) '    Problem saving Equlibrium IDS'
+    if (export_radiation     .and. (stat_rad/=0 ))   write(*,*) '    Problem saving Radiation IDS'
 
     first_step = .false.
 

@@ -1,0 +1,10 @@
+&imas_params
+  shot_number = 111111
+  run_number  = 1
+  database    = 'imas_regtest_db'
+!!  user        = 'artolaj'
+  export_core_profiles = .true.
+  export_equilibrium = .true.
+  export_MHD  = .false.
+  n_grid      = 100
+/

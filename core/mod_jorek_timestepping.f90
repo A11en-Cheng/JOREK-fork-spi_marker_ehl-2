@@ -287,6 +287,8 @@ subroutine do_jorek_timestep(this, sim, ev)
   character*14   :: fileout
   integer        :: i, n_spi_begin
 
+  real*8,dimension(n_var) :: varmin,varmax
+
   call init_expr()
   allocate(res(exprs_all_int%n_expr+1))
   res = 0.d0  
@@ -357,7 +359,7 @@ subroutine do_jorek_timestep(this, sim, ev)
   if (use_pellet) then            ! calculating the pellet_volume (total_pellet_volume)
     pellet_volume = PI * pellet_radius**2 * 2.d0 * PI * pellet_R * (pellet_phi/PI)
     call Integrals_3D(sim%my_id, sim%fields%node_list, sim%fields%element_list, density_tot,density_in,density_out,pressure_tot,pressure_in,pressure_out, &
-                                                                                kin_par_tot, kin_par_in, kin_par_out, mom_par_tot, mom_par_in, mom_par_out)
+                                                                    kin_par_tot, kin_par_in, kin_par_out, mom_par_tot,mom_par_in, mom_par_out,varmin,varmax)
   endif
 
   this%mhd_sim%es => es ! assign pointer to the equilibrium state

@@ -90,6 +90,7 @@ module equil_info
 
     ! --- Plasma shape parameters as defined in T. Luce, PPCF 55 (2013) 095009, equations (1-6)
     real*8           :: LCFS_Rgeo                !< Major radius
+    real*8           :: LCFS_Zgeo                !< Vertical centre
     real*8           :: LCFS_a                   !< Minor radius
     real*8           :: LCFS_epsilon             !< Inverse aspect ratio 
     real*8           :: LCFS_kappa               !< Elongation
@@ -530,7 +531,8 @@ module equil_info
     ! --- Shaping parameters
     if ( verbose ) then
       write(*,*) '--- LCFS shape parameters (as in PPCF 55 (2013) 095009) ------'
-      write(*,102) 'R_geo              =', ES%LCFS_Rgeo    
+      write(*,102) 'R_geo              =', ES%LCFS_Rgeo  
+      write(*,102) 'Z_geo              =', ES%LCFS_Zgeo    
       write(*,102) 'a_min              =', ES%LCFS_a       
       write(*,102) 'epsilon            =', ES%LCFS_epsilon 
       write(*,102) 'kappa              =', ES%LCFS_kappa   
@@ -739,6 +741,7 @@ module equil_info
 
     ! --- LCFS shape parameters
     call MPI_BCAST(ES%LCFS_Rgeo   ,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(ES%LCFS_Zgeo   ,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(ES%LCFS_a      ,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(ES%LCFS_epsilon,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(ES%LCFS_kappa  ,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
@@ -840,6 +843,7 @@ module equil_info
     
       ! --- As defined in T. Luce, PPCF 55 (2013) 095009, equations (1-6)
       ES%LCFS_Rgeo    = (Rmax + Rmin) / 2.0 
+      ES%LCFS_Zgeo    = (Zmax + Zmin) / 2.0 
       ES%LCFS_a       = (Rmax - Rmin) / 2.0
       ES%LCFS_epsilon =  ES%LCFS_a / ES%LCFS_Rgeo
       ES%LCFS_kappa   = (Zmax - Zmin) / (2.0 * ES%LCFS_a ) 

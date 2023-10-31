@@ -13,6 +13,7 @@ module mod_initialise_particles
   public set_particle_weights_canonical_maxwellian, normalize_with_projection
   public weigh_with_interp_f, initialise_particles_marker
   public normalize_with_projection_at_gc, initialise_particles_H_mu_psi_phiplanes
+  public real_f,real_arr_inout_s,part_inout_s,initialise_particles_in_phase_space
 
   interface
     subroutine find_RZ(node_list,element_list,R_find,Z_find,R_out,Z_out,ielm_out,s_out,t_out,ifail)
@@ -25,6 +26,7 @@ module mod_initialise_particles
       integer, intent(out)   :: ifail
     end subroutine find_RZ
     function rej_f(n, P, gradP)
+      implicit none
       integer, intent(in) :: n
       real*8, dimension(n), intent(in) :: P
       real*8, dimension(3,n), intent(in) :: gradP
@@ -35,7 +37,57 @@ module mod_initialise_particles
       real*8, intent(in) :: P_norm
       real*4 :: rej_f2
     end function rej_f2
+    function real_f(n_x,x,st,time,i_elm,fields,x_min,x_max,&
+    n_real_param,real_param,n_int_param,int_param)
+      use mod_fields, only: fields_base
+      implicit none
+      !> inputs:
+      integer,intent(in)                                  :: n_x,i_elm
+      integer,intent(in)                                  :: n_real_param,n_int_param
+      integer,dimension(:),allocatable,intent(in)         :: int_param
+      real*8,intent(in)                                   :: time
+      real*8,dimension(n_x),intent(in)                    :: x,x_min,x_max
+      real*8,dimension(2),intent(in)                      :: st
+      real*8,dimension(:),allocatable,intent(in)          :: real_param
+      class(fields_base),intent(in)                       :: fields
+      !> outputs:
+      real*8                                              :: real_f
+    end function real_f
+    subroutine real_arr_inout_s(n_x,x,st,time,i_elm,fields,x_min,x_max,&
+    n_real_param,real_param,n_int_param,int_param)
+      use mod_fields, only: fields_base
+      implicit none
+      !> inputs:
+      integer,intent(in)                                  :: n_x
+      integer,intent(in)                                  :: n_real_param,n_int_param
+      integer,dimension(:),allocatable,intent(in)         :: int_param
+      real*8,intent(in)                                   :: time
+      real*8,dimension(n_x),intent(in)                    :: x_min,x_max
+      real*8,dimension(:),allocatable,intent(in)          :: real_param
+      class(fields_base),intent(in)                       :: fields
+      !> inputs-outputs:
+      integer,intent(inout)                               :: i_elm
+      real*8,dimension(2),intent(inout)                   :: st
+      real*8,dimension(n_x),intent(inout)                 :: x
+    end subroutine real_arr_inout_s
+    subroutine part_inout_s(p_inout,n_x,x,time,fields,n_real_param,&
+    real_param,n_int_param,int_param)
+      use mod_particle_types, only: particle_base
+      use mod_fields,         only: fields_base
+      implicit none
+      !> inputs:
+      integer,intent(in)               :: n_x
+      integer,intent(in)               :: n_int_param,n_real_param
+      integer,dimension(:),allocatable,intent(in) :: int_param
+      real*8,intent(in)                :: time
+      real*8,dimension(n_x),intent(in) :: x
+      real*8,dimension(:),allocatable,intent(in)  :: real_param
+      !> inputs-outputs:
+      class(particle_base),intent(inout) :: p_inout
+      class(fields_base),intent(in)      :: fields
+    end subroutine
   end interface
+
 contains
 !> Set positions for particles by rejection sampling from geometric and mhd
 !> variables after collecting with transform, within Rbound, Zbound and Phibound
@@ -527,6 +579,312 @@ subroutine initialise_particles_marker(particles, node_list, element_list, field
     write(*,*) '**********************************'
   endif
 end subroutine initialise_particles_marker
+
+!> Initialise particle in phase space given a generic distribution in space and momentum
+!> space. The acceptance-rejection method is used for generating the particle population.
+!> The particle population is sampled from a generic distribution probability function
+!> gdf. Both the gdf and the gdf sampling routines must be provided as inputs.
+!> Check examples/test_initialisation_phase_space.f90 for an example of its usage.
+!> Inputs:
+!>   n_variables:            (integer) dimensionality of the phase space
+!>   particles:              (particle_base)(n_particles) particle array to be initialised
+!>   fields:                 (fields_base) jorek MHD fields data structure
+!>   rng_base:               (type_rng) type of random number generator to be used
+!>   pdf:                    (real_f) particle probability density function
+!>   weight_f:               (real_f) method computing the particle weight
+!>   gdf:                    (real_f) probability density function used for sampling 
+!>                           the particle coordinates
+!>   gdf_sampler:            (real_arr_inout_s) method for generating samples of
+!>                           particle coordinates from the gdf probability density
+!>   sup_pdf:                (real8) pdf upper extremum
+!>   sup_gdf:                (real8) gdf upper extremum
+!>   sample_to_particle:     (part_inout_s) method use for transforming a sample in
+!>                           sample coordinates in particle coordinates
+!>   mass:                   (real8) particle mass
+!>   time:                   (real8) physical time at which particles are initialised
+!>   phase_bounds:           (real8)(n_variables,2) minima (first column) and maxima 
+!>                           (second column) of the sampling phase space interval
+!>   n_real_pdf_param_in:    (integer) number of real parameters of the pdf
+!>   real_pdf_param_in:      (real8)(n_real_pdf_param_in) pdf real parameters
+!>   n_int_pdf_param_in:     (integer) number of integer parameters of the pdf
+!>   int_pdf_param_in:       (integer)(n_int_pdf_param_in) pdf integer parameters
+!>   n_real_weight_param_in: (integer) number of real parameters of the weight
+!>   real_weight_param_in:   (real8)(n_real_weight_param_in) weight real parameters
+!>   n_int_weight_param_in:  (integer) number of integer parameters of the weight
+!>   int_weight_param_in:    (integer)(n_int_weight_param_in) weight integer parameters
+!>   n_real_gdf_param_in:    (integer) number of real parameters of the gdf
+!>   real_gdf_param_in:      (real8)(n_real_gdf_param_in) gdf real parameters
+!>   n_int_gdf_param_in:     (integer) number of integer parameters of the gdf
+!>   int_gdf_param_in:       (integer)(n_int_gdf_param_in) gdf integer parameters
+!>   n_real_samp_to_part_in: (real8) size of the real parameter array of the
+!>                           sample to particle method
+!>   real_samp_to_part_in:   (real8) intger parameter array od the sample to particle method
+!>   n_int_samp_to_part_in:  (integer) size of the integer parameter array of the
+!>                           sample to particle method
+!>   int_samp_to_part_in:    (integer) intger parameter array od the sample to particle method
+!> Outputs:
+!>   particles:              (particle_base)(n_particles) initialised particle array
+subroutine initialise_particles_in_phase_space(n_variables, particles, fields, rng_base, pdf, &
+  weight_f, gdf, gdf_sampler, sup_pdf, sup_gdf, sample_to_particle, mass, time, phase_bounds, &
+  n_real_pdf_param_in, real_pdf_param_in, n_int_pdf_param_in, int_pdf_param_in, &
+  n_real_weight_param_in, real_weight_param_in, n_int_weight_param_in, int_weight_param_in, &
+  n_real_gdf_param_in, real_gdf_param_in, n_int_gdf_param_in, int_gdf_param_in, &
+  n_real_samp_to_part_param_in,real_samp_to_part_param_in,n_int_samp_to_part_param_in, &
+  int_samp_to_part_param_in)
+  use mod_fields,                only: fields_base
+  use mod_random_seed,           only: random_seed
+  use mod_particle_types,        only: particle_base
+  use mod_rng
+!$ use omp_lib
+  
+  !> parameters
+  integer,parameter :: chunksize=64
+
+  !> inputs-outputs
+  class(particle_base), dimension(:), intent(inout) :: particles
+  !> inputs
+  class(fields_base),intent(in)                        :: fields
+  class(type_rng),intent(in)                           :: rng_base !< What type of random number generator to use (will be reseeded here)
+  procedure(real_f)                                    :: pdf,weight_f,gdf
+  procedure(real_arr_inout_s)                          :: gdf_sampler
+  procedure(part_inout_s)                              :: sample_to_particle
+  integer,intent(in)                                   :: n_variables
+  integer,intent(in),optional                          :: n_real_pdf_param_in,n_int_pdf_param_in
+  integer,intent(in),optional                          :: n_real_weight_param_in,n_int_weight_param_in
+  integer,intent(in),optional                          :: n_real_gdf_param_in,n_int_gdf_param_in
+  integer,intent(in),optional                          :: n_real_samp_to_part_param_in
+  integer,intent(in),optional                          :: n_int_samp_to_part_param_in 
+  integer,dimension(:),allocatable,intent(in),optional :: int_pdf_param_in,int_weight_param_in
+  integer,dimension(:),allocatable,intent(in),optional :: int_gdf_param_in,int_samp_to_part_param_in
+  real*8,intent(in)                                    :: mass,time,sup_pdf,sup_gdf
+  real*8,dimension(n_variables,2),intent(in)           :: phase_bounds
+  real*8,dimension(:),allocatable,intent(in),optional  :: real_pdf_param_in,real_weight_param_in
+  real*8,dimension(:),allocatable,intent(in),optional  :: real_gdf_param_in,real_samp_to_part_param_in
+
+  !> internal variables
+  class(type_rng),dimension(:),allocatable :: rngs 
+  integer                                  :: t0,t1,my_id,n_cpu,n_threads,thread_id,ifail
+  integer                                  :: ii,jj,n_particles,i_elm
+  integer                                  :: n_real_pdf_param,n_int_pdf_param
+  integer                                  :: n_real_weight_param,n_int_weight_param
+  integer                                  :: n_real_gdf_param,n_int_gdf_param
+  integer                                  :: n_real_samp_to_part_param,n_int_samp_to_part_param
+  integer,dimension(:),allocatable         :: int_pdf_param,int_weight_param,int_gdf_param
+  integer,dimension(:),allocatable         :: int_samp_to_part_param
+  real*8                                   :: weight,one_over_sup_pdf,one_over_sup_gdf
+  real*8,dimension(2)                      :: st
+  real*8,dimension(:),allocatable          :: variables,real_pdf_param,real_weight_param
+  real*8,dimension(:),allocatable          :: real_gdf_param,real_samp_to_part_param
+
+  !> extract id and size of the MPI Communicator
+  call MPI_COMM_RANK(MPI_COMM_WORLD, my_id, ifail)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, n_cpu, ifail)
+
+  !> initialize random number generator
+  n_threads = 1
+!$ n_threads = omp_get_max_threads()
+  allocate(variables(n_variables+1))
+  allocate(rngs(n_threads),source=rng_base)
+  do ii=1,n_threads
+    call rngs(ii)%initialize(n_variables+1, random_seed(), n_cpu*n_threads, my_id*n_threads+ii,ifail)
+    if (ifail.ne.0) call MPI_ABORT(MPI_COMM_WORLD, -1, ifail)
+  end do
+
+  !> Initialise variables needed in the loop
+  n_particles = size(particles);
+  one_over_sup_pdf = 1d0/sup_pdf; one_over_sup_gdf = 1d0/sup_gdf;
+  n_real_pdf_param = 0; if(present(n_real_pdf_param_in)) n_real_pdf_param = n_real_pdf_param_in
+  if((present(real_pdf_param_in)).and.(n_real_pdf_param.gt.0)) then
+    if(allocated(real_pdf_param_in)) then
+      allocate(real_pdf_param(n_real_pdf_param)); real_pdf_param = real_pdf_param_in;
+    endif
+  endif
+  n_int_pdf_param = 0; if(present(n_int_pdf_param_in)) n_int_pdf_param = n_int_pdf_param_in;
+  if((present(int_pdf_param_in)).and.(n_int_pdf_param.gt.0)) then
+    if(allocated(int_pdf_param_in)) then
+      allocate(int_pdf_param(n_int_pdf_param)); int_pdf_param = int_pdf_param_in;
+    endif
+  endif
+  n_real_weight_param = 0; if(present(n_real_weight_param_in)) n_real_weight_param = n_real_weight_param_in
+  if((present(real_weight_param_in)).and.(n_real_weight_param.gt.0)) then
+    if(allocated(real_weight_param_in)) then
+      allocate(real_weight_param(n_real_weight_param)); real_weight_param = real_weight_param_in;
+    endif
+  endif
+  n_int_weight_param = 0; if(present(n_int_weight_param_in)) n_int_weight_param = n_int_weight_param_in;
+  if((present(int_weight_param_in)).and.(n_int_weight_param.gt.0)) then
+    if(allocated(int_weight_param_in)) then
+      allocate(int_weight_param(n_int_weight_param)); int_weight_param = int_weight_param_in;
+    endif
+  endif
+  n_real_gdf_param = 0; if(present(n_real_gdf_param_in)) n_real_gdf_param = n_real_gdf_param_in
+  if((present(real_gdf_param_in)).and.(n_real_gdf_param.gt.0)) then
+    if(allocated(real_gdf_param_in)) then
+      allocate(real_gdf_param(n_real_gdf_param)); real_gdf_param = real_gdf_param_in;
+    endif
+  endif
+  n_int_gdf_param = 0; if(present(n_int_gdf_param_in)) n_int_gdf_param = n_int_gdf_param_in;
+  if((present(int_gdf_param_in)).and.(n_int_gdf_param.gt.0)) then
+    if(allocated(int_gdf_param_in)) then
+      allocate(int_gdf_param(n_int_gdf_param)); int_gdf_param = int_gdf_param_in;
+    endif
+  endif
+  n_real_samp_to_part_param = 0; if(present(n_real_samp_to_part_param_in)) &
+  n_real_samp_to_part_param = n_real_samp_to_part_param_in
+  if((present(real_samp_to_part_param_in)).and.(n_real_samp_to_part_param.gt.0)) then
+    if(allocated(real_samp_to_part_param_in)) then
+      allocate(real_samp_to_part_param(n_real_samp_to_part_param)); 
+      real_samp_to_part_param = real_samp_to_part_param_in
+    endif
+  endif
+  n_int_samp_to_part_param = 0; if(present(n_int_samp_to_part_param_in)) &
+  n_int_samp_to_part_param = n_int_samp_to_part_param_in;
+  if((present(int_samp_to_part_param_in)).and.(n_int_samp_to_part_param.gt.0)) then
+    if(allocated(int_samp_to_part_param)) then
+      allocate(int_samp_to_part_param(n_int_samp_to_part_param)); int_samp_to_part_param = int_samp_to_part_param_in;
+    endif
+  endif
+  call system_clock(t0)
+
+  !> Loop on the particles
+#ifndef __NVCOMPILER
+    !$omp parallel default(shared) &
+    !$omp firstprivate(n_variables,n_particles,mass,time,phase_bounds,one_over_sup_pdf,&
+    !$omp one_over_sup_gdf,n_real_pdf_param,n_int_pdf_param,real_pdf_param,&
+    !$omp int_pdf_param,n_real_weight_param,n_int_weight_param,real_weight_param,&
+    !$omp int_weight_param,n_real_gdf_param,n_int_gdf_param,real_gdf_param,int_gdf_param,&
+    !$omp n_real_samp_to_part_param,n_int_samp_to_part_param,real_samp_to_part_param,&
+    !$omp int_samp_to_part_param) &
+    !$omp private(ii,variables,thread_id,i_elm,st,weight,ifail)
+    thread_id = 1
+    !$ thread_id = omp_get_thread_num()+1
+    !$omp do schedule(dynamic,chunksize)
+#endif
+    do ii=1,n_particles
+      i_elm = 0; st = -1.d0; weight = 0d0;
+      !> loop until the particle is not valid, it can slow down the code
+      !> but before trying a manual load balacing has done in initialise_particles_H_mu_psi
+      !> let's check how the openMP dynamic scheduling performs using different chunksize
+      do while(rejection_funct_gpdf(n_variables,variables(1:n_variables),st,time,i_elm,weight,&
+        variables(n_variables+1),phase_bounds(:,1),phase_bounds(:,2),fields,pdf,gdf,&
+        one_over_sup_pdf,one_over_sup_gdf,n_real_pdf_param,real_pdf_param,n_int_pdf_param,&
+        int_pdf_param,n_real_gdf_param,real_gdf_param,n_int_gdf_param,int_gdf_param))
+        !> uniform sampling in cylindrical coordinates for the physical space (R,Z,phi),
+        !> and general coordinates for the phase space
+        call rngs(thread_id)%next(variables)
+        call gdf_sampler(n_variables,variables(1:n_variables),st,time,i_elm,fields,&
+        phase_bounds(:,1),phase_bounds(:,2),n_real_gdf_param,real_gdf_param,&
+        n_int_gdf_param,int_gdf_param)
+        weight = weight_f(n_variables,variables(1:n_variables),st,time,&
+                 i_elm,fields,phase_bounds(:,1),phase_bounds(:,2),n_real_weight_param,&
+                 real_weight_param,n_int_weight_param,int_weight_param)
+      enddo
+      !> store the values of accepted particles 
+      particles(ii)%x      = variables(1:3)
+      particles(ii)%st     = st
+      particles(ii)%i_elm  = i_elm
+      particles(ii)%weight = weight
+      !> transform the remaining variables of the sampe in particle coordinates
+      call sample_to_particle(particles(ii),n_variables,variables(1:n_variables),time,fields,&
+      n_real_samp_to_part_param,real_samp_to_part_param,n_int_samp_to_part_param,&
+      int_samp_to_part_param)
+    enddo
+#ifndef __NVCOMPILER
+    !$omp end do
+    !$omp end parallel
+#endif
+
+  !> clean-up
+  call system_clock(t1)
+  deallocate(variables); deallocate(rngs);
+  if(allocated(real_pdf_param))          deallocate(real_pdf_param)
+  if(allocated(int_pdf_param))           deallocate(int_pdf_param)
+  if(allocated(real_weight_param))       deallocate(real_weight_param)
+  if(allocated(int_weight_param))        deallocate(int_weight_param)
+  if(allocated(real_gdf_param))          deallocate(real_gdf_param)
+  if(allocated(int_gdf_param))           deallocate(int_gdf_param)
+  if(allocated(real_samp_to_part_param)) deallocate(real_samp_to_part_param)
+  if(allocated(int_samp_to_part_param))  deallocate(int_samp_to_part_param)
+  write(*,'(i5,A,2f12.4)') my_id, ' Time particle initialize system (s) :',real(t1-t0,kind=8)/1d3
+  if (my_id .eq. 0) then
+    write(*,*) '* done initialising particles    *'
+    write(*,*) '**********************************'
+  endif
+
+end subroutine initialise_particles_in_phase_space
+
+!> rejection function of the acceptance - rejection method
+!> inputs:
+!>   n_x:              (integer) number of variables
+!>   x:                (real8)(n_x) variables
+!>   st:               (real8)(2) jorek mesh local coordinates
+!>   i_elm:            (integer) jorek element number
+!>   weight:           (real8) particle weight
+!>   rand:             (real8) uniformly distributed random number [0,1]
+!>   fields:           (fields_base) jorek MHD fields
+!>   pdf:              (real_f) procedure returning the value of the
+!>                     probability density function at a given point
+!>   gdf:              (real_f) procedure returning the value of the
+!>                     probability density function used for generating
+!>                     the variables to be tested
+!>   one_over_sup_pdf: (real8) 1/upper bound of the pdf
+!>   one_over_sup_gdf: (real8) 1/upper bound of the gdf
+!>   n_real_pdf_param: (integer) N# of double parameters of the pdf
+!>   real_pdf_param:   (real8)(n_real_pdf_param) pdf double parameters
+!>   n_int_pdf_param:  (integer) N# of integer parameters of the pdf
+!>   int_pdf_param:    (integer)(n_int_pdf_param) pdf integer parameters
+!>   n_real_gdf_param: (integer) N# of double parameters of the gdf
+!>   real_gdf_param:   (real8)(n_real_pdf_param) gdf double parameters
+!>   n_int_gdf_param:  (integer) N# of integer parameters of the gdf
+!>   int_gdf_param:    (integer)(n_int_pdf_param) gdf integer parameters
+!> outputs:
+!>   rej: (logical) if true the sample is rejected
+function rejection_funct_gpdf(n_x,x,st,time,i_elm,weight,rand,&
+x_min,x_max,fields,pdf,gdf,one_over_sup_pdf,one_over_sup_gdf,&
+n_real_pdf_param,real_pdf_param,n_int_pdf_param,int_pdf_param,&
+n_real_gdf_param,real_gdf_param,n_int_gdf_param,int_gdf_param) result(rej)
+  use mod_fields, only: fields_base
+  implicit none
+  !> input variables
+  class(fields_base),intent(in)    :: fields
+  integer,intent(in)               :: n_x,i_elm
+  integer,intent(in)               :: n_real_pdf_param, n_int_pdf_param
+  integer,intent(in)               :: n_real_gdf_param, n_int_gdf_param
+  integer,dimension(:),allocatable,intent(in) :: int_pdf_param,int_gdf_param
+  real*8,intent(in)                :: weight,time,rand,one_over_sup_pdf,one_over_sup_gdf
+  real*8,dimension(2)              :: st
+  real*8,dimension(n_x),intent(in) :: x,x_min,x_max
+  real*8,dimension(:),allocatable,intent(in) :: real_pdf_param,real_gdf_param
+  procedure(real_f)                :: pdf,gdf
+  !> output variables
+  logical :: rej
+  real*8 :: norm_pdf,norm_gdf
+
+  !> check if the particle is valid
+  rej = .true.
+  if(i_elm.le.0) return
+  if(weight.le.0d0) return
+  if((st(1).lt.0.d0).or.(st(1).gt.1.d0)) return
+  if((st(2).lt.0.d0).or.(st(2).gt.1.d0)) return
+  !> check if the pdf is valid
+  norm_pdf = one_over_sup_pdf*pdf(n_x,x,st,time,i_elm,fields,x_min,&
+  x_max,n_real_pdf_param,real_pdf_param,n_int_pdf_param,int_pdf_param)
+  norm_gdf = one_over_sup_gdf*gdf(n_x,x,st,time,i_elm,fields,x_min,&
+  x_max,n_real_gdf_param,real_gdf_param,n_int_gdf_param,int_gdf_param)
+  if(norm_pdf.lt.0d0) then
+    write(*,*) 'pdf/sup(pdf) smaller than 0: skip!' 
+    return
+  endif
+  if(norm_gdf.lt.0d0) then
+    write(*,*) 'gdf/sup(gdf) smaller than 0: skip!' 
+    return
+  endif
+  if(norm_pdf.gt.1d0) write(*,*) 'WARNING: normalised pdf > 1: increase the pdf extremum safety factor'
+  if(norm_gdf.gt.1d0) write(*,*) 'WARNING: normalised gdf > 1: increase the pdf extremum safety factor'
+  !> reject or accept solution
+  if((rand*norm_gdf).le.norm_pdf) rej = .false.
+  
+end function rejection_funct_gpdf
 
 !> Initialise particle positions in E, mu, (psi, theta|R, Z), phi, gamma (gyrophase) space.
 !> Set Psi_transform to transform from [0,1] to your desired range
