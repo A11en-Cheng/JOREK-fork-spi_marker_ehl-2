@@ -500,7 +500,7 @@ omp_tid      = 0
 !$omp                heli_tot, mag_wk_tot, vpar_disp_tot, thm_wk_tot, area1, mag_src_tot,     &
 !$omp                fric_disp_tot, Vol_surface, De_surface, Pe_surface, R2curr_tmp, Zcurr_tmp,&
 !$omp                C_intern_3d,C_ext_3d,H_impl_int, H_impl_ext, vprp_disp_tot,              &
-!$omp                thm_wk_e_tot, thm_wk_i_tot, vprp_disp_tot, H_impl_int,H_impl_ext)
+!$omp                thm_wk_e_tot, thm_wk_i_tot)
 
 do ife = ife_min, ife_max
 
