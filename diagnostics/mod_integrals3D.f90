@@ -403,7 +403,6 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp          n_nonlocal_array, n_flux,                                                       &
 !$omp          T_min_neg, Tie_min_neg, H_impl_int,H_impl_ext,implicit_heat_source,GAMMA,       &
 !$omp          C_intern_3d,C_ext_3d,pellet_amplitude,pellet_R,pellet_Z,pellet_psi,pellet_phi,  &
-!$omp          T_min_neg, Tie_min_neg, H_impl_int,H_impl_ext,implicit_heat_source,GAMMA,       &
 !$omp          pellet_radius, pellet_delta_psi, pellet_sig, pellet_length, pellet_ellipse, pellet_theta,  &
 !$omp          central_density, pellet_particles,pellet_density, pellet_volume,                &
 !$omp          local_pellet_particles, local_plasma_particles, local_pellet_volume,            &
