@@ -362,7 +362,8 @@ do m=1, n_plane
           D_prof   = get_dperp (psi_norm)
           ZK_prof  = get_zkperp(psi_norm)
 
-          call conductivity_parallel(ZK_par, ZK_par_max, T, corr_neg_temp(T), T_min_ZKpar, T_0, ZKpar_T)
+          call conductivity_parallel(ZK_par, ZK_par_max, T, corr_neg_temp(T), T_min_ZKpar, T_0, &
+                                 ZKpar_T, ZK_par_neg_thresh, ZK_par_neg)
 
           scalars(inode,1) = psi
           scalars(inode,2) = rho
@@ -384,8 +385,8 @@ do m=1, n_plane
 
             if (abs(xjac) .gt. 1.d-7) then
 
-            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) + F0/BigR * T_p) / BigR / BB2 &
-                             * (-psi_s*normal)) /BigR /sqrt(R_s**2+Z_s**2) 
+            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) ) / BigR / BB2 &
+                             * (-psi_s*normal)) /BigR /sqrt(R_s**2+Z_s**2) / (gamma-1.d0) 
 
             scalars(inode,8) = - ZK_prof * ( T_t   * (R_s**2 + Z_s**2) - T_s   * (R_s*R_t+Z_s*Z_t)) / Xjac &
                              / sqrt(R_s**2+Z_s**2) * normal
@@ -423,8 +424,8 @@ do m=1, n_plane
  
             if (abs(xjac) .gt. 1.d-7) then
 
-            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) + F0/BigR * T_p) / BigR / BB2 &
-                             * (psi_t*normal)) /BigR /sqrt(R_t**2+Z_t**2) 
+            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) ) / BigR / BB2 &
+                             * (psi_t*normal)) /BigR /sqrt(R_t**2+Z_t**2) / (gamma-1.d0)
 
             scalars(inode,8) = - ZK_prof * ( T_s   * (R_t**2 + Z_t**2) - T_t   * (R_s*R_t+Z_s*Z_t)) / Xjac &
                              / sqrt(R_t**2+Z_t**2) * normal
