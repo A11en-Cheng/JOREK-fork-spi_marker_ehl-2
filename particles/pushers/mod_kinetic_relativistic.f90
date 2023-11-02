@@ -585,6 +585,8 @@ subroutine relativistic_kinetic_to_particle(node_list,element_list,particle_in, 
   class(particle_base), intent(out)               :: particle_out
 
   select type (particle_out)
+  type is (particle_kinetic_relativistic)
+     particle_out = particle_in
   type is (particle_gc)
      particle_out = relativistic_kinetic_to_gc(node_list,element_list, &
        particle_in,mass,B)

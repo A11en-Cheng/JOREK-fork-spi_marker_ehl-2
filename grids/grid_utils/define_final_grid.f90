@@ -9,7 +9,7 @@ use tr_module
 use data_structure
 use grid_xpoint_data
 use mod_interp
-use phys_module, only: write_ps, force_central_node, SDN_threshold, fix_axis_nodes, treat_axis
+use phys_module, only: write_ps, force_central_node, fix_axis_nodes, treat_axis
 use mod_grid_conversions
 use mod_poiss
 use mod_node_indices

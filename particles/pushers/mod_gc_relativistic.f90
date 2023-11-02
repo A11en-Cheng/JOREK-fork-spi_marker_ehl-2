@@ -125,8 +125,9 @@ contains
     implicit none
     !> input/output variables
     type(particle_gc_relativistic), intent(inout) :: particle
-    real(kind=8), intent(inout) :: t, dt
+    real(kind=8), intent(inout) :: dt
     !> input variables
+    real(kind=8), intent(in)       :: t
     class(fields_base), intent(in) :: fields
     real(kind=8), intent(in)       :: t_stop,mass
     !> internal variables
@@ -631,6 +632,8 @@ contains
         
     !> select particle type
     select type (particle_out)
+    type is (particle_gc_relativistic)
+       particle_out = relativistic_gc
     type is (particle_gc)
        particle_out = relativistic_gc_to_gc(relativistic_gc,mass,B)
     type is (particle_kinetic_relativistic)

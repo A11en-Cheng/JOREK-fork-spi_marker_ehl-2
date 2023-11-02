@@ -298,6 +298,7 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
     write(*,REAL_FMT) 'dPSI_up_priv          ', dPSI_up_priv
     write(*,INTG_FMT) 'first_target_point    ', first_target_point
     write(*,INTG_FMT) 'last_target_point     ', last_target_point
+    write(*,LOGI_FMT) 'forceSDN              ', forceSDN
     write(*,REAL_FMT) 'SDN_threshold         ', SDN_threshold
   end if
 

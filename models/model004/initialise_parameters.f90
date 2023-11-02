@@ -87,6 +87,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 pellet_particles, use_pellet,                       &
                 ellip,tria_u,tria_l,quad_u,quad_l,                  &
                 xampl,xwidth,xsig,xtheta,xshift,xleft, xpoint,      &
+                forceSDN,                                           &
                 xcase, SDN_threshold, D_perp_file, ZK_perp_file,    &
                 ZK_e_perp_file, ZK_i_perp_file,                     &
                 rho_file, T_file, Ti_file, Te_file, ffprime_file,   &

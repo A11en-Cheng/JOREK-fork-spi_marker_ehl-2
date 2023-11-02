@@ -223,6 +223,7 @@ real*8    :: v_temp(3), T_eV, K_eV, v_kin_temp, B_norm(3), v, v_v, v_E
 real*8    :: density_tot, density_in, density_out,  pressure, pressure_in, pressure_out
 real*8    :: mom_par_tot, mom_par_in, mom_par_out, kin_par_tot, kin_par_out, kin_par_in
 real*8    :: particles_remaining, momentum_remaining, energy_remaining, all_particles, all_momentum, all_energy
+real,dimension(n_var) :: varmin,varmax
 
 n_norm   = CENTRAL_DENSITY * 1.d20                              ! (number) density normalisation
 rho_norm = CENTRAL_MASS * MASS_PROTON * n_norm                  ! rho_SI = rho_norm * rho
@@ -481,8 +482,8 @@ do while (.not. sim%stop_now)
   call with(sim, events, at=sim%time)
 !===================================================
 
-!  call Integrals_3D(sim%my_id, sim%fields%node_list, sim%fields%element_list, density_tot, density_in, density_out, &
-!                    pressure, pressure_in, pressure_out, kin_par_tot, kin_par_in, kin_par_out, mom_par_tot, mom_par_in, mom_par_out)
+  call Integrals_3D(sim%my_id, sim%fields%node_list, sim%fields%element_list, density_tot, density_in, density_out, &
+  pressure, pressure_in, pressure_out, kin_par_tot, kin_par_in, kin_par_out, mom_par_tot, mom_par_in,mom_par_out,varmin,varmax)
 
   particles_remaining = 0.d0
   momentum_remaining  = 0.d0

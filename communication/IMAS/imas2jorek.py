@@ -1,0 +1,372 @@
+
+import imas, os, copy 
+import numpy as np
+from imas import imasdef
+import argparse
+import getpass
+from scipy import interpolate
+from scipy.interpolate import griddata
+import matplotlib.pyplot as plt
+
+
+def build_JOREK_boundary(tokamak_name):
+
+  R_scale = 1
+
+  if (tokamak_name == 'ITER'):
+    #--------------------close fit to ITER wall
+    ellip  = 2.0
+    tria_u = 0.55
+    tria_l = 0.65
+    quad_u = -0.1
+    quad_l = 0.15
+    n_tht  = 257
+    r0     = 6.2  * R_scale
+    z0     = 0.1  * R_scale
+    a0     = 2.25 * R_scale
+  
+    #-------------------- contour outside ITER wall
+    ellip  = 2.1
+    tria_u = 0.58
+    tria_l = 0.65
+    quad_u = -0.12
+    quad_l = -0.
+    n_tht  = 257
+    r0     = 6.2   * R_scale
+    z0     = -0.05 * R_scale
+    a0     = 2.34  * R_scale
+    a0     = 2.30  * R_scale
+  
+  elif (tokamak_name == 'JET'):
+    
+    #-------------------- contour outside JET wall
+    # blue contour in https://www.jorek.eu/wiki/doku.php?id=eqdsk2jorek.f90
+    ellip  = 1.85
+    tria_u = 0.4
+    tria_l = 0.4
+    quad_u = -0.2
+    quad_l = -0.2
+    n_tht  = 257
+    r0     = 2.9  * R_scale
+    z0     = 0.1  * R_scale
+    a0     = 1.08 * R_scale
+  
+    #-------------------- contour to avoid too long divertor legs
+    # red contour in https://www.jorek.eu/wiki/doku.php?id=eqdsk2jorek.f90
+    ellip  = 1.7
+    tria_u = 0.4
+    tria_l = 0.4
+    quad_u = -0.4
+    quad_l = -0.2
+    n_tht  = 257
+    r0     = 2.85 * R_scale
+    z0     = 0.15 * R_scale
+    a0     = 1.1  * R_scale
+
+  elif (tokamak_name == 'inxflow'):
+    
+    #-------------------- contour outside JET wall
+    # blue contour in https://www.jorek.eu/wiki/doku.php?id=eqdsk2jorek.f90
+    ellip  = 1.7
+    tria_u = 0.0
+    tria_l = 0.0
+    quad_u = 0
+    quad_l = -0.4
+    n_tht  = 257
+    r0     = 3.0  * R_scale
+    z0     = 0.0  * R_scale
+    a0     = 0.98 * R_scale
+  
+  elif (tokamak_name == 'DIII-D'):
+  
+    #-------------------- contour outside DIII-D wall
+    ellip  = 1.85
+    tria_u = 0.4
+    tria_l = 0.4
+    quad_u = -0.2
+    quad_l = -0.2
+    n_tht  = 257
+    r0     = 1.7 * R_scale
+    z0     = 0.  * R_scale
+    a0     = 0.7 * R_scale
+    
+    #-------------------- Atomic physics JOREK/NIMROD/M3D-C1 benchmark case (paper by B. Lyons)
+    ellip  = 1.35/0.7
+    tria_u = 0.3
+    tria_l = 0.3
+    quad_u = 0.
+    quad_l = 0.
+    n_tht  = 257
+    r0     = 1.7 * R_scale
+    z0     = 0.  * R_scale
+    a0     = 0.7 * R_scale
+  
+  else:
+    print( 'Tokamak name not available or wrongly specified, stopping' )
+ 
+  r_bnd = np.zeros( n_tht )
+  z_bnd = np.zeros( n_tht )
+
+  n_mid = int(n_tht/2)
+ 
+  for i in range(1, n_mid + 1):
+    angle    = 2 * np.pi * float(i-1)/float(n_tht-1)
+    r_bnd[i-1] = r0 + a0 * np.cos(angle + tria_u*np.sin(angle) + quad_u*np.sin(2*angle))
+    z_bnd[i-1] = z0 + a0 * ellip * np.sin(angle)
+  for i in range(n_mid + 1,n_tht+1):
+    angle    = 2 * np.pi * float(i-1)/float(n_tht-1)
+    r_bnd[i-1] = r0 + a0 * np.cos(angle + tria_l*np.sin(angle) + quad_l*np.sin(2*angle))
+    z_bnd[i-1] = z0 + a0 * ellip * np.sin(angle)
+
+  return r_bnd, z_bnd, r0, z0
+
+print(" ")
+print(" Example of usage: ")
+print("    python imas2jorek.py -s 105033 -r 1 -u public -ts 120 -d ITER")
+print(" ")
+print(" To see options and default values do: ")
+print("    python imas2jorek.py -h ")
+
+# Import shot
+parser = argparse.ArgumentParser(description="Create a JOREK input file from an equilibrium IDS in a given IMAS database",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("-s", "--shot", type=int, default=1, help="Shot number")
+parser.add_argument("-r", "--run", type=int, default=7, help="Run number")
+parser.add_argument("-u", "--user", type=str, default=getpass.getuser(),
+                    help="Location of ~$USER/public/imasdb")
+parser.add_argument("-d", "--database", type=str, default="test_db", help="Database name under public/imasdb/")
+parser.add_argument("-o", "--occurrence", type=int, default=0, help="Occurrence number")
+parser.add_argument("-tk", "--tokamak", type=str, default="ITER", help="Name of the tokamak (to construct R,Z boundary)")
+parser.add_argument("-f", "--backend", type=int, default=imasdef.MDSPLUS_BACKEND,
+                    help="Database format: 12=MDSPLUS, 13=HDF5")
+parser.add_argument("-ts", "--time_slice", type=int, default=0, help="The time slice index")
+args = parser.parse_args()
+
+it = args.time_slice
+
+# cocos factors
+cocos_psi  =  1.0/(2*np.pi)       # Transform to COCOS convention 11 --> 8
+cocos_curr = -1.0 
+cocos_Bphi = -1.0
+
+input = imas.ids(args.shot,args.run,0,0)
+input.open_env(args.user, args.database,'3')
+input.equilibrium.get()
+input.pf_active.get()
+input.core_profiles.get()
+
+########## Create boundary of the JOREK domain ###############
+boundary_line = build_JOREK_boundary(args.tokamak)
+R_bnd = boundary_line[0] 
+Z_bnd = boundary_line[1] 
+R_geo = boundary_line[2] 
+Z_geo = boundary_line[3] 
+###############################################################
+
+# Constants
+mu0      = 12.566370614359e-7
+m_proton = 1.67262192e-27
+e_ch     = 1.6021766e-19
+
+# Read 0D parameters
+a_min        = input.equilibrium.time_slice[it].boundary_separatrix.minor_radius
+eps          = a_min / R_geo
+B_geo        = input.equilibrium.vacuum_toroidal_field.r0 * input.equilibrium.vacuum_toroidal_field.b0[0] / R_geo * cocos_Bphi
+xip          = input.equilibrium.time_slice[it].global_quantities.ip           * cocos_curr
+psi_axis     = input.equilibrium.time_slice[it].global_quantities.psi_axis     * cocos_psi
+psi_boundary = input.equilibrium.time_slice[it].global_quantities.psi_boundary * cocos_psi
+beta_p       = input.equilibrium.time_slice[it].global_quantities.beta_pol                
+beta_tor     = input.equilibrium.time_slice[it].global_quantities.beta_tor                
+beta_normal  = input.equilibrium.time_slice[it].global_quantities.beta_normal             
+li3          = input.equilibrium.time_slice[it].global_quantities.li_3                    
+volume       = input.equilibrium.time_slice[it].global_quantities.volume                  
+area         = input.equilibrium.time_slice[it].global_quantities.area                    
+q_axis       = input.equilibrium.time_slice[it].global_quantities.q_axis                  
+q_95         = input.equilibrium.time_slice[it].global_quantities.q_95                    
+Wth          = input.equilibrium.time_slice[it].global_quantities.energy_mhd              
+R_axis       = input.equilibrium.time_slice[it].global_quantities.magnetic_axis.r         
+Z_axis       = input.equilibrium.time_slice[it].global_quantities.magnetic_axis.z         
+#R_xpoint     = input.equilibrium.time_slice[it].boundary_separatrix.x_point.r        
+#Z_xpoint     = input.equilibrium.time_slice[it].boundary_separatrix.x_point.z        
+
+print( ' Ip                = %s MA'%(xip* 1e-6) )
+print( ' B_geo             = %s T'%(B_geo) )
+print( ' a_min             = %s m'%(a_min) )
+print( ' area              = %s m^2'%(area) )
+print( ' volume            = %s m^3'%(volume) )
+print( ' psi_axis, psi_bnd, difference  = %s , %s , %s Wb/rad'%(psi_axis, psi_boundary, psi_boundary-psi_axis) )
+print( ' beta_p, beta_tor, beta_norm    = %s , %s , %s '%(beta_p, beta_tor, beta_normal) )
+print( ' li3, q_axis, q_95              = %s , %s , %s '%(li3, q_axis, q_95) )
+print( ' R_axis, Z_axis                 = %s , %s '%(R_axis, Z_axis) )
+#print( ' R_xpoint, Z_xpoint             = %s , %s '%(R_xpoint, Z_xpoint) )
+
+
+# Read 1D profiles  
+psi_1d      = input.equilibrium.time_slice[it].profiles_1d.psi                 * cocos_psi
+qprof       = input.equilibrium.time_slice[it].profiles_1d.q     #             * cocos_psi
+pressure_1d = input.equilibrium.time_slice[it].profiles_1d.pressure
+ffprime_1d  = input.equilibrium.time_slice[it].profiles_1d.f_df_dpsi     *(-1.0)      / cocos_psi  
+ions        = input.core_profiles.profiles_1d[it].ion
+Te_ids      = input.core_profiles.profiles_1d[it].electrons.temperature
+#jtor_ids    = input.core_profiles.profiles_1d[it].j_tor
+psi_1d_core = input.core_profiles.profiles_1d[it].grid.psi * cocos_psi
+
+# Get ion density profile
+n_tot    = np.zeros( len(ions[0].density))
+rho_tot  = np.zeros( len(ions[0].density))
+
+for ion in ions:
+    n_tot   += ion.density
+    rho_tot += ion.density*ion.element[0].a * m_proton
+
+psi_norm    = (psi_1d      - psi_axis) / (psi_boundary - psi_axis)
+psi_norm2   = (psi_1d_core - psi_axis) / (psi_boundary - psi_axis)
+
+# Export 1d profiles to compare with JOREK
+np.savetxt('profiles_ids.txt', np.transpose([psi_norm2, Te_ids, n_tot, qprof]   ) )
+
+# Read 2D profiles  
+R_2d   = input.equilibrium.time_slice[it].profiles_2d[0].r
+Z_2d   = input.equilibrium.time_slice[it].profiles_2d[0].z
+psi_2d = input.equilibrium.time_slice[it].profiles_2d[0].psi  * cocos_psi
+
+# Read PF coil currents
+coils  = input.pf_active.coil
+
+# Get poloidal flux at the JOREK boundary
+Ra = R_2d.flatten()
+Za = Z_2d.flatten()
+pa = psi_2d.flatten()
+
+psi_bnd = griddata((Ra, Za), pa, (R_bnd, Z_bnd))  
+
+n0              = n_tot[0]
+central_density = n0*1e-20
+central_mass    = rho_tot[0] / (n0 * m_proton)
+rho_unit        = rho_tot / rho_tot[0]
+
+# Extend profiles into the SOL
+n_sol          = 80
+n_core         = len(psi_1d)
+n_tot          = n_sol + n_core
+psin_sol       = 2.0
+psin_sep       = psi_norm[-1] + (psi_norm[-1] - psi_norm[-2])
+
+psi_norm_ext    = np.zeros( n_tot )
+ffprime_1d_ext  = np.zeros( n_tot )
+pressure_1d_ext = np.zeros( n_tot )
+rho_1d_ext      = np.zeros( n_tot )
+
+# Fill core values in
+psi_norm_ext   [0:n_core] = psi_norm
+ffprime_1d_ext [0:n_core] = ffprime_1d
+pressure_1d_ext[0:n_core] = pressure_1d
+rho_1d_ext     [0:n_core] = rho_unit 
+
+# Extend psi
+psi_norm_ext[n_core:n_tot] = np.linspace(psin_sep,psin_sol,num=n_sol) 
+
+# Fill SOL with last values
+ffprime_1d_ext  [n_core:n_tot] = np.full( n_sol,  ffprime_1d[-1] ) 
+pressure_1d_ext [n_core:n_tot] = np.full( n_sol, pressure_1d[-1] ) 
+rho_1d_ext      [n_core:n_tot] = np.full( n_sol,    rho_unit[-1] ) 
+
+# Ramp-down values in the SOL
+ramp_down   = 0.5*(1 - np.tanh((psi_norm_ext - 1.01)/0.01) )
+
+rho_bnd     = rho_unit[-1]
+rho_1d_ext  = (rho_1d_ext-rho_bnd) * ramp_down + rho_bnd
+#rho_1d_ext  = np.full( n_tot,    1.0 ) 
+
+temp_1d_ext = pressure_1d_ext*mu0 /rho_1d_ext  # p/rho_mass (as specified in the JOREK normalization wiki)
+T_bnd       = 2 * (e_ch * mu0 * n0 )           # 2 eVs
+temp_1d_ext = (temp_1d_ext-T_bnd) * ramp_down + T_bnd
+
+# Export profiles
+np.savetxt('jorek_density',         np.transpose( [psi_norm_ext, rho_1d_ext]     ) )
+np.savetxt('jorek_temperature',     np.transpose( [psi_norm_ext, temp_1d_ext]    ) )
+np.savetxt('jorek_ffprime',         np.transpose( [psi_norm_ext, ffprime_1d_ext] ) )
+
+# Write namelist files
+namelist = open('jorek_namelist', 'w')
+  
+namelist.write( "***********************************************\n")
+namelist.write( "* namelist from imas2jorek.py                 *\n")
+namelist.write( "***********************************************\n")
+
+namelist.write(" &in1"+"\n")
+
+namelist.write("  tstep = 1."+"\n")
+namelist.write("  nstep = 0"+"\n")
+namelist.write("\n")
+namelist.write("  freeboundary       = .f."+"\n")
+namelist.write("  resistive_wall     = .f."+"\n")
+namelist.write("  freeboundary_equil = .f."+"\n")
+namelist.write("\n")
+namelist.write("  psi_axis_init = %18.9e \n"%(psi_axis))
+namelist.write("  amix          = 0.d0"+"\n")
+namelist.write("  amix_freeb    = 0.d0"+"\n")
+namelist.write("  use_mumps_eq  = .t."+"\n")
+namelist.write("\n")
+for i in range(0, len(coils)):
+    namelist.write("  pf_coils(%3d)%current = %18.9e  ! %s \n"%(i, coils[i].current.data[it]*cocos_curr, coils[i].name))
+    
+namelist.write("\n")
+namelist.write("  n_R      = 0"+"\n")
+namelist.write("  n_Z      = 0"+"\n")
+namelist.write("  n_radial = 41"+"\n")
+namelist.write("  n_pol    = 64"+"\n")
+namelist.write("  n_flux   = 0"+"\n")
+namelist.write("  n_tht    = 64"+"\n")
+namelist.write("  n_open   = 15"+"\n")
+namelist.write("  n_leg    = 15"+"\n")
+namelist.write("  n_private = 9"+"\n")
+namelist.write("  dPSI_open    = 0.04"+"\n")
+namelist.write("  dPSI_private = 0.02"+"\n")
+namelist.write(" "+"\n")
+namelist.write("  rho_file     = 'jorek_density'"+"\n")
+namelist.write("  T_file       = 'jorek_temperature'"+"\n")
+namelist.write("  ffprime_file = 'jorek_ffprime'"+"\n")
+namelist.write(" "+"\n")
+
+namelist.write(" "+"\n")
+namelist.write("  F0 = %18.9e \n"%(R_geo * B_geo))
+namelist.write("  xpoint = .t."+"\n")
+namelist.write("\n")
+namelist.write("  D_par     = 0.d0"+"\n")
+namelist.write("  D_perp(1) = 1.d-6"+"\n")
+namelist.write("  D_perp(2) = 0.85d0"+"\n")
+namelist.write("  D_perp(3) = 0.d0"+"\n")
+namelist.write("  D_perp(4) = 0.01d0"+"\n")
+namelist.write("  D_perp(5) = 2.d0"+"\n")
+namelist.write("  ZK_par     = 1.d0"+"\n")
+namelist.write("  ZK_perp(1) = 1.d-6"+"\n")
+namelist.write("  ZK_perp(2) = 0.85d0"+"\n")
+namelist.write("  ZK_perp(3) = 0.d0"+"\n")
+namelist.write("  ZK_perp(4) = 0.01d0"+"\n")
+namelist.write("  ZK_perp(5) = 2.0d0"+"\n")
+namelist.write(""+"\n")
+namelist.write("  heatsource     = 0.d0"+"\n")
+namelist.write("  particlesource = 0.d0"+"\n")
+namelist.write(""+"\n")
+namelist.write("  central_mass    = %18.9e \n"%(central_mass))
+namelist.write("  central_density = %18.9e \n"%(central_density))
+namelist.write(""+"\n")
+namelist.write("  R_geo = %18.9e \n"%(R_geo))
+namelist.write("  Z_geo = %18.9e \n"%(Z_geo))
+namelist.write("  mf = 0 \n")
+namelist.write("  n_boundary = "+str(len(R_bnd))+"\n")
+
+for i in range(0, len(R_bnd)):
+    namelist.write("  R_boundary(%3d)= %18.9e, Z_boundary(%3d)= %18.9e, psi_boundary(%3d)= %18.9e \n" %(i+1, R_bnd[i], i+1, Z_bnd[i], i+1, psi_bnd[i]) )
+
+namelist.write( "/"+"\n")
+namelist.close()
+
+
+#fig = plt.figure()
+#ax = fig.add_subplot(111)
+#ax.plot(R_bnd,Z_bnd)
+#cax = ax.pcolor(R_2d,Z_2d,psi_2d, cmap='rainbow')
+#cbar = fig.colorbar(cax)
+#plt.show()

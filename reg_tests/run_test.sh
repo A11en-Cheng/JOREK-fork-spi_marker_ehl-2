@@ -259,6 +259,7 @@ if [ "$compile" == "yes" ]; then
     mv $binaries_initial $testcasedir/ || exit 1
   fi
   mv $binaries $testcasedir/ || exit 1
+
 fi
 
 
@@ -267,6 +268,10 @@ returncode=0
 if [ "$runit" == "yes" ]; then
   mkdir -p $tmpdir
   # --- Copy files
+  if [ "$python_scripts" != "" ]; then
+    cp $python_scripts $tmpdir/                           || exit 1
+  fi
+
   cd $testcasedir
   echo " requiredfiles=" $requiredfiles
   cp $requiredfiles $tmpdir                               || exit 1

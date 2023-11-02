@@ -44,6 +44,7 @@ real*8    :: particle_source, velocity_par_source, energy_source
 real*8    :: density_tot, density_in, density_out,  pressure, pressure_in, pressure_out
 real*8    :: mom_par_tot, mom_par_in, mom_par_out, kin_par_tot, kin_par_out, kin_par_in
 real*8    :: particles_remaining, momentum_remaining, energy_remaining
+!real*8,dimension(n_var) :: varmin,varmax
 !$ real*8 :: w0, w1, mmm(3)
 
 integer, intent(in)   :: n_steps
@@ -336,7 +337,8 @@ endif
   !$ if (sim%my_id .eq. 0) write(*,"(f10.7,A,3f9.4,A)") sim%time, " Particle stepping complete in ", mmm, "s"
 
   ! call Integrals_3D(sim%my_id, sim%fields%node_list, sim%fields%element_list, density_tot, density_in, density_out, &
-  !                   pressure, pressure_in, pressure_out, kin_par_tot, kin_par_in, kin_par_out, mom_par_tot, mom_par_in, mom_par_out)
+  !                   pressure, pressure_in, pressure_out, kin_par_tot, kin_par_in, kin_par_out, mom_par_tot, mom_par_in,
+  !                   mom_par_out,varmin,varmax)
 
   particles_remaining = 0.d0
   momentum_remaining  = 0.d0
