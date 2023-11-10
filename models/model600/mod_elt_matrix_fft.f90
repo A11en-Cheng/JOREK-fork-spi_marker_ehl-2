@@ -5480,11 +5480,11 @@ subroutine construct_pressure()
               + (r0+rimp0*alpha_i) * Ti0_xy
 
      Pe0    = (r0+rimp0*alpha_e) * Te0
-     Pe0_x  = (r0_x+rimp0_x*alpha_e) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_x
-     Pe0_y  = (r0_y+rimp0_y*alpha_e) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_y
-     Pe0_s  = (r0_s+rimp0_s*alpha_e) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_s
-     Pe0_t  = (r0_t+rimp0_t*alpha_e) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_t
-     Pe0_p  = (r0_p+rimp0_p*alpha_e) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_p
+     Pe0_x  = (r0_x+rimp0_x*alpha_e+rimp0*alpha_e_x) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_x
+     Pe0_y  = (r0_y+rimp0_y*alpha_e+rimp0*alpha_e_y) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_y
+     Pe0_s  = (r0_s+rimp0_s*alpha_e+rimp0*alpha_e_s) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_s
+     Pe0_t  = (r0_t+rimp0_t*alpha_e+rimp0*alpha_e_t) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_t
+     Pe0_p  = (r0_p+rimp0_p*alpha_e+rimp0*alpha_e_p) * Te0 + (r0+rimp0*alpha_e_bis) * Te0_p
      Pe0_ss = (r0_ss+rimp0_ss*alpha_e) * Te0 + 2.d0 * (r0_s+rimp0_s*alpha_e_bis) * Te0_s + (r0+rimp0*alpha_e_bis) * Te0_ss &
               + rimp0 * (2.d0*dalpha_e_dT + d2alpha_e_dT2*Te0) * (Te0_s)**2.d0
      Pe0_tt = (r0_tt+rimp0_tt*alpha_e) * Te0 + 2.d0 * (r0_t+rimp0_t*alpha_e_bis) * Te0_t + (r0+rimp0*alpha_e_bis) * Te0_tt &
