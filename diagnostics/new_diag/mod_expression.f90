@@ -210,7 +210,8 @@ module mod_expression
     call add(exprs_all, 'heatF_par_cv', 'Convective parallel heat flux (normal to the boundary)', 'boundary    ')
     call add(exprs_all, 'heatF_prp_cv', 'Convective perpend  heat flux (normal to the boundary)', 'boundary    ')
     call add(exprs_all, 'heatF_tot_cv', 'Convective total    heat flux (normal to the boundary)', 'boundary    ')
-    call add(exprs_all, 'heatF_total ', 'Total heat flux (normal to the boundary)              ', 'boundary    ')
+    call add(exprs_all, 'heatF_tot_th', 'Total thermal       heat flux (normal to the boundary)', 'boundary    ')
+    call add(exprs_all, 'heatF_total ', 'Total               heat flux (normal to the boundary)', 'boundary    ')
     call add(exprs_all, 'kinEn_F_perp', 'Perpend kinetic energy flux (normal to the boundary)  ', 'boundary    ')
     call add(exprs_all, 'kinEn_F_par ', 'Parall  kinetic energy flux (normal to the boundary)  ', 'boundary    ')
     call add(exprs_all, 'kinEn_F_tot ', 'Total   kinetic energy flux (normal to the boundary)  ', 'boundary    ')
@@ -625,13 +626,16 @@ module mod_expression
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
     real*8  :: Arad_bg, Brad_bg, Crad_bg
 #endif
+    !   -Effective charge of all species
+    real*8  :: Z_eff
+
     ! See https://www.jorek.eu/wiki/doku.php?id=model500_501_555 for details
     real*8  :: rimp0_corr
     ! Atomic physics coefficients:
     !   -Mass ratio between main ions and impurites (m_i/m_imp)
     real*8  :: m_i_over_m_imp
     !   -Mean impurity ionization state
-    real*8  :: Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, Z_eff, eta_coef
+    real*8  :: Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, eta_coef
     real*8  :: Z_eff_imp
     !   -Coefficients related to Z_imp
     real*8  :: alpha_i, alpha_e, dalpha_e_dT, dalpha_e_dx, dalpha_e_dy
@@ -1602,8 +1606,72 @@ module mod_expression
 
 #endif
 
-          if ( .not. with_impurities ) Z_eff = 1
-          call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, eta_T)          
+#ifdef WITH_Impurities
+
+          Te_corr_eV   = Te0_corr/(EL_CHG*MU_ZERO*central_density*1.d20)  ! Te in eV
+          Te_eV = Te0/(EL_CHG*MU_ZERO*central_density * 1.d20)
+  
+          if (allocated(P_imp)) deallocate(P_imp)
+          allocate(P_imp(0:imp_adas(index_main_imp)%n_Z))
+
+          call imp_cor(index_main_imp)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ),&
+                                     p_out=P_imp, z_avg=Z_imp)
+
+          alpha_imp = 0.5*m_i_over_m_imp*(Z_imp+1.) - 1.
+          beta_imp  = m_i_over_m_imp*Z_imp - 1.
+                  
+          r0_corr    = corr_neg_dens(r0,(/1.d-9,1.d-5/),1.d-3)
+          rimp0_corr = corr_neg_dens(rimp0,(/1.d-9,1.d-5 /),1.d-3)
+          ne_SI   = (r0_corr + beta_imp * rimp0_corr) * 1.d20 * central_density ! electron density (SI)
+
+          if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. rimp0 > 0.d0) then
+            Lrad = 0.
+            call radiation_function_linear(imp_adas(index_main_imp),imp_cor(index_main_imp),log10(ne_SI),   &
+                                           log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad)
+            Lrad = Lrad * m_i_over_m_imp ! Adjust since rimp0 is MASS density
+          else
+            Lrad = 0.
+          end if
+  
+          frad_bg = 0.
+          do i_imp = 1, n_adas
+            if (i_imp == index_main_imp) cycle
+            r_imp_bg = nimp_bg(i_imp) / (1.d20 * central_density)  ! Background impurity density in JU
+            if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. r_imp_bg > 0) then
+              Lrad_imp = 0.0
+              call radiation_function_linear(imp_adas(i_imp),imp_cor(i_imp),log10(ne_SI),   &
+                                             log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad_imp)
+              frad_bg = frad_bg + r_imp_bg * Lrad_imp 
+            else     
+              Lrad_imp = 0.
+              frad_bg = frad_bg
+            end if   
+          end do 
+          ne_JOREK = ne_SI / 1.d20 / central_density ! Put ne_SI back to JOREK units to have consistent fact_ne factor with other models (see below)
+
+          ! Calculate the effective charge of all species
+          Z_eff        = 0.
+
+          ! First get the value of Z_eff
+          Z_eff        = r0_corr - rimp0_corr
+          do ion_i=1, imp_adas(index_main_imp)%n_Z
+            Z_eff      = Z_eff + m_i_over_m_imp * rimp0_corr * P_imp(ion_i) * real(ion_i,8)**2
+          end do
+          Z_eff         = Z_eff / ne_JOREK
+          if (Z_eff < 1.) Z_eff = 1.
+          if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
+  
+#endif
+          if ( .not. with_impurities ) then 
+            Z_eff      = 1
+            r0_corr    = corr_neg_dens(r0)
+            rimp0      = 0.d0
+            rimp0_corr = 0.d0
+            beta_imp   = 0.d0
+          endif
+
+          call coulomb_log_ei(T_or_Te, T_or_Te_corr, r0, r0_corr, rimp0, rimp0_corr, beta_imp, ln_Lambda)
+          call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, ln_Lambda, eta_T)          
           
 #ifdef fullmhd
           dpsi_dt   = delta_g(var_A3) / tstep 
@@ -1971,8 +2039,11 @@ module mod_expression
               case ( 'heatF_tot_cv' )
                 res = pres_flux_tot * fact_flux
 
-              case ( 'heatF_total'  )
+              case ( 'heatF_tot_th'  )
                 res = (pres_flux_tot + ZKperp_flux + ZKpar_flux) * fact_flux
+
+              case ( 'heatF_total'  )
+                res = (pres_flux_tot + ZKperp_flux + ZKpar_flux + kin_flux_tot) * fact_flux
 
               case ( 'kinEn_F_par' )
                 res = kin_flux_par * fact_flux

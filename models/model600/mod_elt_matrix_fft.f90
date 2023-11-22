@@ -103,6 +103,7 @@ real*8     :: BigR_x, vv2, eta_T, visco_T, deta_dT, d2eta_d2T, dvisco_dT, d2visc
 real*8     :: visco_T_heating, dvisco_dT_heating, d2visco_dT2_heating
 real*8     :: eta_T_ohm, deta_dT_ohm, d2eta_d2T_ohm, deta_num_dT,  dvisco_num_dT, D_perp_num_psin, ZK_perp_num_psin, ZK_i_perp_num_psin, ZK_e_perp_num_psin
 real*8     :: deta_dr0, deta_drimp0, deta_dr0_ohm, deta_drimp0_ohm
+real*8     :: lnA, dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0
 real*8     :: Ti0_ps0_x, Ti_ps0_x, Ti0_psi_x, Ti0_ps0_y, Ti_ps0_y, Ti0_psi_y, v_ps0_x, v_psi_x, v_ps0_y, v_psi_y
 real*8     :: Te0_ps0_x, Te_ps0_x, Te0_psi_x, Te0_ps0_y, Te_ps0_y, Te0_psi_y
 
@@ -964,17 +965,28 @@ do i=1,n_vertex_max
             
           end if ! (with_TiTe) *********************************************************************
 
-          if (.not. with_impurities) Z_eff = 1.d0
+          if (.not. with_impurities) then
+            Z_eff       = 1.d0
+            alpha_e     = 0.d0
+            dalpha_e_dT = 0.d0
+          endif
+
+
+          ! --- Normalized coulomb logarithm for resistivity
+          call coulomb_log_ei(T_or_Te, T_or_Te_corr, r0, r0_corr, rimp0, rimp0_corr, alpha_e, lnA, dalpha_e_dT, &
+                              dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)
 
           ! --- Eta
-          call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, eta_T,      & 
-                           dZ_eff_dT, dZ_eff_dr0, dZ_eff_drimp0, dr0_corr_dn, drimp0_corr_dn,   & 
-                           deta_dT, d2eta_d2T, deta_dr0, deta_drimp0)           
+          call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, lnA, eta_T, & 
+                           dZ_eff_dT, dZ_eff_dr0, dZ_eff_drimp0, dr0_corr_dn, drimp0_corr_dn,             & 
+                           deta_dT, d2eta_d2T, deta_dr0, deta_drimp0,                                     &
+                           dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)           
 
           ! --- Eta ohmic
-          call resistivity(eta_ohmic, T_or_Te, T_or_Te_corr, T_max_eta_ohm, T_or_Te_0, Z_eff, eta_T_ohm,  &
+          call resistivity(eta_ohmic, T_or_Te, T_or_Te_corr, T_max_eta_ohm, T_or_Te_0, Z_eff, lnA, eta_T_ohm,  &
                            dZ_eff_dT, dZ_eff_dr0, dZ_eff_drimp0, dr0_corr_dn, drimp0_corr_dn,             & 
-                           deta_dT_ohm, d2eta_d2T_ohm, deta_dr0_ohm, deta_drimp0_ohm)           
+                           deta_dT_ohm, d2eta_d2T_ohm, deta_dr0_ohm, deta_drimp0_ohm,                     &       
+                           dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)    
 
           ! --- Viscosity
           ! --- Switch to use old viscosity model
