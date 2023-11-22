@@ -210,20 +210,14 @@ real*8     :: E_ion, Lrad, E_ion_bg
 integer    :: ion_i, ion_k
 #endif
 
-#ifdef WITH_Impurities
-#ifdef WITH_TiTe
 !   -Coefficients related to Z_imp
 real*8  :: alpha_i, alpha_e, dalpha_e_dT, dalpha_e_dx, dalpha_e_dy
 real*8  :: alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y
 
 !   -Ion-electron energy transfer
 real*8  :: nu_e_imp, nu_e_bg, lambda_e_imp, lambda_e_bg, dTi_e, dTe_i
-#else /* WITH_TiTe */
 !   -Coefficients related to Z_imp
-real*8  :: alpha_i, alpha_e, dalpha_e_dT
 real*8  :: alpha_imp, dalpha_imp_dT, beta_imp, dbeta_imp_dT, dbeta_imp_dx, dbeta_imp_dy
-#endif /* WITH_TiTe */
-#endif /* WITH_Impurities */
 
 ! Additional variables related to the radiated power
 #if (defined WITH_Neutrals)
@@ -464,7 +458,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp           n_imp_s, n_imp_t, n_imp_p, n_imp_x, n_imp_y,                                   &
 #endif
 #if (defined WITH_Impurities) && (defined WITH_TiTe)
-!$omp           alpha_i, alpha_e, nu_e_imp, nu_e_bg, lambda_e_imp, lambda_e_bg, dTi_e, dTe_i,  &
+!$omp           alpha_i, nu_e_imp, nu_e_bg, lambda_e_imp, lambda_e_bg, dTi_e, dTe_i,  &
 !$omp           dalpha_e_dT, alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y,            &
 #endif
 #if (defined WITH_Impurities) && (!defined WITH_TiTe) 
