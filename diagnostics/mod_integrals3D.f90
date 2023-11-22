@@ -210,6 +210,8 @@ real*8     :: E_ion, Lrad, E_ion_bg
 integer    :: ion_i, ion_k
 #endif
 
+#ifdef WITH_Impurities
+#ifdef WITH_TiTe
 !   -Coefficients related to Z_imp
 real*8  :: alpha_i, alpha_e, dalpha_e_dT, dalpha_e_dx, dalpha_e_dy
 real*8  :: alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y
