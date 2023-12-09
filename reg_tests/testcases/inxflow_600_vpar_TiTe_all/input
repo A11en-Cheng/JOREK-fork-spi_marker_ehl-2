@@ -69,10 +69,11 @@
 
  eta   = 2.d-6
  eta_ohmic = 1.d-7
- visco = 4.d-6
+ eta_coul_log_dep = .true.
+ visco = 4.d-7
  visco_par = 1.d-4
  
- visco_old_setup = .true.
+ visco_old_setup = .false.
  visco_num = 1.d-11
  visco_par_num = 1.d-11
  eta_num = 3.d-10

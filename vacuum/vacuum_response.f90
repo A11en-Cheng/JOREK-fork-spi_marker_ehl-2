@@ -58,6 +58,8 @@ module vacuum_response
     integer :: i,j, ierr, dim
     logical :: exists
 
+    n_dof_bnd = 0
+
     ! --- Determine total number of boundary degrees of freedom per harmonic (skipping duplicates).
     do i=1, bnd_node_list%n_bnd_nodes
       exists = .false.

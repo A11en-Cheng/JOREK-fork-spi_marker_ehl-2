@@ -23,7 +23,7 @@ subroutine preset_parameters
   nstep_n  = 0
   
   eta_T_dependent   = .true.
-  eta_coul_log_dep  = .false.
+  eta_coul_log_dep  = .true.
   visco_T_dependent = .true.
   ZKpar_T_dependent = .true.
 
@@ -55,6 +55,7 @@ subroutine preset_parameters
   restart      = .false.
   import_equil = .false.
   regrid       = .false.
+  regrid_from_rz = .false.
   rst_format   = 0             ! use 'old' format for restart import
   write_ps     = .true.           ! write postscript file at the end of the run 
   

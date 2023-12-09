@@ -3,6 +3,7 @@ subroutine initialise_parameters(my_id, filename)
 
 use tr_module
 use phys_module
+use mod_plasma_functions, only: initialise_reference_parameters
 use vacuum
 use live_data
 use pellet_module
@@ -20,14 +21,16 @@ integer :: ierr, err, i
 namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 rst_hdf5, rst_hdf5_version, keep_current_prof,      &
                 restart, regrid, write_ps, time_evol_theta,         &
+                regrid_from_rz,                                     &
                 time_evol_zeta, force_horizontal_Xline,             &
                 Mach1_openBC, thermalization, Mach1_fix_B,          &
                 eta_ARAZ_const, eta_ARAZ_on, eta_ARAZ_simple,       & 
                 tauIC_ARAZ_on,                                      &
                 n_tor_fft_thresh, fix_axis_nodes,                   &
                 n_R, n_Z, n_radial, n_pol, n_tht, n_flux,           &
-                n_open, n_private, n_leg,                           &
-                n_outer, n_inner, n_up_priv, n_up_leg,              &
+                n_open, n_private, n_leg, n_leg_out, n_ext,         &
+                n_outer, n_inner, n_up_priv, n_up_leg, n_up_leg_out,&
+                n_tht_equidistant,                                  &
                 psi_axis_init, XR_r, SIG_r, XR_tht, SIG_tht,        &
                 SIG_closed, SIG_open, SIG_private, SIG_theta,       &
                 SIG_leg_0, SIG_leg_1, dPSI_open, dPSI_private,      &
@@ -239,6 +242,7 @@ if (my_id .eq. 0) then
     gamma_i_stangeby = gamma_sheath_i / (gamma-1.d0) + 1.d0 + gamma
   end if
 
+
   if (sum(nstep_n) .gt. 0) then
     nstep = sum(nstep_n)
   else
@@ -334,6 +338,8 @@ if ( my_id == 0 ) then
     write(*,*)  "while injecting background species! Should be fixed soon. EXITING!"
     stop
   endif
+
+  call initialise_reference_parameters()
 
 endif
 

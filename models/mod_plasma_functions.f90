@@ -1,25 +1,63 @@
 !> Module containing plasma functions t
 module mod_plasma_functions 
   
-  use phys_module, only: eta_T_dependent, T_min, ZKpar_T_dependent, visco_T_dependent,  &
-                         eta_num, eta_num_T_dependent, eta_num_psin_dependent, eta_num_prof, &
-                         visco_num, visco_num_T_dependent, T_max_visco, T_0, Te_0, central_density, &
-                         eta_coul_log_dep, lnA_center 
+  use phys_module
   use mod_model_settings, only:  with_impurities, with_TiTe
   use constants
     
   implicit none
   
   private
-  public resistivity, conductivity_parallel, viscosity, hyper_resistivity, hyper_viscosity, coulomb_log_ei
+  public resistivity, conductivity_parallel, viscosity, hyper_resistivity, hyper_viscosity, &
+         coulomb_log_ei, initialise_reference_parameters
   
   contains
   
   
+
+
+
+  subroutine initialise_reference_parameters()
+
+    implicit none 
+
+    real*8 :: rho0, Te0_keV, Ti0_keV
+
+    ! --- Calculate normalization factors.
+    rho0               = central_density * 1.d20 * central_mass * mass_proton
+    sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
+    sqrt_mu0_over_rho0 = sqrt( mu_zero / rho0 )
+
+    ! --- Calculate nominal parameters printed in the logfile for reference
+    if (with_TiTe) then
+      Te0_keV               = Te_0 / ( EL_CHG * mu_zero * central_density * 1.d+20 ) / 1.d+3
+      Ti0_keV               = Ti_0 / ( EL_CHG * mu_zero * central_density * 1.d+20 ) / 1.d+3
+      call coulomb_log_ei(Te_0, Te_0, 1.d0, 1.d0, 0.d0, 0.d0, 0.d0, lnA_center)
+
+      ZK_e_par_SpitzerHaerm = 5.5789d+0 * central_mass*mass_proton/(mass_electron*lnA_center) * Te0_keV**(2.5d+0) * (gamma-1.d0) * sqrt_mu0_over_rho0
+      ZK_i_par_SpitzerHaerm = 5.8410d+2 * sqrt(central_mass/2.d+0)/(lnA_center)               * Ti0_keV**(2.5d+0) * (gamma-1.d0) * sqrt_mu0_over_rho0
+    else
+      Te0_keV               = T_0 / 2.d+0 / ( EL_CHG * mu_zero * central_density * 1.d+20 ) / 1.d+3
+      call coulomb_log_ei(T_0, T_0, 1.d0, 1.d0, 0.d0, 0.d0, 0.d0, lnA_center)
+
+      ZK_par_SpitzerHaerm   = 5.5789d+0 * central_mass*mass_proton/(mass_electron*lnA_center) * Te0_keV**(2.5d+0) * (gamma-1.d0) * sqrt_mu0_over_rho0
+    end if
+    tauIC_nominal      = central_mass * mass_proton / ( EL_CHG * F0 * sqrt_mu0_rho0 * 2.d0 )
+    eta_Spitzer        = ( 1.65d-9 * lnA_center * Te0_keV**(-1.5d+0) ) / sqrt_mu0_over_rho0
+
+    ! --- Assign minimum values for parallel conduction if not given
+    if (T_min_ZKpar  < -1.d10) T_min_ZKpar  = T_min   
+    if (Ti_min_ZKpar < -1.d10) Ti_min_ZKpar = T_min   
+    if (Te_min_ZKpar < -1.d10) Te_min_ZKpar = T_min   
+
+  
+  end subroutine initialise_reference_parameters
   
   
   
-  
+
+
+
   !> Determine Coulomb logartihm describing electron collisions with ions
   pure subroutine coulomb_log_ei(T_raw, T_corr, r0_raw, r0_corr, rimp0_raw, rimp0_corr, alpha_e, lnA, dalpha_e_dT,  &
                                  dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)
