@@ -79,8 +79,9 @@ real*8     :: Pi0, Pi0_x, Pi0_y, Pi0_s, Pi0_t, Pi0_ss, Pi0_st, Pi0_tt, Pi0_p, Pi
 real*8     :: Pe0, Pe0_x, Pe0_y, Pe0_s, Pe0_t, Pe0_ss, Pe0_st, Pe0_tt, Pe0_p, Pe0_xx, Pe0_xy, Pe0_yy
 real*8     :: BigR_x, vv2, eta_T, visco_T, deta_dT, d2eta_d2T, dvisco_dT, d2visco_d2T, deta_dr0, deta_drn0
 real*8     :: visco_num_T, eta_num_T, eta_T_ohm, deta_dT_ohm, deta_dr0_ohm, deta_drn0_ohm, deta_num_dT, dvisco_num_dT
+real*8     :: visco_T_heating, dvisco_dT_heating, d2visco_dT2_heating
 real*8     :: amat_11, amat_12, amat_21, amat_22, amat_23, amat_24, amat_25, amat_26, amat_33, amat_31, amat_44, amat_42
-real*8     :: amat_51, amat_52, amat_55, amat_56, amat_57, amat_61, amat_62, amat_63, amat_65, amat_66, amat_67, amat_16, amat_13
+real*8     :: amat_51, amat_52, amat_55, amat_56, amat_57, amat_61, amat_62, amat_63, amat_64, amat_65, amat_66, amat_67, amat_16, amat_13
 real*8     :: amat_71, amat_72, amat_75, amat_76, amat_77, amat_15, amat_18, amat_19, amat_29
 real*8     :: ZK_par_num, Ti0_ps0_x, Ti_ps0_x, Ti0_psi_x, Ti0_ps0_y, Ti_ps0_y, Ti0_psi_y, v_ps0_x, v_psi_x, v_ps0_y, v_psi_y
 real*8     :: Te0_ps0_x, Te_ps0_x, Te0_psi_x, Te0_ps0_y, Te_ps0_y, Te0_psi_y
@@ -684,15 +685,30 @@ do ms=1, n_gauss
      !detaSp_dT = 0. ! For intear benchmark
      ! --- Temperature dependent viscosity
      ! --- Note: No good physics basis, simply for keeping the magnetic Prandtl number constant
-     if ( visco_T_dependent .and. Te0_corr <= T_max_eta ) then       
-       visco_T   = visco * (Te0_corr/Te_0)**(-1.5d0)
-       dvisco_dT = - visco * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) * dTe0_corr_dT
-     else if (visco_T_dependent .and. Te0_corr > T_max_eta) then
-       visco_T   = visco * (T_max_eta/Te_0)**(-1.5d0)
-       dvisco_dT = 0.
+     if ( visco_T_dependent ) then
+       visco_T     =   visco * (Te0_corr/Te_0)**(-1.5d0)
+       dvisco_dT   = - visco * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) * dTe0_corr_dT
+       if (Te0_corr .lt. T_min) then
+         visco_T     = visco  * (T_min/Te_0)**(-1.5d0)
+         dvisco_dT   = 0.d0
+       elseif (Te0_corr .gt. T_max_visco) then
+         visco_T     = visco  * (T_max_visco/Te_0)**(-1.5d0)
+         dvisco_dT   = 0.d0
+       endif
+       visco_T_heating     =   visco_heating * (Te0_corr/Te_0)**(-1.5d0)
+       dvisco_dT_heating   = - visco_heating * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) * dTe0_corr_dT
+       if (Te0_corr .lt. T_min) then
+         visco_T_heating     = visco_heating  * (T_min/Te_0)**(-1.5d0)
+         dvisco_dT_heating   = 0.d0
+       elseif (Te0_corr .gt. T_max_visco) then
+         visco_T_heating     = visco_heating  * (T_max_visco/Te_0)**(-1.5d0)
+         dvisco_dT_heating   = 0.d0
+       endif
      else
-       visco_T   = visco
-       dvisco_dT = 0.d0
+       visco_T     = visco
+       dvisco_dT   = 0.d0
+       visco_T_heating     = visco_heating
+       dvisco_dT_heating   = 0.d0
      end if
      
      ! --- Temperature dependent parallel heat diffusivity
@@ -1572,6 +1588,9 @@ do ms=1, n_gauss
                     + v * BigR * ((GAMMA - 1.)/2.) * vpar0**2 * BB2 * (source_bg + source_imp) * xjac * tstep &
                     + v * BigR * ((GAMMA - 1.)/2.) * vv2 * (source_bg + source_imp)            * xjac * tstep &
 !==============================End of friction terms=================
+                    !============================ The perpendicular viscous heating terms================
+                    -(GAMMA-1.) * v * visco_T_heating * (u0_x * w0_x + u0_y * w0_y) * BigR * xjac * tstep &
+                    !============================End perpendicular viscous heating terms=================
                     ! Energy exchange term
                     + v * BigR * dTi_e                                                         * xjac * tstep 
 
@@ -2210,6 +2229,7 @@ do ms=1, n_gauss
                            - v * BigR**3 * (GAMMA - 1.) * (u_x * u0_x + u_y * u0_y)                                        &
                                * (source_bg + source_imp)                                           * xjac * theta * tstep &
 !==============================End of friction terms=================
+                           + (GAMMA-1.) * v * ( u_x * w0_x + u_y * w0_y) * visco_T_heating   * BigR * xjac * theta * tstep &
 
                            + TG_num6 * 0.25d0 * BigR**2 * Ti0* ((r0_x+alpha_i*rn0_x) * u_y - (r0_y+alpha_i*rn0_y) * u_x) &
                                      * ( v_x * u0_y - v_y * u0_x) * xjac * theta*tstep*tstep  &
@@ -2226,6 +2246,7 @@ do ms=1, n_gauss
 
                 amat_63 =  0.
 
+                amat_64 = (GAMMA-1.) * v * ( u0_x * w_x + u0_y * w_y) * visco_T_heating * BigR * xjac * theta * tstep 
 
                 amat_65 =  + v * rho * Ti0 * BigR * xjac * (1.d0 + zeta)    &
 
@@ -3013,6 +3034,7 @@ do ms=1, n_gauss
                  ELM(ij6,kl1) =  ELM(ij6,kl1) + wst * amat_61
                  ELM(ij6,kl2) =  ELM(ij6,kl2) + wst * amat_62
                  ELM(ij6,kl3) =  ELM(ij6,kl3) + wst * amat_63
+                 ELM(ij6,kl4) =  ELM(ij6,kl4) + wst * amat_64
                  ELM(ij6,kl5) =  ELM(ij6,kl5) + wst * amat_65
                  ELM(ij6,kl6) =  ELM(ij6,kl6) + wst * amat_66
                  ELM(ij6,kl7) =  ELM(ij6,kl7) + wst * amat_67

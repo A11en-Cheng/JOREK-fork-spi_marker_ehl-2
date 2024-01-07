@@ -83,12 +83,13 @@ real*8     :: Pe0, Pe0_x, Pe0_y, Pe0_s, Pe0_t, Pe0_ss, Pe0_st, Pe0_tt, Pe0_p, Pe
 real*8     :: Vpar0, Vpar0_s, Vpar0_t, Vpar0_p, Vpar0_x, Vpar0_y, Vpar0_ss, Vpar0_st, Vpar0_tt, Vpar0_xx, Vpar0_yy,Vpar0_xy
 real*8     :: BigR_x, vv2, eta_T, visco_T, deta_dT, d2eta_d2T, dvisco_dT, visco_num_T, eta_num_T
 real*8     :: deta_dr0, deta_drn0, deta_num_dT, dvisco_num_dT
+real*8     :: visco_T_heating, dvisco_dT_heating, d2visco_dT2_heating
 real*8     :: eta_T_ohm, deta_dT_ohm, deta_dr0_ohm, deta_drn0_ohm
 real*8     :: ZK_par_num, Ti0_ps0_x, Ti_ps0_x, Ti0_psi_x, Ti0_ps0_y, Ti_ps0_y, Ti0_psi_y, v_ps0_x, v_psi_x, v_ps0_y, v_psi_y
 real*8     :: Te0_ps0_x, Te_ps0_x, Te0_psi_x, Te0_ps0_y, Te_ps0_y, Te0_psi_y
 real*8     :: amat_11, amat_12, amat_21, amat_22, amat_23, amat_24, amat_25, amat_26, amat_33, amat_31, amat_44, amat_42
 real*8     :: amat_51, amat_51_n, amat_52, amat_55, amat_56, amat_57, amat_57_k, amat_58_k, amat_58_n
-real*8     :: amat_61, amat_62, amat_63, amat_65, amat_66, amat_67, amat_65_k, amat_65_kn, amat_67_k, amat_16, amat_13
+real*8     :: amat_61, amat_62, amat_63, amat_64, amat_65, amat_66, amat_67, amat_65_k, amat_65_kn, amat_67_k, amat_16, amat_13
 real*8     :: amat_71, amat_72, amat_75, amat_76, amat_75_n, amat_76_n, amat_15, amat_15_n, amat_16_n, amat_18
 real*8     :: amat_19, amat_29
 real*8     :: amat_12_n, amat_23_n, amat_51_k, amat_55_kn, amat_55_k, amat_55_n, amat_57_n, amat_57_kn, amat_58_kn
@@ -703,9 +704,20 @@ do ms=1, n_gauss
          visco_T     = visco  * (T_max_visco/Te_0)**(-1.5d0)
          dvisco_dT   = 0.d0
        endif
+       visco_T_heating     =   visco_heating * (Te0_corr/Te_0)**(-1.5d0)
+       dvisco_dT_heating   = - visco_heating * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) * dTe0_corr_dT
+       if (Te0_corr .lt. T_min) then
+         visco_T_heating     = visco_heating  * (T_min/Te_0)**(-1.5d0)
+         dvisco_dT_heating   = 0.d0
+       elseif (Te0_corr .gt. T_max_visco) then
+         visco_T_heating     = visco_heating  * (T_max_visco/Te_0)**(-1.5d0)
+         dvisco_dT_heating   = 0.d0
+       endif
      else
        visco_T     = visco
        dvisco_dT   = 0.d0
+       visco_T_heating     = visco_heating
+       dvisco_dT_heating   = 0.d0
      end if
      
      ! --- Temperature dependent parallel heat diffusivity
@@ -1607,6 +1619,9 @@ do ms=1, n_gauss
                     + v * BigR * ((GAMMA - 1.)/2.) * vpar0**2 * BB2 * (source_bg + source_imp) * xjac * tstep &
                     + v * BigR * ((GAMMA - 1.)/2.) * vv2 * (source_bg + source_imp)            * xjac * tstep &
 !==============================End of friction terms=================
+                    !============================ The perpendicular viscous heating terms================
+                    -(GAMMA-1.) * v * visco_T_heating * (u0_x * w0_x + u0_y * w0_y) * BigR * xjac * tstep &
+                    !============================End perpendicular viscous heating terms=================
                     ! Energy exchange term
                     + v * BigR * dTi_e                                                         * xjac * tstep
 
@@ -2368,6 +2383,8 @@ do ms=1, n_gauss
                            * (source_bg + source_imp)                                           * xjac * theta * tstep &
 !==============================End of friction terms=================
 
+                       + (GAMMA-1.) * v * ( u_x * w0_x + u_y * w0_y) * visco_T_heating   * BigR * xjac * theta * tstep &
+
                        + TG_num6 * 0.25d0 * BigR**2 * Ti0* ((r0_x+alpha_i*rn0_x) * u_y - (r0_y+alpha_i*rn0_y) * u_x) &
                                  * ( v_x * u0_y - v_y * u0_x) * xjac * theta*tstep*tstep  &
 
@@ -2383,6 +2400,7 @@ do ms=1, n_gauss
 
              amat_63 = 0.
 
+             amat_64 = (GAMMA-1.) * v * ( u0_x * w_x + u0_y * w_y) * visco_T_heating * BigR * xjac * theta * tstep 
 
              amat_65 =  + v * rho * Ti0 * BigR * xjac * (1.d0 + zeta)    &
 
@@ -3542,6 +3560,7 @@ do ms=1, n_gauss
 
              ELM_p(mp,ij6,kl2)  =  ELM_p(mp,ij6,kl2)  + wst * amat_62
              ELM_p(mp,ij6,kl3)  =  ELM_p(mp,ij6,kl3)  + wst * amat_63
+             ELM_p(mp,ij6,kl4)  =  ELM_p(mp,ij6,kl4)  + wst * amat_64
              ELM_p(mp,ij6,kl5)  =  ELM_p(mp,ij6,kl5)  + wst * amat_65
              ELM_n(mp,ij6,kl5)  =  ELM_n(mp,ij6,kl5)  + wst * amat_65_n
              ELM_k(mp,ij6,kl5)  =  ELM_k(mp,ij6,kl5)  + wst * amat_65_k
