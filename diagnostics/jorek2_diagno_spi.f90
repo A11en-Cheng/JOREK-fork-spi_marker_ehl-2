@@ -196,7 +196,7 @@ if (using_spi) then
       spi_abl_bg_rate_tot = spi_abl_bg_rate_tot + xtime_spi_ablation_bg_rate(i_spi,i)
       spi_abl_bg_tot = spi_abl_bg_tot + xtime_spi_ablation_bg(i_spi,i)
     end do
-    write(20,"(i7,f12.3,*(e14.6,:,a))") i,xtime(i), spi_abl_rate_inj(:), ',', spi_abl_inj(:), ',', spi_abl_bg_rate_inj(:), ',', spi_abl_bg_inj(:), ',', spi_abl_rate_tot, ',', spi_abl_tot, ',', spi_abl_bg_rate_tot, ',', spi_abl_bg_tot
+    write(20,"(i7,f12.3,*(e14.6,:))") i,xtime(i), spi_abl_rate_inj(:), spi_abl_inj(:), spi_abl_bg_rate_inj(:), spi_abl_bg_inj(:), spi_abl_rate_tot, spi_abl_tot, spi_abl_bg_rate_tot, spi_abl_bg_tot
   enddo
   close(20)
 
