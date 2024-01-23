@@ -595,7 +595,7 @@ function new_projection(node_list, element_list,                                
     call prepare_mumps_par(node_list, element_list, new%n_tor_local, new%i_tor_local,            &
                            new%mpi_comm_world, new%mpi_comm_n, new%mpi_comm_master,              &
                            new%mumps_par, new%filter, new%filter_hyper, new%filter_parallel,     &
-                           do_ion_polarisation=new%do_ion_polarisation, ion_mass=new%ion_mass    &
+                           do_ion_polarisation=new%do_ion_polarisation, ion_mass=new%ion_mass,   &
                            apply_dirichlet_condition_in=new%apply_dirichlet)
 
     new%n_dof = new%mumps_par%n / new%n_tor_local
