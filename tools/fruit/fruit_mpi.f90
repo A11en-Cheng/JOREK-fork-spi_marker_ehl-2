@@ -73,6 +73,9 @@ contains
     character(len = MSG_LENGTH_HERE), allocatable :: msgs(:)
     character(len = MSG_LENGTH_HERE), allocatable :: msgs_all(:)
 
+    !> initialise to zero the sum of the asserts
+    fail_assert_sum=0; succ_assert_sum=0; fail_case_sum=0; succ_case_sum=0;
+
     call get_assert_and_case_count(&
     & fail_assert,  succ_assert, &
     & fail_case,    succ_case)
@@ -90,32 +93,34 @@ contains
     num_msgs_sum = sum(num_msgs_rank(:))
     allocate(msgs_all(num_msgs_sum))
 
-    ! array msgs_all:
-    !
-    ! | msgs(:) of rank 0  | msgs(:) of rank 1   | msgs(:) of rank 2  |
-    ! |                    |                     |                    |
-    ! | num_msgs_rank(1)   |  num_msgs_rank(2)   | num_msgs_rank(3)   |
-    ! |                    |                     |                    |
-    ! |                    |                     |                    |
-    !                       A                     A                  A
-    !                       |                     |                  |
-    !              sum(num_msgs_rank(1:1))+1      |             num_msgs_sum
-    !                                    sum(num_msgs_rank(1:2))+1
+    if(num_msgs_sum>0) then 
+      ! array msgs_all:
+      !
+      ! | msgs(:) of rank 0  | msgs(:) of rank 1   | msgs(:) of rank 2  |
+      ! |                    |                     |                    |
+      ! | num_msgs_rank(1)   |  num_msgs_rank(2)   | num_msgs_rank(3)   |
+      ! |                    |                     |                    |
+      ! |                    |                     |                    |
+      !                       A                     A                  A
+      !                       |                     |                  |
+      !              sum(num_msgs_rank(1:1))+1      |             num_msgs_sum
+      !                                    sum(num_msgs_rank(1:2))+1
 
-    if (rank == 0) then
-      msgs_all(1:num_msgs) = msgs(1:num_msgs)
-      do i = 1, size - 1
-        imsg = sum(num_msgs_rank(1:i)) + 1
-        call MPI_RECV(&
-        & msgs_all(imsg), &
-        & num_msgs_rank(i + 1) * MSG_LENGTH_HERE, MPI_CHARACTER, &
-        & i, 7, MPI_COMM_WORLD, status, ierr)
-      enddo
-    else
-      call MPI_Send(&
-      & msgs, &
-      & num_msgs * MSG_LENGTH_HERE               , MPI_CHARACTER, &
-      & 0, 7, MPI_COMM_WORLD, ierr)
+      if (rank == 0) then
+        msgs_all(1:num_msgs) = msgs(1:num_msgs)
+        do i = 1, size - 1
+          imsg = sum(num_msgs_rank(1:i)) + 1
+          call MPI_RECV(&
+          & msgs_all(imsg), &
+          & num_msgs_rank(i + 1) * MSG_LENGTH_HERE, MPI_CHARACTER, &
+          & i, 7, MPI_COMM_WORLD, status, ierr)
+        enddo
+      else
+        call MPI_Send(&
+        & msgs, &
+        & num_msgs * MSG_LENGTH_HERE               , MPI_CHARACTER, &
+        & 0, 7, MPI_COMM_WORLD, ierr)
+      endif
     endif
 
     call MPI_REDUCE(&
@@ -180,6 +185,9 @@ contains
     integer :: i
     integer :: status(MPI_STATUS_SIZE)
     integer :: ierr
+
+    !> initialise to zero the sum of the asserts
+    fail_assert_sum=0; succ_assert_sum=0; fail_case_sum=0; succ_case_sum=0;
 
     call get_xml_filename_work(xml_filename_work)
 

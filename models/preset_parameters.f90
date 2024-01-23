@@ -52,6 +52,7 @@ subroutine preset_parameters
   central_density = 1.d0        ! the central density in units 10^20 m^-3
   central_mass    = 2.d0        ! the central average ion mass (D)
 
+  n_tor_restart= 0
   restart      = .false.
   import_equil = .false.
   regrid       = .false.

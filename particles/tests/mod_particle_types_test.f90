@@ -23,20 +23,20 @@ contains
 !> Fruit basket ---------------------------------
 !> fruit basket containing all set-up, test and
 !> tear-down procedures
-subroutine run_fruit_particle_types()
+subroutine run_fruit_particle_types
   implicit none
   write(*,'(/A)') "  ... setting-up: particle types tests"
   call setup
   write(*,'(/A)') "  ... running: particle types tests"
-  call test_particle_copy
-  call test_individual_particle_copy
-  call test_particle_get_q
+  call run_test_case(test_particle_copy,'test_particle_copy')
+  call run_test_case(test_individual_particle_copy,'test_individual_particle_copy')
+  call run_test_case(test_particle_get_q,'test_particle_get_q')
   write(*,'(/A)') "  ... tearing-up: particle types tests"
 end subroutine run_fruit_particle_types
 
 !> Set-up and tear-down -------------------------
 !> set-up particle types test features
-subroutine setup()
+subroutine setup
   use mod_particle_common_test_tools, only: fill_particles
   use mod_particle_common_test_tools, only: fill_groups
   use mod_particle_common_test_tools, only: obtain_particle_charges
@@ -60,7 +60,7 @@ end subroutine setup
 
 !> Tests ----------------------------------------
 !> test particle copy function
-subroutine test_particle_copy()
+subroutine test_particle_copy
   use mod_particle_sim, only: particle_group
   use mod_particle_assert_equal, only: assert_equal_particle
   use mod_particle_common_test_tools, only: allocate_one_particle_list_type
@@ -89,7 +89,7 @@ end subroutine test_particle_copy
 !> test indiviual particle copy functions
 !> it assumes that the standard particle
 !> copy function works
-subroutine test_individual_particle_copy()
+subroutine test_individual_particle_copy
   use mod_particle_assert_equal, only: assert_equal_particle
   implicit none
   type(particle_kinetic_leapfrog) :: p_leapfrog_in,p_leapfrog_out
@@ -112,7 +112,7 @@ subroutine test_individual_particle_copy()
 end subroutine test_individual_particle_copy
 
 !> test return charge function
-subroutine test_particle_get_q()
+subroutine test_particle_get_q
   implicit none
   !> variables
   integer :: ii,jj

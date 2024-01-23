@@ -621,14 +621,16 @@ recursive subroutine clean_node(node)
   integer i
 
   if(associated(node%children)) then
-     do i = 1,8
-        call clean_node(node%children(i))
+     if(size(node%children)==8) then
+       do i = 1,8
+         call clean_node(node%children(i))
 
-        if( allocated(node%children(i)%contained) ) then
+         if( allocated(node%children(i)%contained) ) then
            deallocate(node%children(i)%contained)
-        end if
-     end do
-     deallocate(node%children)
+         end if
+       end do
+       deallocate(node%children)
+     end if
   end if
 end subroutine clean_node
 

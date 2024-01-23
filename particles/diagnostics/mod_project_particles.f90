@@ -111,6 +111,8 @@ type, extends(io_action) :: projection
   real*8, dimension(:,:,:,:,:), allocatable :: rhs_f !< dim (n_degrees,n_vertex_max,n_elements,n_tor,n_proj) storage
   !< location for proj_f output
 
+  logical :: apply_dirichlet   ! if .true. (default) the Dirichlet boundary conditions are applied
+
   integer :: mpi_comm_world    ! mpi communicator of the whole world
   integer :: mpi_comm_n        ! mpi communicator of each toroidal harmonic
   integer :: mpi_comm_master   ! mpi communicator of the group of masters (of each harmonic)
@@ -452,7 +454,7 @@ function new_projection(node_list, element_list,                                
                         filter_n0, filter_hyper_n0, filter_parallel_n0,                              &
                         f, do_zonal, to_h5, to_vtk, index_h5,                                        &
                         nsub, filename, basename, decimal_digits, fractional_digits, calc_integrals, &
-                        do_ion_polarisation, ion_mass                                                &
+                        do_ion_polarisation, ion_mass, do_dirichlet                                  &
                         ) result(new)
   use mpi_mod
   !use mod_parameters, only n_node_max
@@ -474,6 +476,7 @@ function new_projection(node_list, element_list,                                
   logical, intent(in), optional          :: calc_integrals !< After projecting, calculate and print the integral of each projected quantity
   logical, intent(in), optional          :: do_ion_polarisation
   real*8,  intent(in), optional          :: ion_mass
+  logical, intent(in), optional          :: do_dirichlet
 
   integer              :: ierr, my_nsub, inode, n_masters, i
   integer, allocatable :: i_tor(:)
@@ -534,19 +537,23 @@ function new_projection(node_list, element_list,                                
   new%filter_n0          = 0.d0
   new%filter_hyper_n0    = 0.d0
   new%filter_parallel_n0 = 0.d0
+
+  if (present(filter))             new%filter             = filter
+  if (present(filter_hyper))       new%filter_hyper       = filter_hyper
+  if (present(filter_parallel))    new%filter_parallel    = filter_parallel
+  if (present(filter_n0))          new%filter_n0          = filter_n0
+  if (present(filter_hyper_n0))    new%filter_hyper_n0    = filter_hyper_n0
+  if (present(filter_parallel_n0)) new%filter_parallel_n0 = filter_parallel_n0
+
   new%do_ion_polarisation = .false.
   new%ion_mass           = 0.d0
-  new%do_zonal           = .false.
-
-  if (present(filter))              new%filter             = filter
-  if (present(filter_hyper))        new%filter_hyper       = filter_hyper
-  if (present(filter_parallel))     new%filter_parallel    = filter_parallel
-  if (present(filter_n0))           new%filter_n0          = filter_n0
-  if (present(filter_hyper_n0))     new%filter_hyper_n0    = filter_hyper_n0
-  if (present(filter_parallel_n0))  new%filter_parallel_n0 = filter_parallel_n0
-  if (present(do_zonal))            new%do_zonal = do_zonal
   if (present(do_ion_polarisation)) new%do_ion_polarisation = do_ion_polarisation
   if (present(ion_mass))            new%ion_mass          = ion_mass
+
+  new%do_zonal = .false.
+  if (present(do_zonal)) new%do_zonal = do_zonal
+  new%apply_dirichlet = .true.
+  if (present(do_dirichlet)) new%apply_dirichlet = do_dirichlet
 
   if (present(to_vtk)) then
     if (to_vtk) then
@@ -578,7 +585,8 @@ function new_projection(node_list, element_list,                                
                               new%mpi_comm_world, new%mpi_comm_n, new%mpi_comm_master,              &
                               new%mumps_par, new%area, new%volume,                                  &
                               new%filter_n0, new%filter_hyper_n0, new%filter_parallel_n0,           &
-                              integral_weights=new%integral_weights, do_zonal=new%do_zonal)  
+                              integral_weights=new%integral_weights, do_zonal=new%do_zonal,         &
+                              apply_dirichlet_condition_in=new%apply_dirichlet)  
 
     new%n_dof = new%mumps_par%n / 2
   
@@ -587,7 +595,8 @@ function new_projection(node_list, element_list,                                
     call prepare_mumps_par(node_list, element_list, new%n_tor_local, new%i_tor_local,            &
                            new%mpi_comm_world, new%mpi_comm_n, new%mpi_comm_master,              &
                            new%mumps_par, new%filter, new%filter_hyper, new%filter_parallel,     &
-                           do_ion_polarisation=new%do_ion_polarisation, ion_mass=new%ion_mass)
+                           do_ion_polarisation=new%do_ion_polarisation, ion_mass=new%ion_mass    &
+                           apply_dirichlet_condition_in=new%apply_dirichlet)
 
     new%n_dof = new%mumps_par%n / new%n_tor_local
 
@@ -1165,7 +1174,8 @@ end subroutine save_to_h5
 subroutine prepare_mumps_par(node_list, element_list, n_tor_local, i_tor_local,           &
                              this_mpi_comm_world, this_mpi_comm_n, this_mpi_comm_master,  &
                              mumps_par, filter, filter_hyper, filter_parallel,            &
-                             skip_factorisation, do_ion_polarisation, ion_mass)
+                             skip_factorisation, do_ion_polarisation, ion_mass,           &
+                             apply_dirichlet_condition_in)
 use phys_module, only : F0, TWOPI, mode
 use data_structure
 use basis_at_gaussian
@@ -1186,6 +1196,7 @@ real*8, intent(in)                   :: filter_parallel
 logical, intent(in), optional        :: skip_factorisation
 logical, intent(in), optional        :: do_ion_polarisation
 real*8, intent(in), optional         :: ion_mass ! [atomic_mass units]
+logical,intent(in),optional          :: apply_dirichlet_condition_in
 
 type (type_element)      :: element
 type (type_node)         :: nodes(n_vertex_max)
@@ -1241,6 +1252,7 @@ nz_AA = 4 * element_list%n_elements * (n_vertex_max * n_degrees)**2
 n_AA  = 2 * maxval(node_list%node(1:node_list%n_nodes)%index(4))
 
 apply_dirichlet_condition = .true.
+if(present(apply_dirichlet_condition_in)) apply_dirichlet_condition = apply_dirichlet_condition_in
 
 nz_bnd = 0
 if (apply_dirichlet_condition) then
@@ -1641,7 +1653,8 @@ subroutine prepare_mumps_par_n0(node_list, element_list, n_tor_local, i_tor_loca
                                 this_mpi_comm_world, this_mpi_comm_n, this_mpi_comm_master,  &
                                 mumps_par, area, volume,                                     &
                                 filter, filter_hyper, filter_parallel,                       &
-                                integral_weights, skip_factorisation, do_zonal)
+                                integral_weights, skip_factorisation, do_zonal,              &
+                                apply_dirichlet_condition_in)
 use phys_module, only : F0, TWOPI
 use data_structure
 use basis_at_gaussian
@@ -1660,6 +1673,7 @@ real*8, intent(in)                   :: filter_hyper
 real*8, intent(in)                   :: filter_parallel
 logical, intent(in), optional        :: do_zonal
 logical, intent(in), optional        :: skip_factorisation
+logical, intent(in), optional        :: apply_dirichlet_condition_in
 real*8, intent(out), dimension(:), allocatable :: integral_weights !< these will be filled with the volume of each basis function
 real*8, intent(out)                  :: area, volume
 type (type_element)      :: element
@@ -1702,6 +1716,7 @@ apply_zonal = .false.
 if (present(do_zonal)) apply_zonal = do_zonal
 
 apply_dirichlet_condition = .true.
+if (present(apply_dirichlet_condition_in)) apply_dirichlet_condition = apply_dirichlet_condition_in
 if (apply_zonal)  apply_dirichlet_condition = .true.
 
 

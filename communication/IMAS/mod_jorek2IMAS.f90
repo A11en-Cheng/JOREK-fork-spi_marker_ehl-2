@@ -29,21 +29,23 @@ module mod_jorek2IMAS
   contains
 
 
-  subroutine fill_mhd_IDS(first_step, mhd_ids)  
+  subroutine fill_mhd_IDS(first_step, time_SI, mhd_ids)  
 
-    use phys_module, only : t_start, F0, central_density, sqrt_mu0_rho0, &
+    use phys_module, only : F0, central_density, sqrt_mu0_rho0, &
                            sqrt_mu0_over_rho0, central_mass
 
     implicit none
 
     ! --- External parameters
-    logical,            intent(in)           :: first_step   ! is this the first step?
+    logical,   intent(in) :: first_step   ! is this the first step?
+    real*8,    intent(in) :: time_SI
+    
     type(ids_mhd), target,     intent(inout) :: mhd_ids
 
    
     ! --- Local parameters 
     integer    :: i, j, k, m, etype, irst, int, i_var, i_tor, index, index_node, my_id, ierr
-    real*8     :: fact_T, fact_time, fact_v, fact_zj, rho0, fact_phi, fact_rho, fact_w
+    real*8     :: fact_T, fact_v, fact_zj, rho0, fact_phi, fact_rho, fact_w
     
     
     ! **********************************************************************************
@@ -75,7 +77,6 @@ module mod_jorek2IMAS
     sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
     sqrt_mu0_over_rho0 = sqrt( mu_zero / rho0 )
   
-    fact_time =  sqrt_mu0_rho0 
     fact_v    =  1.d0 /  sqrt_mu0_rho0 
     fact_w    = -1.d0 /  sqrt_mu0_rho0      ! Transform for COCOS convention of toroidal direction (anti-clockwise) 
     fact_phi  = -1.d0 /  sqrt_mu0_rho0 * F0 ! COCOS convection: F0 depends on phi direction
@@ -92,8 +93,8 @@ module mod_jorek2IMAS
 
     mhd_ids%ids_properties%homogeneous_time = 1
   
-    mhd_ids%time(i_slice)     = t_start * fact_time 
-    mhd_ids%ggd(i_slice)%time = t_start * fact_time
+    mhd_ids%time(i_slice)     = time_SI 
+    mhd_ids%ggd(i_slice)%time = time_SI
 
     ! --- Fill MHD data
     do i=1, n_var 
@@ -178,20 +179,21 @@ module mod_jorek2IMAS
 
 
 
-  subroutine fill_radiation_IDS(first_step, radiation_ids)  
+  subroutine fill_radiation_IDS(first_step, time_SI, radiation_ids)  
 
-    use phys_module, only : t_start, F0, central_density, sqrt_mu0_rho0, &
+    use phys_module, only : F0, central_density, sqrt_mu0_rho0, &
                            sqrt_mu0_over_rho0, central_mass, imp_type, &
                            gamma, index_main_imp
     implicit none
 
     ! --- External parameters
     logical,                 intent(in) :: first_step   ! is this the first step?
+    real*8,                  intent(in) :: time_SI
     type(ids_radiation),  intent(inout) :: radiation_ids
    
     ! --- Local parameters 
     integer    :: i, j, k, m, var_rad, i_var, i_tor, index, index_node, my_id, ierr
-    real*8     :: fact_time, rho0, fact_rad
+    real*8     :: rho0, fact_rad
     
     ! **********************************************************************************
     ! ******************************* IMAS **********************************************
@@ -223,7 +225,6 @@ module mod_jorek2IMAS
     sqrt_mu0_over_rho0 = sqrt( mu_zero / rho0 )
 
     fact_rad = 1.d0 / ( (gamma-1.d0) * MU_ZERO * sqrt_mu0_rho0 )
-    fact_time =  sqrt_mu0_rho0 
 
     ! --- Set times
     n_slice = 1  
@@ -234,8 +235,8 @@ module mod_jorek2IMAS
     allocate( radiation_ids%process(1))   ! --- 1 type of radiation
     allocate( radiation_ids%process(1)%ggd(n_slice) )
   
-    radiation_ids%time(i_slice)                = t_start * fact_time 
-    radiation_ids%process(1)%ggd(i_slice)%time = t_start * fact_time
+    radiation_ids%time(i_slice)                = time_SI 
+    radiation_ids%process(1)%ggd(i_slice)%time = time_SI
  
     ! --- Fill radiation data 
     var_rad = 2
@@ -260,21 +261,22 @@ module mod_jorek2IMAS
 
 
 
-  subroutine fill_core_profiles_IDS(first_step, core_profiles_ids, n_grid)  
+  subroutine fill_core_profiles_IDS(first_step, time_SI, core_profiles_ids, n_grid)  
 
-    use phys_module, only : t_start, F0, central_density, sqrt_mu0_rho0, &
+    use phys_module, only : F0, central_density, sqrt_mu0_rho0, &
                            sqrt_mu0_over_rho0, central_mass, imp_type, &
                            gamma, index_main_imp
     implicit none
 
     ! --- External parameters
     logical,      intent(in) :: first_step   ! is this the first step?
+    real*8,       intent(in) :: time_SI
     integer,      intent(in) :: n_grid       ! Number of flux surfaces to compute average
     type(ids_core_profiles),   intent(inout) :: core_profiles_ids
    
     ! --- Local parameters 
     integer    :: i, j, k, m, var_rad, i_var, i_tor, index, index_node, my_id, ierr
-    real*8     :: fact_time, rho0
+    real*8     :: rho0
     real*8, allocatable :: result(:,:), q_prof(:), rho_tor(:)
     character(10)       :: str
     type(type_command)  :: command_tmp
@@ -294,11 +296,9 @@ module mod_jorek2IMAS
     ! --- Normalization factors for IMAS
     rho0               = central_density * 1.d20 * central_mass * mass_proton
     sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
-
-    fact_time =  sqrt_mu0_rho0 
     
     core_profiles_ids%ids_properties%homogeneous_time = 1    
-    core_profiles_ids%time(i_slice) = t_start * fact_time 
+    core_profiles_ids%time(i_slice) = time_SI 
 
     ! --- Call expressions and do a flux average
     step_imported = .true.
@@ -454,21 +454,22 @@ module mod_jorek2IMAS
 
 
 
-  subroutine fill_equilibrium_IDS(first_step, equilibrium_ids, n_grid)  
+  subroutine fill_equilibrium_IDS(first_step, time_SI, equilibrium_ids, n_grid)  
 
-    use phys_module, only : t_start, F0, central_density, sqrt_mu0_rho0, &
+    use phys_module, only : F0, central_density, sqrt_mu0_rho0, &
                            sqrt_mu0_over_rho0, central_mass, imp_type, &
                            gamma, index_main_imp
     implicit none
 
     ! --- External parameters
     logical,      intent(in) :: first_step   ! is this the first step?
+    real*8,       intent(in) :: time_SI
     integer,      intent(in) :: n_grid       ! Number of flux surfaces to compute average
     type(ids_equilibrium),  intent(inout)  :: equilibrium_ids
    
     ! --- Local parameters 
     integer    :: i, j, k, m, var_rad, i_var, i_tor, index, index_node, my_id, ierr
-    real*8     :: fact_time, rho0, fact_rad, R_min, Z_min, R_max, Z_max, R_node, Z_node
+    real*8     :: rho0, fact_rad, R_min, Z_min, R_max, Z_max, R_node, Z_node
     real*8, allocatable :: result(:,:), res0D(:), q_prof(:), rho_tor(:), R_sep(:), Z_sep(:)
     real*8, allocatable :: result2D(:,:,:), R_vec(:), Z_vec(:)
     character(30)       :: str
@@ -489,11 +490,9 @@ module mod_jorek2IMAS
     ! --- Normalization factors for IMAS
     rho0               = central_density * 1.d20 * central_mass * mass_proton
     sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
-
-    fact_time =  sqrt_mu0_rho0 
     
     equilibrium_ids%ids_properties%homogeneous_time = 1    
-    equilibrium_ids%time(i_slice) = t_start * fact_time 
+    equilibrium_ids%time(i_slice) = time_SI 
 
     ! --- Call expressions and do a flux average
     step_imported = .true.
@@ -791,24 +790,24 @@ module mod_jorek2IMAS
     real*8,                intent(in)  :: res_fact
   
     ! --- Local parameters
-    integer :: num_nodes, idof, inode, icoeff
+    integer :: num_nodes, inode, inode_glob, itor
     
     num_nodes = node_list%n_nodes
-  
+
     if ( associated(ggd_scalar%coefficients) ) then
       deallocate( ggd_scalar%coefficients )
-      allocate( ggd_scalar%coefficients(n_tor, num_nodes*(n_order+1)) ) 
+      allocate( ggd_scalar%coefficients(num_nodes*n_tor, n_degrees) ) 
     else
-      allocate( ggd_scalar%coefficients(n_tor, num_nodes*(n_order+1)) ) 
+      allocate( ggd_scalar%coefficients(num_nodes*n_tor, n_degrees) )
     endif
   
-    do inode=1, num_nodes
-      do idof=1, n_order+1
+    do inode=1, num_nodes    
+      do itor=1, n_tor
+        
+        inode_glob = inode + (itor-1)*num_nodes 
   
-        icoeff = inode + (idof-1)*num_nodes
-  
-        ggd_scalar%coefficients(:,icoeff)=node_list%node(inode)%values(:,idof,var_index)
-  
+        ggd_scalar%coefficients(inode_glob,:)=node_list%node(inode)%values(itor,:,var_index)
+
       enddo
     enddo
   
@@ -860,7 +859,7 @@ module mod_jorek2IMAS
   
     ! Write grid geometry
     allocate(  grid%space(2)                           )
-    allocate(  grid%space(1)%objects_per_dimension(4)  )
+    allocate(  grid%space(1)%objects_per_dimension(3)  )
     allocate(  grid%space(1)%coordinates_type(2)       )
   
     ! Set coordinates type to [R, Z]
@@ -868,9 +867,10 @@ module mod_jorek2IMAS
   
     allocate(grid%identifier%description(1))
     allocate(grid%identifier%name(1))
-    grid%identifier%description(1) = "Mesh JOREK output HDF5 file grid with quantities"
-    grid%identifier%name = "JOREK output HDF5 file grid with quantities"
-    grid%identifier%index = 1
+    grid%identifier%description(1) = "Mesh coming from the JOREK code: combined 2D finite elements space in the poloidal plane &
+                                      with Fourier space for the toroidal angle dependence"
+    grid%identifier%name  = "JOREK mesh"
+    grid%identifier%index = 0   ! Unspecified
   
     num_nodes = size(RZ,1)
     space_RZ  => grid%space(1)
@@ -897,54 +897,27 @@ module mod_jorek2IMAS
     enddo
   
     ! Writing grid_subsets
-    allocate(grid%grid_subset(2))  ! 2 grid subsets 
+    allocate(grid%grid_subset(1))  
   
-    ! Subset for points
+    ! Subset for nodes in the combined space
     gs_index = 1
   
     allocate( grid%grid_subset(gs_index)%identifier%name(1)         )
     allocate( grid%grid_subset(gs_index)%identifier%description(1)  )
-    grid%grid_subset(gs_index)%identifier%name(1)        = "Nodes"
-    grid%grid_subset(gs_index)%identifier%index          = gs_index 
-    grid%grid_subset(gs_index)%identifier%description(1) = "All points/nodes/vertices/0D objects in the domain."
-    grid%grid_subset(gs_index)%dimension                 = 1
-   
-    allocate( grid%grid_subset(gs_index)%element(num_nodes) )
-   
-    do i=1, num_nodes  
-      allocate(  grid%grid_subset(gs_index)%element(i)%object(1)   )
-      grid%grid_subset(gs_index)%element(i)%object(1)%space     = 1
-      grid%grid_subset(gs_index)%element(i)%object(1)%index     = i 
-      grid%grid_subset(gs_index)%element(i)%object(1)%dimension = 1
-    enddo 
+    grid%grid_subset(gs_index)%identifier%name(1)        = "nodes"
+    grid%grid_subset(gs_index)%identifier%index          = 1 
+    grid%grid_subset(gs_index)%identifier%description(1) = "The elements of the grid subset are the 0D nodes &
+                                                         of the combined RZ x Fourier space (number of nodes &
+                                                         is N_poloidal_nodes x N_fourier). "
+    grid%grid_subset(gs_index)%dimension                 = 1    ! 1 is the convention for 0D nodes
   
-    ! Subset for cells
-    gs_index = 2
-  
-    allocate(grid%grid_subset(gs_index)%identifier%name(1))
-    allocate(grid%grid_subset(gs_index)%identifier%description(1))
-  
-    grid%grid_subset(gs_index)%identifier%name(1)        = "2D cells "
-    grid%grid_subset(gs_index)%identifier%index          = gs_index 
-    grid%grid_subset(gs_index)%identifier%description(1) = "All points/nodes/vertices/0D objects in the domain."
-    grid%grid_subset(gs_index)%dimension                 = 3   ! A bit confusing, but 1 means point, 2 line and 3 surface
-   
-    allocate( grid%grid_subset(gs_index)%element(num_cells) )
-  
-    do i=1, num_cells
-      allocate(  grid%grid_subset(gs_index)%element(i)%object(1)   )
-      grid%grid_subset(gs_index)%element(i)%object(1)%space     = 1
-      grid%grid_subset(gs_index)%element(i)%object(1)%index     = i 
-      grid%grid_subset(gs_index)%element(i)%object(1)%dimension = 3
-    enddo 
-  
-    ! Fill toroidal space (must be adapted for multiple time slices?)
+    ! Fill toroidal space 
     space_fourier  => grid%space(2)
     allocate(    space_fourier%coordinates_type(1)    )
     allocate(    space_fourier%identifier%description(1)  )
     space_fourier%coordinates_type(1) = 5          ! The coordinate type is 5, phi angle
     space_fourier%geometry_type%index = n_period   ! Fourier periodicity
-    space_fourier%identifier%description(1) = "Toroidal space"             
+    space_fourier%identifier%description(1) = "Toroidal Fourier space"             
   
     allocate(  space_fourier%objects_per_dimension(1)               )  ! We have only one dimension of
     allocate(  space_fourier%objects_per_dimension(1)%object(n_tor) )  ! toroidal harmonics
@@ -958,14 +931,14 @@ module mod_jorek2IMAS
     ! Needs generalization for JOREK 3D STELLERATOR EXTENSION!!
     space_RZ%geometry_type%index = 0  ! Standard geometry (non Fourier)
     do i=1, num_nodes
-      allocate( space_RZ%objects_per_dimension(1)%object(i)%geometry_2d(2,n_order+1) )
+      allocate( space_RZ%objects_per_dimension(1)%object(i)%geometry_2d(2,n_degrees) )
       space_RZ%objects_per_dimension(1)%object(i)%geometry_2d(1,:) = node_list%node(i)%x(1,:,1 )   ! R dofs
       space_RZ%objects_per_dimension(1)%object(i)%geometry_2d(2,:) = node_list%node(i)%x(1,:,2 )   ! Z dofs
     enddo
   
     ! JOREK element sizes
     do i=1, num_cells
-      allocate( space_RZ%objects_per_dimension(3)%object(i)%geometry_2d(n_order+1, n_vertex_max) )
+      allocate( space_RZ%objects_per_dimension(3)%object(i)%geometry_2d(n_degrees, n_vertex_max) )
       do j=1, n_vertex_max
         space_RZ%objects_per_dimension(3)%object(i)%geometry_2d(:,j) = element_list%element(i)%size(j,:)   
       enddo
