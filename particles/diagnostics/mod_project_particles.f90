@@ -1176,7 +1176,7 @@ subroutine prepare_mumps_par(node_list, element_list, n_tor_local, i_tor_local, 
                              mumps_par, filter, filter_hyper, filter_parallel,            &
                              skip_factorisation, do_ion_polarisation, ion_mass,           &
                              apply_dirichlet_condition_in)
-use phys_module, only : F0, TWOPI, mode
+use phys_module, only : F0, TWOPI, mode, fix_axis_nodes
 use data_structure
 use basis_at_gaussian
 use mod_basisfunctions
@@ -1295,10 +1295,10 @@ if (my_id_n .eq. 0) then
   if (apply_dirichlet_condition) write(*,*) 'applying Dirichlet conditions'
 
 !$omp parallel do default(none) &
-!$omp shared(element_list, node_list, n_tor_local, i_tor_local, zn_norm, Tev_norm,  &
-!$omp        H, H_s, H_t, H_ss, H_st, H_tt, Hz, Hz_p, mumps_par, wgauss2,           &
-!$omp        ivar_psi, ivar_rho, ivar_T, do_ion_pol, ion_mass, central_density,     &
-!$omp        filter, filter_hyper, filter_parallel, F0, my_id_master)               &
+!$omp shared(element_list, node_list, n_tor_local, i_tor_local, zn_norm, Tev_norm,    &
+!$omp        H, H_s, H_t, H_ss, H_st, H_tt, Hz, Hz_p, mumps_par, wgauss2,             &
+!$omp        ivar_psi, ivar_rho, ivar_T, do_ion_pol, ion_mass, central_density,       &
+!$omp        filter, filter_hyper, filter_parallel, F0, fix_axis_nodes, my_id_master) &
 !$omp private(ELM, i_elm, element, nodes, i, j, k, l, ms, mt, in, im, mp,           &
 !$omp         x_g, x_s, x_t, x_ss, x_st, x_tt,                                      &
 !$omp         y_g, y_s, y_t, y_ss, y_st, y_tt,                                      &
@@ -1559,7 +1559,13 @@ do i_elm=1,element_list%n_elements
 !$omp critical
               mumps_par%irn(ilarge) = index_large_i
               mumps_par%jcn(ilarge) = index_large_k
-              mumps_par%A(ilarge)   = ELM(index_ij,index_kl) * TWOPI / real(n_plane,8)
+
+              if( fix_axis_nodes .and.  (node_list%node(inode)%axis_node .and. (j .eq. 3 .or. j .eq. 4)) &
+                 .and. (index_large_i .eq. index_large_k) ) then
+                  mumps_par%A(ilarge) = 1.d12
+              else
+                  mumps_par%A(ilarge)   = ELM(index_ij,index_kl) * TWOPI / real(n_plane,8)
+              endif
 !$omp end critical
 
             enddo
@@ -1655,7 +1661,7 @@ subroutine prepare_mumps_par_n0(node_list, element_list, n_tor_local, i_tor_loca
                                 filter, filter_hyper, filter_parallel,                       &
                                 integral_weights, skip_factorisation, do_zonal,              &
                                 apply_dirichlet_condition_in)
-use phys_module, only : F0, TWOPI
+use phys_module, only : F0, TWOPI, fix_axis_nodes
 use data_structure
 use basis_at_gaussian
 use mod_basisfunctions
@@ -1776,7 +1782,8 @@ if (my_id_n .eq. 0) then
 !$omp shared(element_list, node_list, n_tor_local, i_tor_local,                       &
 !$omp        apply_dirichlet_condition, zonal_factor, apply_zonal,                    &
 !$omp        H, H_s, H_t, H_ss, H_st, H_tt, Hz, Hz_p, mumps_par, wgauss2,             &
-!$omp        filter_n0, filter_hyper_n0, filter_parallel_n0, integral_weights, F0, my_id_master) &
+!$omp        filter_n0, filter_hyper_n0, filter_parallel_n0, integral_weights, F0,    &
+!$omp        fix_axis_nodes, my_id_master)                                            &
 !$omp private(ELM, i_elm, element, nodes, i, j, k, l, ms, mt, in, im, mp,           &
 !$omp         x_g, x_s, x_t, x_ss, x_st, x_tt,                                      &
 !$omp         y_g, y_s, y_t, y_ss, y_st, y_tt,                                      &
@@ -2005,8 +2012,13 @@ do i_elm=1,element_list%n_elements
 
               mumps_par%irn(ilarge) = index_large_i
               mumps_par%jcn(ilarge) = index_large_k
-              mumps_par%A(ilarge)   = ELM(index_ij,index_kl) * TWOPI
-!              mumps_par%A(ilarge)   = ELM(index_ij,index_kl)
+
+              if( fix_axis_nodes .and.  (node_list%node(inode)%axis_node .and. (j .eq. 3 .or. j .eq. 4)) .and. (index_large_i .eq. index_large_k) ) then
+                  mumps_par%A(ilarge) = 1.d12
+              else
+                  mumps_par%A(ilarge)   = ELM(index_ij,index_kl) * TWOPI
+!                 mumps_par%A(ilarge)   = ELM(index_ij,index_kl)
+              endif
 
             enddo
           enddo
