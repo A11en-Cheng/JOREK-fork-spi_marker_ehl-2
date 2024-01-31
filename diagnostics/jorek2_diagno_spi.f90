@@ -223,8 +223,8 @@ if (using_spi) then
   open(20,file="fragments_plume_total.dat")
   do i_spi = 1, n_spi_tot
     spi_species_mole_D2_tmp = (1.-pellets(i_spi)%spi_species)/(1.+pellets(i_spi)%spi_species)
-    write(20,'(6f12.3,e14.6,f12.3)')  pellets(i_spi)%spi_R, pellets(i_spi)%spi_phi, pellets(i_spi)%spi_Z, &
-                                      pellets(i_spi)%spi_Vel_R, pellets(i_spi)%spi_Vel_RxZ, pellets(i_spi)%spi_Vel_Z, &
+    write(20,'(6f12.3,e14.6,f12.3)')  pellets(i_spi)%spi_R, -pellets(i_spi)%spi_phi, pellets(i_spi)%spi_Z, &
+                                      pellets(i_spi)%spi_Vel_R, -pellets(i_spi)%spi_Vel_RxZ, pellets(i_spi)%spi_Vel_Z, &
                                       pellets(i_spi)%spi_radius, spi_species_mole_D2_tmp
   end do
   close(20)
