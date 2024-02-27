@@ -13,12 +13,12 @@ contains
 !> Fruit basket -----------------------------------
 subroutine run_fruit_rootfinding_spec
   implicit none
-  write(*,'(/A)') "  ... setting-up: "
+  write(*,'(/A)') "  ... setting-up: root finding spec"
   call setup
-  write(*,'(/A)') "  ... running: "
+  write(*,'(/A)') "  ... running: root finding spec"
   call run_test_case(test_newtons_method_f,'test_newtons_method_f')
   call run_test_case(test_halleys_method_f,'test_halleys_method_f')
-  write(*,'(/A)') "  ... tearing-down: "
+  write(*,'(/A)') "  ... tearing-down: root finding spec"
   call teardown
 end subroutine run_fruit_rootfinding_spec
 

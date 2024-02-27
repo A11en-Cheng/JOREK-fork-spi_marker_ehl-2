@@ -192,7 +192,7 @@ subroutine bootstrap_current(R, Z,                           &
   B_tot =  sqrt( (F0/R)**2 + (grad_psi/R)**2 )
   B_phi =  sqrt( (F0/R)**2 )
   Jb = Jb * B_phi / B_tot
-  Jb = abs(Jb)
+  Jb = abs(Jb) * sign(1.d0,psi_bnd-psi_axis) ! Jb source consistent with the direction of IP
   
   ! --- There should not be any bootstrap outside plasma, the Xpoint can be noisy...
   Jb = Jb * (0.5d0 - 0.5d0 * tanh( (psi_norm - 1.01)/0.005d0 ) )

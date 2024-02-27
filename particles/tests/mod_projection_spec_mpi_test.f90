@@ -12,7 +12,7 @@ private
 public :: run_fruit_projection_spec_mpi
 !> Variables --------------------------------------
 !> Set to true to wrtie restart files with the projected density
-logical,parameter :: write_proj_output=.true.
+logical,parameter :: write_proj_output=.false.
 integer,parameter :: master_rank=0
 integer,parameter :: message_len=100
 integer,parameter :: filename_len=100
