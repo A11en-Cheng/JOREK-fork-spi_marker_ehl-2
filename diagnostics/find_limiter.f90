@@ -149,10 +149,11 @@ do ibnd=1,bnd_elm_list%n_bnd_elements + n_limiter
       P_Z  = ( - P_s * R_t + P_t * R_s ) / xjac ! dPsi/dZ
   
       !--- multiply grad_psi by vector pointing from axis to limiter
-      prod = P_R * (RR - R_axis) + P_Z * (Z - Z_axis)
+      prod = P_R * (RR - R_axis) + P_Z * (Z - Z_axis)   
   
       !--- decide if we are inside a private region
-      is_private = .false.
+      is_private = .false.    
+      
       if (ES%axis_is_psi_minimum) then
         if (prod < 0.d0) is_private = .true.
       else
@@ -162,14 +163,15 @@ do ibnd=1,bnd_elm_list%n_bnd_elements + n_limiter
       ! --- Second method to double check that the limiter does not belong to a private region
       ! ---    Use X-points to check region (if available and properly found) 
       if (ES%axis_init .and. ES%xpoint_init) then
-        if( ES%xpoint .and. (ES%ifail_axis==0) .and. (ES%ifail_xpoint==0) ) then
+
+        if (( ES%xpoint .and. (ES%ifail_axis==0)) .and. (ES%far_axis_xpoint(1) .or. ES%far_axis_xpoint(2))) then
 
           if (ES%initialized) psi_bnd_save = ES%psi_bnd  ! Avoid perturbing psi_bnd
 
-          ! --- The boundary will be initially guessed as the active xpoint
-          if (ES%xcase == 1) then
+          ! --- The boundary will be initially guessed as the active xpoint	  
+          if (.not. ES%far_axis_xpoint(2)) then
             ES%psi_bnd = ES%psi_xpoint(1)
-          else if (ES%xcase == 2) then
+          else if (.not. ES%far_axis_xpoint(1)) then
             ES%psi_bnd = ES%psi_xpoint(2)
           else
             if ( abs(ES%psi_axis-ES%psi_xpoint(1)) < abs(ES%psi_axis-ES%psi_xpoint(2)) ) then
@@ -178,11 +180,11 @@ do ibnd=1,bnd_elm_list%n_bnd_elements + n_limiter
               ES%psi_bnd       = ES%psi_xpoint(2)
             end if ! special case of 2 expoints
           endif ! xpoint cases
-  
+	  	   
           if (get_psi_n(P,Z) > 1.d0) then
-            if ((P < ES%psi_bnd) .and. (ES%axis_is_psi_minimum)) then
+            if ((psmima < ES%psi_bnd) .and. (ES%axis_is_psi_minimum)) then
               is_private = .true.
-            else if ((P > ES%psi_bnd) .and. (.not. ES%axis_is_psi_minimum)) then           
+            else if ((psmima > ES%psi_bnd) .and. (.not. ES%axis_is_psi_minimum)) then           
               is_private = .true. 
             else
               is_private = .false.
@@ -196,9 +198,9 @@ do ibnd=1,bnd_elm_list%n_bnd_elements + n_limiter
 
       endif ! --- end second method to check private regions
       
-      if (.not. is_private) then
-
-    
+      if (.not. is_private) then        
+  
+  
         if (psmima .lt. psi_min) then
           psi_min = psmima
           r_min   = r
@@ -209,7 +211,7 @@ do ibnd=1,bnd_elm_list%n_bnd_elements + n_limiter
           psi_max = psmima
           r_max   = r
           i_max   = ibnd
-        endif
+        endif    
     
       endif  ! --- is private
       

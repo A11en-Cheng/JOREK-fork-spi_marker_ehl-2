@@ -14,6 +14,7 @@ use phys_module, only: force_central_node, write_ps, fix_axis_nodes, treat_axis
 use mod_grid_conversions
 use mod_poiss
 use mod_node_indices
+use equil_info, only: find_xpoint
 
 implicit none
 

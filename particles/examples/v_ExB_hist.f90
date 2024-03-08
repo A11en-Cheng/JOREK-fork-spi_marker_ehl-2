@@ -18,6 +18,7 @@ use constants, only: TWOPI
 use mod_initialise_particles, only: domain_bounding_box
 use mod_math_operators, only: cross_product
 use domains
+use equil_info, only:find_xpoint
 !$ use omp_lib
 implicit none
 
@@ -30,10 +31,10 @@ integer :: counts(nv,nx)
 type(particle_sim) :: sim
 type(sobseq_rng) :: rng
 type(read_jorek_fields_interp_hermite_birkhoff) :: fieldreader
-integer :: i_elm, ifail, i, seed, n_threads, i_thread, unit
+integer :: i_elm, i_elm_xpoint(2), ifail, i, seed, n_threads, i_thread, unit
 integer :: i_v, i_x
-real*8 :: s, t, x(3), psi_N, R, Z, grad_Psi(2)
-real*8 :: Rmin, Rmax, Zmin, Zmax, Z_xpoint
+real*8 :: s, t, s_xpoint(2), t_xpoint(2), x(3), psi_N, R, Z, grad_Psi(2)
+real*8 :: Rmin, Rmax, Zmin, Zmax, R_xpoint(2), Z_xpoint(2)
 real*8 :: psi_axis, psi_xpoint(2)
 real*8 :: E(3), B(3), psi, U, v(3)
 character(len=20) :: time_s
@@ -48,7 +49,8 @@ call fieldreader%do(sim)
 
 ! Calculate normalization coefficients psi_axis and psi_xpoint(1)
 call find_axis(0, sim%fields%node_list, sim%fields%element_list, psi_axis, x(1), x(2), i_elm, s, t, ifail)
-call find_xpoint(0, sim%fields%node_list, sim%fields%element_list, psi_xpoint, x(1), Z_xpoint, i_elm, s, t, xcase, ifail)
+call find_xpoint(0, sim%fields%node_list, sim%fields%element_list, psi_xpoint, R_xpoint, Z_xpoint, i_elm_xpoint, s_xpoint, t_xpoint, xcase, ifail)
+x(1) = R_xpoint(1)
 write(*,*) "Psi_xpoint: ", psi_xpoint(1), " Psi_axis: ", psi_axis
 ! Get the size of the domain
 call domain_bounding_box(sim%fields%node_list, sim%fields%element_list, Rmin, Rmax, Zmin, Zmax)
@@ -72,7 +74,7 @@ do i=1,n_points
   if (ifail .ne. 0 .or. i_elm .le. 0) cycle ! Particle out of domain, try a new position in the next loop
 
   ! Calculate the region of the plasma the particle is in
-  if (Z .lt. Z_xpoint) cycle ! skip positions below the xpoint
+  if (Z .lt. Z_xpoint(1)) cycle ! skip positions below the xpoint
 
   ! Calculate E and B fields
   call sim%fields%calc_EBpsiU(sim%time, i_elm, [s, t], TWOPI*x(3), E, B, psi, U)
