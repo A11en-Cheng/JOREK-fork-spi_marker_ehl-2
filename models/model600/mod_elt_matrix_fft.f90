@@ -3588,7 +3588,7 @@ do i=1,n_vertex_max
                                         * ( v_x * u0_y - v_y * u0_x) * xjac * theta * tstep * tstep  &
                               ! This is for the projected Z_imp, which do NOT depend on temperature
                               + tgnum_Te * 0.25d0 * BigR**2 * Te * ((    +alpha_e_x  *rimp0  )*u0_y &
-                                                            - (    +alpha_e_y  *rn0  )*u0_x)   &
+                                                            - (    +alpha_e_y  *rimp0  )*u0_x)   &
                                         * ( v_x * u0_y - v_y * u0_x) * xjac * theta * tstep * tstep & 
 
                               + tgnum_Te * 0.25d0 * BigR**2 * (r0+alpha_e_bis*rimp0) * (Te_x * u0_y - Te_y * u0_x)         &
