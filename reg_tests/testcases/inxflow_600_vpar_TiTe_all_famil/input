@@ -53,6 +53,7 @@
  Z_geo = 0.
 
  F0    = 3.0
+ eta_coul_log_dep = .false.
 
  amin     = 1.
 

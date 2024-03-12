@@ -11,8 +11,11 @@ module mod_penning_case_jorek
   public jorek_penning_fields
 contains
 
-subroutine jorek_penning_fields(node_list, element_list)
-  use projection_helpers, only: prepare_mumps_par, calc_rhs_f
+subroutine jorek_penning_fields(node_list, element_list, apply_dirichlet_in, &
+rank_in, master_in, ifail_out)
+  use mod_project_particles, only             : prepare_mumps_par_n0
+  use projection_helpers,   only              : calc_rhs_f
+  use mod_projection_helpers_test_tools, only : broadcast_dmumps_project_struct
   use phys_module, only       : F0, central_mass, central_density, tstep
   use constants, only         : mass_proton, mu_zero, el_chg, atomic_mass_unit
   use mpi_mod
@@ -22,6 +25,9 @@ subroutine jorek_penning_fields(node_list, element_list)
 
   type(type_node_list),    intent(inout) :: node_list
   type(type_element_list), intent(inout) :: element_list
+  integer,                 intent(in),optional :: rank_in,master_in
+  logical,                 intent(in),optional :: apply_dirichlet_in
+  integer,                 intent(out),optional :: ifail_out 
 
   real*8              :: area, volume
   real*8, allocatable :: integral_weights(:)
@@ -29,6 +35,8 @@ subroutine jorek_penning_fields(node_list, element_list)
   integer             :: i, k, index
   real*8              :: t_norm, qom, B0, Phi0
   integer             :: mpi_comm_n, mpi_comm_master, i_tor_local, n_tor_local, ierr
+  logical             :: apply_dirichlet
+  integer             :: rank,master,ifail
 
   !> Note that we have to cheat a little bit here:
   !> We need F0 nonzero for the electric potential, but we need F0 = 0 to not have
@@ -36,6 +44,13 @@ subroutine jorek_penning_fields(node_list, element_list)
   !> to a very high number to get an asymptotically correct answer (at the expense
   !> of accuracy in the field representation of U due to floating-point accuracy)
   real*8, parameter :: F0_CHEAT_FACTOR = 1d-30
+
+  !> deactivate dirichlet bnd if requires
+  apply_dirichlet = .true.
+  if(present(apply_dirichlet_in))  apply_dirichlet = apply_dirichlet_in
+
+  rank = 0;   if(present(rank_in))   rank   = rank_in
+  master = 0; if(present(master_in)) master = master_in
 
   F0 = F0_CHEAT_FACTOR ! Set a very small F0 to have nearly no toroidal magnetic field
 
@@ -54,7 +69,8 @@ subroutine jorek_penning_fields(node_list, element_list)
   n_tor_local = 1
 
   call prepare_mumps_par_n0(node_list, element_list, n_tor_local, i_tor_local, mpi_comm_world, mpi_comm_n, mpi_comm_master, &
-                            p,  area, volume, filter=0.d0, filter_hyper=0.d0, filter_parallel=0.d0, integral_weights=integral_weights )
+                            p,  area, volume, filter=0.d0, filter_hyper=0.d0, filter_parallel=0.d0, &
+                            apply_dirichlet_condition_in=apply_dirichlet , integral_weights=integral_weights )
 
 
   allocate(p%rhs(p%n))
@@ -73,6 +89,8 @@ subroutine jorek_penning_fields(node_list, element_list)
 
   call DMUMPS(p)
 
+  call broadcast_dmumps_project_struct(rank,master,p,ifail)
+
   do i=1,node_list%n_nodes
     do k=1,n_degrees
       index = 2*(node_list%node(i)%index(k)-1) + 1
@@ -87,6 +105,8 @@ subroutine jorek_penning_fields(node_list, element_list)
   
   call DMUMPS(p)
   
+  call broadcast_dmumps_project_struct(rank,master,p,ifail)
+
   do i=1,node_list%n_nodes
     do k=1,n_degrees
       index = 2*(node_list%node(i)%index(k)-1) + 1
@@ -98,7 +118,9 @@ subroutine jorek_penning_fields(node_list, element_list)
   
   p%JOB=-2
   call DMUMPS(p)
-  
+
+  if(present(ifail_out)) ifail_out = ifail 
+ 
 end subroutine jorek_penning_fields
 
 !> E = -Grad F0*U, U = Phi0(R^2 - 2 Z^2) (see model001/initial_conditions.f90 for reference)

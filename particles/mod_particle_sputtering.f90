@@ -67,6 +67,7 @@ module mod_particle_sputtering
   use mod_atomic_elements !< chemical elements
   use mod_particle_sim
   use mod_event
+  use equil_info, only:find_xpoint
   !$ use omp_lib 
   
   implicit none
@@ -1042,8 +1043,8 @@ subroutine project_sputter_vars_on_edge(sim, n_relative, background_species, coe
   real*8 :: m, psi, U
 
   real*8, parameter :: gamma = 5.d0 / 3.d0 !< Heat capacity ratio, for adiabatic
-  real*8 :: psi_axis, R_axis, Z_axis, s_axis, t_axis, psi_xpoint(2), psi_limit, R_xpoint, Z_xpoint, s_xpoint, t_xpoint
-  integer :: i_elm_axis, ifail, i_elm_xpoint
+  real*8 :: psi_axis, R_axis, Z_axis, s_axis, t_axis, psi_xpoint(2), psi_limit, R_xpoint(2), Z_xpoint(2), s_xpoint(2), t_xpoint(2)
+  integer :: i_elm_axis, ifail, i_elm_xpoint(2)
 
   if (present(diagnostics)) then
     ! Preparation (force my_id to 1 to suppress message)

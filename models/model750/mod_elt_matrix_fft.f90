@@ -262,6 +262,7 @@ real*8     :: eta_T, visco_T, deta_dT, d2eta_d2T, dvisco_dT, d2visco_dT2, visco_
 real*8     :: eta_num_T, eta_R, eta_Z, eta_p, ZKi_par_T, dZKi_par_dT, ZKe_par_T, dZKe_par_dT, ZK_par_T, dZK_par_dT
 real*8     :: eta_T_T, eta_R_T, eta_Z_T, eta_p_T__p, eta_p_T__n
 real*8     :: eta_T_ohm, deta_dT_ohm, d2eta_d2T_ohm 
+real*8     :: lnA, dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0
 
 real*8     :: Qconv_UR
 real*8     :: Qconv_UR_AR__p,  Qconv_UR_AR__n
@@ -1570,17 +1571,27 @@ do i=1,n_vertex_max
           
           if (with_impurities) call impurities_modeling()
 
-          if (.not. with_impurities) Z_eff = 1.d0
+          if (.not. with_impurities) then
+            Z_eff       = 1.d0
+            alpha_e     = 0.d0
+            dalpha_e_dT = 0.d0
+          endif
+
+          ! --- Normalized coulomb logarithm for resistivity
+          call coulomb_log_ei(T_or_Te, T_or_Te_corr, rho0, rho0_corr, rhoimp0, rhoimp0_corr, alpha_e, lnA, dalpha_e_dT, &
+                              dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)
 
           ! --- Eta
-          call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, eta_T,              & 
+          call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, lnA, eta_T,         & 
                            dZ_eff_dT, dZ_eff_drho0, dZ_eff_drhoimp0, drho0_corr_dn, drhoimp0_corr_dn,   & 
-                           deta_dT, d2eta_d2T, deta_drho0, deta_drhoimp0)           
+                           deta_dT, d2eta_d2T, deta_drho0, deta_drhoimp0,                               &  
+                           dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)         
 
           ! --- Eta ohmic
-          call resistivity(eta_ohmic, T_or_Te, T_or_Te_corr, T_max_eta_ohm, T_or_Te_0, Z_eff, eta_T_ohm,  &
+          call resistivity(eta_ohmic, T_or_Te, T_or_Te_corr, T_max_eta_ohm, T_or_Te_0, Z_eff, lnA, eta_T_ohm,  &
                            dZ_eff_dT, dZ_eff_drho0, dZ_eff_drhoimp0, drho0_corr_dn, drhoimp0_corr_dn,     & 
-                           deta_dT_ohm, d2eta_d2T_ohm, deta_drho0_ohm, deta_drhoimp0_ohm)           
+                           deta_dT_ohm, d2eta_d2T_ohm, deta_drho0_ohm, deta_drhoimp0_ohm,                 &   
+                           dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)        
 
           ! --- Resistivity
           if(with_TiTe)then

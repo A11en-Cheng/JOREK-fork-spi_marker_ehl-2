@@ -11,6 +11,7 @@
 !> No MPI support
 module write_E_time
   use mod_event, only: event, action
+  use equil_info, only:find_xpoint
   implicit none
 
   type, extends(action) :: save_E
@@ -34,7 +35,7 @@ subroutine do_save_E(this, sim, ev)
                                           "B_r    ", "B_z    ", "B_phi  ", &
                                           "J_r    ", "J_z    ", "J_phi  ", "J_0    ", &
                                           "E_par  ", "E_par2 ", "E_par3 "]
-  integer :: i, j, k, i_elm, ifail
+  integer :: i, j, k, i_elm, i_elm_xpoint(2), ifail
   integer :: unit(n_var)
   real*8, dimension(4) :: P, P_s, P_t, P_phi, P_time
   real*8 :: R, R_s, R_t, Z, Z_s, Z_t
@@ -43,9 +44,9 @@ subroutine do_save_E(this, sim, ev)
   real*8 :: t_norm
   real*8 :: E(3), B(3), E_phi
   real*8 :: J_0, J_phi, J_r, J_z, eta_T, T_ref
-  real*8 :: s, t
+  real*8 :: s, t, s_xpoint(2), t_xpoint(2)
   real*8 :: psi_axis, psi_xpoint(2)
-  real*8 :: R_axis, Z_axis, R_xpoint, Z_xpoint
+  real*8 :: R_axis, Z_axis, R_xpoint(2), Z_xpoint(2)
   character(len=12) time_s
 
   write(time_s,'(f12.8)') sim%time
@@ -62,7 +63,7 @@ subroutine do_save_E(this, sim, ev)
     s, t, 0.d0, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, Z, Z_s, Z_t)
   T_ref = P(1)
 
-  call find_xpoint(0, sim%fields%node_list, sim%fields%element_list, psi_xpoint, R_xpoint, Z_xpoint, i_elm, s, t, xcase, ifail)
+  call find_xpoint(0, sim%fields%node_list, sim%fields%element_list, psi_xpoint, R_xpoint, Z_xpoint, i_elm_xpoint, s_xpoint, t_xpoint, xcase, ifail)
 
   do i=1,1 ! do not support multiple groups for now
     do j=1,size(sim%groups(i)%particles,1)
@@ -94,7 +95,7 @@ subroutine do_save_E(this, sim, ev)
         E(3)  = E(3) - R_inv*P_time(1) ! separate because this is not normalized with t_norm
 
         ! use psi_xpoint(1) as psi_bnd here, so does not work for other xcases?
-        call current(xpoint,xcase,R,Z,Z_xpoint,P(1),psi_axis,psi_xpoint(1),J_0)
+        call current(xpoint,xcase,R,Z,Z_xpoint(1),P(1),psi_axis,psi_xpoint(1),J_0)
         J_0 = -J_0*R_inv/MU_ZERO
         ! Total toroidal current Jphi - J0 
         ! J_phi in SI units = -J_jorek / R
@@ -172,12 +173,12 @@ integer, parameter :: n_theta = 2000, n_phi=1
 
 type(particle_sim) :: sim
 type(event) :: fieldreader
-integer :: i_elm, ifail, i, j, k, ierr
+integer :: i_elm, i_elm_xpoint(2), ifail, i, j, k, ierr
 real*8 :: psi_n, delta_t
 real*8 :: psi_axis, psi_xpoint(2)
-real*8 :: R_axis, Z_axis, R_xpoint, Z_xpoint
+real*8 :: R_axis, Z_axis, R_xpoint(2), Z_xpoint(2)
 real*8, allocatable :: psi_minmax_list(:,:)
-real*8 :: s, t, R, Z, phi, theta
+real*8 :: s, s_xpoint(2), t, t_xpoint(2), R, Z, phi, theta
 character(len=20) :: time_s, suffix
 type(event), allocatable :: events(:)
 
@@ -214,7 +215,7 @@ call with(sim, events(1))
 ! Calculate normalization coefficients psi_axis and psi_xpoint(1)
 ! hack for asdex upgrade case since find_axis fails there
 call find_axis(0, sim%fields%node_list, sim%fields%element_list, psi_axis, R_axis, Z_axis, i_elm, s, t, ifail)
-call find_xpoint(0, sim%fields%node_list, sim%fields%element_list, psi_xpoint, R_xpoint, Z_xpoint, i_elm, s, t, xcase, ifail)
+call find_xpoint(0, sim%fields%node_list, sim%fields%element_list, psi_xpoint, R_xpoint, Z_xpoint, i_elm_xpoint, s_xpoint, t_xpoint, xcase, ifail)
 write(*,*) "Psi_xpoint: ", psi_xpoint(1), " Psi_axis: ", psi_axis
 if (abs(psi_xpoint(1) - psi_axis) .le. 1d-3) then
   write(*,*) "error in find_axis! same as xpoint... exiting"

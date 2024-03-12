@@ -14,6 +14,7 @@ use mod_element_rtree
 use mod_grid_conversions
 use mod_poiss
 use mod_node_indices
+use equil_info, only:find_xpoint
 
 implicit none
 

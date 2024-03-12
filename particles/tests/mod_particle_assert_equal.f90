@@ -24,18 +24,29 @@ contains
 !> Procedures -----------------------------------------------------
 
 !> compare two particle lists
-subroutine assert_equal_particle_list(n_particles,particle_list_1,particle_list_2)
+subroutine assert_equal_particle_list(n_particles,particle_list_1,&
+particle_list_2,enable_openmp_in)
   implicit none
   class(particle_base),dimension(n_particles),intent(in) :: particle_list_1
   class(particle_base),dimension(n_particles),intent(in) :: particle_list_2
-  integer,intent(in) :: n_particles
+  integer,intent(in)          :: n_particles
+  logical,intent(in),optional :: enable_openmp_in
   integer :: ii
-  !$omp parallel do default(private) shared(n_particles,&
-  !$omp particle_list_1,particle_list_2)
-  do ii=1,n_particles
-    call assert_equal_particle_single(particle_list_1(ii),particle_list_2(ii))
-  enddo
-  !$omp end parallel do
+  logical :: enable_openmp
+  enable_openmp = .false.
+  if(present(enable_openmp_in)) enable_openmp = enable_openmp_in
+  if(enable_openmp) then
+    !$omp parallel do default(private) shared(n_particles,&
+    !$omp particle_list_1,particle_list_2)
+    do ii=1,n_particles
+      call assert_equal_particle_single(particle_list_1(ii),particle_list_2(ii))
+    enddo
+    !$omp end parallel do
+  else
+    do ii=1,n_particles
+      call assert_equal_particle_single(particle_list_1(ii),particle_list_2(ii))
+    enddo
+  endif
 end subroutine assert_equal_particle_list
 
 !> compare two particles 

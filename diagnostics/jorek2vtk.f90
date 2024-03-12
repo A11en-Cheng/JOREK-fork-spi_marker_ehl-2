@@ -106,7 +106,7 @@ real*8                :: Arad_bg, Brad_bg, Crad_bg, frad_bg
 real*8                :: Te_eV, ne_SI, Lrad_imp, r_imp_bg
 real*8                :: Te_corr_eV, coef_rad_1, Sion_T, eta_Sp, ksiion, LradDcont_T
 real*8                :: LradDrays_T, coef_ion_1, coef_ion_2, coef_ion_3, S_ion_puiss
-real*8                :: r0_real8, rn0_real8
+real*8                :: r0_real8, rn0_real8, lnA
 real*8                :: T0_corr, r0_corr, rn0_corr, ne_JOREK, T_or_Te, T_or_Te_corr, T_or_Te_0 
 integer               :: i_imp, offset_bgimp, i_bg     ! Loop for more than one background impurity
 integer               :: i_proj
@@ -674,6 +674,8 @@ do i=1,element_list%n_elements
 
         if ((xjac .gt. 1.d-6)) then
 #ifndef fullmhd
+          call interp_delta(node_list,element_list,i,var_psi,i_tor,s,t,dpsi,dPs_s, dPs_t, dPs_st, dPs_ss, dPs_tt)
+          call interp_delta(node_list,element_list,i,var_u,  i_tor,s,t,dU,dU_s, dU_t, dU_st, dU_ss, dU_tt)         
           call interp(node_list,element_list,i,var_psi,i_tor,s,t,Psi,Ps_s,Ps_t,Ps_st,Ps_ss,Ps_tt)
           call interp(node_list,element_list,i,var_u,  i_tor,s,t,U,U_s,U_t,U_st,U_ss,U_tt)
           call interp(node_list,element_list,i,var_zj, i_tor,s,t,ZJ,ZJ_s,ZJ_t,ZJ_st,ZJ_ss,ZJ_tt)
@@ -707,6 +709,10 @@ do i=1,element_list%n_elements
           zj_x  = (   Z_t * ZJ_s - Z_s * ZJ_t ) / xjac
           zj_y  = ( - R_t * ZJ_s + R_s * ZJ_t ) / xjac
 
+          ! --- Full toroidal electric field evaluated at t_now - dt/2
+          E_R   = - F0 * (U_x - 0.5d0*dU_x)
+          E_Z   = - F0 * (U_y - 0.5d0*dU_y)
+          E_phi = - dpsi/tstep /BigR - F0*(U-0.5d0*dU)/BigR 
            !*** compute diagnostics ***
           v_perp  = R * sqrt(u_x*u_x + u_y*u_y)
 
@@ -715,6 +721,9 @@ do i=1,element_list%n_elements
           error = psi_J - R_p  ! "error" in Grad_Shafranov equilibrium force balance
 #endif
         endif  ! xjac check
+        if (include_electric_field) then
+          vectors(inode,:,i_vec_E) =  (/ E_R, E_Z, E_phi /)
+        endif
 
       else  ! i_tor
 
@@ -920,7 +929,8 @@ do i=1,element_list%n_elements
         D_prof  = get_dperp (psi_norm)
         ZK_prof = get_zkperp(psi_norm)
 
-        call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, 1.d0, eta_T)  ! NEEDS TO BE ADAPTED FOR IMPURITIES (Z_eff)!! 
+        call coulomb_log_ei(T_or_Te, T_or_Te_corr, rho, corr_neg_dens1(rho), 0.0, 0.0, 0.0, lnA)
+        call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, 1.d0, lnA, eta_T)  ! NEEDS TO BE ADAPTED FOR IMPURITIES (Z_eff)!! 
 
         if (include_bootstrap) then
           call bootstrap_current(R, Z, ES%R_axis, ES%Z_axis, ES%psi_axis, ES%R_xpoint, ES%Z_xpoint, ES%psi_bnd, psi_norm,&
@@ -1274,7 +1284,8 @@ enddo  ! n_elements
                                   LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT,r0_real8,rn0_real8,.true. ) 
       endif
 
-      call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, 1.d0, eta_Sp)           
+      call coulomb_log_ei(T_or_Te, T_or_Te_corr, rho, corr_neg_dens1(rho), 0.0, 0.0, 0.0, lnA)
+      call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, 1.d0, lnA, eta_Sp)           
 
       scalars(i,ineu(1)) = ksiion * scalars(i,var_rho) * scalars(i,var_rhon) * Sion_T
       scalars(i,ineu(2)) = scalars(i,var_rho) * scalars(i,var_rhon) * LradDrays_T
@@ -1438,7 +1449,9 @@ enddo  ! n_elements
 
      scalars(i,iimp(5)) = Z_eff
 
-     call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, eta_Sp)           
+     call coulomb_log_ei(T_or_Te, T_or_Te_corr, r0_real8, r0_corr, rimp0_real8, rimp0_corr, &
+                          beta_imp, lnA)
+     call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, lnA, eta_Sp)           
 
   !-------------------------------------------
   ! --- Radiative function, using interpolation

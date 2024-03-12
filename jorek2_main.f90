@@ -328,9 +328,9 @@ mpi_required = 0
         call grid_flux_surface(xpoint,xcase, node_list, element_list, surface_list, n_flux, n_tht, xr1,  &
                                sig1, xr2, sig2, refinement)
       end if
-      
+
     end if
-    
+
     if ( freeboundary .and. freeb_change_indices) call exchange_indices(node_list, my_id, n_cpu, .false.)
     
  end if !   if ( restart .and. (my_id == 0) ) then
@@ -348,44 +348,56 @@ mpi_required = 0
   
   if_not_restart: if (.not. restart) then
     call tr_resetfile()
-    
-    call initial_grid(node_list, element_list, bnd_node_list, bnd_elm_list, my_id, n_cpu)
-    
-    ! --- Synchronizing MPI processes avoid deadlock issues on some machine
-    call MPI_Barrier(MPI_COMM_WORLD,ierr)
-    
-    ! --- Send boundary elements and nodes to other MPI procs
-    call broadcast_boundary(my_id,bnd_elm_list,bnd_node_list)
-    
-    ! --- Fill the vacuum response matrices for freeboundary computations
-    if ( freeboundary_equil .and. (n_flux .eq. 0)) then
-      call get_vacuum_response(my_id, node_list, bnd_elm_list, bnd_node_list, freeboundary_equil,  &
-          resistive_wall)
-      call update_response(my_id,tstep, resistive_wall)
-      call import_external_fields('coil_field.dat', my_id)
-      call set_coil_curr_time_trace()
-      if ( (.not. restart) .or. (.not. wall_curr_initialized) ) call init_wall_currents(my_id, resistive_wall)
-    else
-      freeb_equil2        = freeboundary_equil
-      freeboundary_equil  = .false.
-    end if
-    
-    ! --- Plot the grid  
-    if ( (my_id == 0) .and. (.not. bench_without_plot) ) then
-      call plot_grid(node_list,element_list,bnd_elm_list,bnd_node_list,.true.,.false.,'initial')
-    end if
-    
-    ! --- Check sanity of grid
-    if (.not. RZ_grid_inside_wall) call check_grid(my_id, node_list, element_list)
 
-    ! --- Compute the plasma equilibrium
-    if (equil) then
-      call equilibrium(my_id,node_list,element_list,bnd_node_list,bnd_elm_list,xpoint,xcase, .true.) 
-      if (export_for_nemec) then
-        if(my_id ==0 ) call export_nemec(node_list, element_list, xpoint, xcase)
-      endif
-      if (my_id == 0) call update_equil_state(my_id,node_list, element_list, bnd_elm_list, xpoint, xcase)
-    end if ! if (equil) then
+    if_not_regrid_from_rz: if(.not. regrid_from_rz) then
+
+      call initial_grid(node_list, element_list, bnd_node_list, bnd_elm_list, my_id, n_cpu)
+
+      ! --- Synchronizing MPI processes avoid deadlock issues on some machine
+      call MPI_Barrier(MPI_COMM_WORLD,ierr)
+
+      ! --- Send boundary elements and nodes to other MPI procs
+      call broadcast_boundary(my_id,bnd_elm_list,bnd_node_list)
+
+      ! --- Fill the vacuum response matrices for freeboundary computations
+      if ( freeboundary_equil .and. (n_flux .eq. 0)) then
+        call get_vacuum_response(my_id, node_list, bnd_elm_list, bnd_node_list, freeboundary_equil,  &
+            resistive_wall)
+        call update_response(my_id,tstep, resistive_wall)
+        call import_external_fields('coil_field.dat', my_id)
+        call set_coil_curr_time_trace()
+        if ( (.not. restart) .or. (.not. wall_curr_initialized) ) call init_wall_currents(my_id, resistive_wall)
+      else
+        freeb_equil2        = freeboundary_equil
+        freeboundary_equil  = .false.
+      end if
+
+      ! --- Plot the grid
+      if ( (my_id == 0) .and. (.not. bench_without_plot) ) then
+        call plot_grid(node_list,element_list,bnd_elm_list,bnd_node_list,.true.,.false.,'initial')
+      end if
+
+      ! --- Check sanity of grid
+      if (.not. RZ_grid_inside_wall) call check_grid(my_id, node_list, element_list)
+
+      ! --- Compute the plasma equilibrium
+      if (equil) then
+        call equilibrium(my_id,node_list,element_list,bnd_node_list,bnd_elm_list,xpoint,xcase, .true.)
+        if (export_for_nemec) then
+          if(my_id ==0 ) call export_nemec(node_list, element_list, xpoint, xcase)
+        endif
+        if (my_id == 0) call update_equil_state(my_id,node_list, element_list, bnd_elm_list, xpoint, xcase)
+        if (.not. freeboundary) then
+          fileout = 'jorek_equil_rz'
+          call export_restart(node_list, element_list, fileout)
+        end if
+      end if ! if (equil) then
+
+    else
+        write(*,*)'Restart from r/z grid equilibrium'
+        call import_restart(node_list, element_list, 'jorek_equil_rz', rst_format, ierr)
+        if ( ierr /= 0 ) stop
+    end if if_not_regrid_from_rz
 
     ! --- Determine a flux surface aligned grid and re-calculate the equilibrium on it
     if (n_flux > 1) then

@@ -11,6 +11,7 @@
  ! ---------------
  ! --- Equilibrium
  F0    = 3.0
+ eta_coul_log_dep = .false.
  amin  = 1.
  R_geo = 3.0
  Z_geo = 0.

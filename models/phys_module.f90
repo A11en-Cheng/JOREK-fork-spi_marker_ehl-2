@@ -14,6 +14,7 @@ module phys_module
   real*8  :: eta_T_0              !< Initial resistivity
   real*8  :: eta_ohmic            !< Resistivity at core for the Ohmic heating term
   logical :: eta_T_dependent      !< Resistivity dependent on temperature? Otherwise constant
+  logical :: eta_coul_log_dep     !< Resistivity dependent on variations of the Coulomb logarithm?
   real*8  :: T_max_eta            !< Temperature above which the resistivity is truncated (use with care; only for numerical reasons)
   real*8  :: T_max_eta_ohm        !< Temperature above which the resistivity used in the Ohmic heating term is truncated (use with care; only for numerical reasons)
   real*8  :: T_max_visco          !< Temperature above which the viscosity is truncated; It is aimed for keeping the Prandtl number constant when T_max_eta is activated. 
@@ -38,6 +39,7 @@ module phys_module
   real*8  :: tauIC                !< Scaling factor for diamagnetic terms (see [[diamag|diamagnetic]])
   real*8  :: tauIC_nominal        !< Nominal scaling factor (considering Ti=Te) for diamagnetic terms (see [[diamag|diamagnetic]])
   real*8  :: eta_spitzer          !< Spitzer resistivity in the core (considering main ion charge Z=1, effective ion charge Zeff=1)
+  real*8  :: lnA_center           !< Coulomb logarithm in the core (used for the resistivity function)
   logical :: Wdia                 !< Include diamagnetic flows in viscosity terms? (see [[wdia|here]])
   logical :: U_sheath             !< Use Stangeby BCs for electric potential
   logical :: renormalise          !< Set true to give all input MHD parameters in S.I. units (ie. renormalise them before equations)
@@ -65,8 +67,10 @@ module phys_module
   logical :: forceSDN             !< Force a symmetric double null, within the accuracy of SDN_threshold
   real*8  :: SDN_threshold        !< threshold, in absolute psi, for a symmetric-double-null grid construction
   integer :: rst_format           !< 0 == old format, 1 == new format for restart file
+  integer :: n_tor_restart        !< Number of toroidal harmonics read in the restart file
   logical :: restart              !< Restart a code run from the restart file jorek_restart.h5?
   logical :: regrid               !< Re-generate the flux-aligned grid (does not work currently)?
+  logical :: regrid_from_rz       !< Re-generate the flux-aligned grid from an rz equilibrium
   logical :: import_equil         !< (presently unused)
   logical :: xpoint               !< X-point plasma or not? see also xcase
   real*8  :: Z_xpoint_limit(2)    !< Search the lower X-point in the region Z < Z_xpoint_limit(1) and the upper X-point in the region Z > Z_xpoint_limit(2) 
@@ -250,39 +254,39 @@ module phys_module
   !! - \f$ \Psi_{N,0} \f$ denotes the position around which the source is ramped down (e.g., heatsource_psin)
   !! - \f$ \sigma \f$ denotes the width over which the source is ramped down (e.g., heatsource_sig)
   !!
-  real*8  :: particlesource            !< Particle source amplitude
-  real*8  :: particlesource_psin       !< Position around which the source is ramped down
-  real*8  :: particlesource_sig        !< Width over which the source is ramped down
-  real*8  :: particlesource_gauss      !< Additional Gaussian particle source amplitude
-  real*8  :: particlesource_gauss_psin !< Position around which Gaussian source is set
-  real*8  :: particlesource_gauss_sig  !< Width over which Gaussian source is set
-  real*8  :: edgeparticlesource        !< Edge particle source amplitude
-  real*8  :: edgeparticlesource_psin   !< Position around which the edge particle source is located
-  real*8  :: edgeparticlesource_sig    !< Width over which edge particle source extends
-  real*8  :: neutral_line_source(10)   !< neutral inflow source
-  real*8  :: neutral_line_R_start(10)  !< neutral inflow source (starting point of line source)
-  real*8  :: neutral_line_Z_start(10)  !< neutral inflow source
-  real*8  :: neutral_line_R_end(10)    !< neutral inflow source (end point of line source)
-  real*8  :: neutral_line_Z_end(10)    !< neutral inflow source
-  real*8  :: heatsource                !< Heat source amplitude
-  real*8  :: heatsource_e              !< Electron heat source amplitude
-  real*8  :: heatsource_i              !< Ion heat source amplitude
-  real*8  :: heatsource_psin           !< Position around which the source is ramped down
-  real*8  :: heatsource_sig            !< Width over which the source is ramped down
-  real*8  :: heatsource_e_psin         !< Position around which the electron source is ramped down
-  real*8  :: heatsource_e_sig          !< Width over which the electron source is ramped down
-  real*8  :: heatsource_i_psin         !< Position around which the ion source is ramped down
-  real*8  :: heatsource_i_sig          !< Width over which the ion source is ramped down
-  real*8  :: heatsource_gauss          !< Additional Gaussian heat source amplitude
-  real*8  :: heatsource_gauss_psin     !< Position around which Gaussian source is located
-  real*8  :: heatsource_gauss_sig      !< Width over which Gaussian source extends
-  real*8  :: heatsource_gauss_e        !< Gaussian heat source for electrons
-  real*8  :: heatsource_gauss_i        !< Gaussian heat source for ions
-  real*8  :: heatsource_gauss_e_psin   !< Position around which electrons Gaussian source is located
-  real*8  :: heatsource_gauss_e_sig    !< Width over which electrons Gaussian source extends
-  real*8  :: heatsource_gauss_i_psin   !< Position around which ions Gaussian source is located
-  real*8  :: heatsource_gauss_i_sig    !< Width over which ions Gaussian source extends
-  real*8  :: constant_imp_source       !< Adds a constant impurity source
+  real*8  :: particlesource                !< Particle source amplitude
+  real*8  :: particlesource_psin           !< Position around which the source is ramped down
+  real*8  :: particlesource_sig            !< Width over which the source is ramped down
+  real*8  :: particlesource_gauss(5)       !< Additional Gaussian particle source amplitude
+  real*8  :: particlesource_gauss_psin(5)  !< Position around which Gaussian source is set
+  real*8  :: particlesource_gauss_sig(5)   !< Width over which Gaussian source is set
+  real*8  :: edgeparticlesource            !< Edge particle source amplitude
+  real*8  :: edgeparticlesource_psin       !< Position around which the edge particle source is located
+  real*8  :: edgeparticlesource_sig        !< Width over which edge particle source extends
+  real*8  :: neutral_line_source(10)       !< neutral inflow source
+  real*8  :: neutral_line_R_start(10)      !< neutral inflow source (starting point of line source)
+  real*8  :: neutral_line_Z_start(10)      !< neutral inflow source
+  real*8  :: neutral_line_R_end(10)        !< neutral inflow source (end point of line source)
+  real*8  :: neutral_line_Z_end(10)        !< neutral inflow source
+  real*8  :: heatsource                    !< Heat source amplitude
+  real*8  :: heatsource_e                  !< Electron heat source amplitude
+  real*8  :: heatsource_i                  !< Ion heat source amplitude
+  real*8  :: heatsource_psin               !< Position around which the source is ramped down
+  real*8  :: heatsource_sig                !< Width over which the source is ramped down
+  real*8  :: heatsource_e_psin             !< Position around which the electron source is ramped down
+  real*8  :: heatsource_e_sig              !< Width over which the electron source is ramped down
+  real*8  :: heatsource_i_psin             !< Position around which the ion source is ramped down
+  real*8  :: heatsource_i_sig              !< Width over which the ion source is ramped down
+  real*8  :: heatsource_gauss(5)           !< Additional Gaussian heat source amplitude
+  real*8  :: heatsource_gauss_psin(5)      !< Position around which Gaussian source is located
+  real*8  :: heatsource_gauss_sig(5)       !< Width over which Gaussian source extends
+  real*8  :: heatsource_gauss_e(5)         !< Gaussian heat source for electrons
+  real*8  :: heatsource_gauss_i(5)         !< Gaussian heat source for ions
+  real*8  :: heatsource_gauss_e_psin(5)    !< Position around which electrons Gaussian source is located
+  real*8  :: heatsource_gauss_e_sig(5)     !< Width over which electrons Gaussian source extends
+  real*8  :: heatsource_gauss_i_psin(5)    !< Position around which ions Gaussian source is located
+  real*8  :: heatsource_gauss_i_sig(5)     !< Width over which ions Gaussian source extends
+  real*8  :: constant_imp_source           !< Adds a constant impurity source
   
   !> @name Hyper-resistivity, -viscosity and -diffusivities
   real*8  :: eta_num, visco_num, visco_par_num,                                      &

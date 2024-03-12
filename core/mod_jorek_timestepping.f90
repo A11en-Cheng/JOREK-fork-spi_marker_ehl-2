@@ -431,9 +431,15 @@ subroutine do_jorek_timestep(this, sim, ev)
 !        pressure_out_t(index_now), heat_src_in_t(index_now), heat_src_out_t(index_now),             &
 !        part_src_in_t(index_now), part_src_out_t(index_now))
 
-    R_axis_t(index_now)   = this%es%R_axis
-    Z_axis_t(index_now)   = this%es%Z_axis
-    psi_axis_t(index_now) = this%es%psi_axis
+    R_axis_t(index_now)       = this%es%R_axis
+    Z_axis_t(index_now)       = this%es%Z_axis
+    psi_axis_t(index_now)     = this%es%psi_axis
+    R_xpoint_t(index_now,:)   = this%es%R_xpoint(:)
+    Z_xpoint_t(index_now,:)   = this%es%Z_xpoint(:)
+    psi_xpoint_t(index_now,:) = this%es%psi_xpoint(:)
+    R_bnd_t(index_now)        = this%es%R_bnd
+    Z_bnd_t(index_now)        = this%es%Z_bnd
+    psi_bnd_t(index_now)      = this%es%psi_bnd
 
     xtime(index_now)              = t_now
     energies(1:n_tor,1,index_now) = W_mag(1:n_tor)

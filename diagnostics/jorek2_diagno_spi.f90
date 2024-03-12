@@ -40,7 +40,7 @@ integer :: ifail, ierr, i_elm_axis
 integer :: required, provided, StatInfo
 real*8  :: spi_abl_rate_tot, spi_abl_tot
 real*8  :: spi_abl_bg_rate_tot, spi_abl_bg_tot
-real*8  :: spi_x, spi_y
+real*8  :: spi_x, spi_y, spi_species_mole_D2_tmp
 
 real*8  :: spi_abl_rate_inj(n_inj_max), spi_abl_inj(n_inj_max)
 real*8  :: spi_abl_bg_rate_inj(n_inj_max), spi_abl_bg_inj(n_inj_max)
@@ -196,7 +196,7 @@ if (using_spi) then
       spi_abl_bg_rate_tot = spi_abl_bg_rate_tot + xtime_spi_ablation_bg_rate(i_spi,i)
       spi_abl_bg_tot = spi_abl_bg_tot + xtime_spi_ablation_bg(i_spi,i)
     end do
-    write(20,"(i7,f12.3,*(e14.6,:,a))") i,xtime(i), spi_abl_rate_inj(:), ',', spi_abl_inj(:), ',', spi_abl_bg_rate_inj(:), ',', spi_abl_bg_inj(:), ',', spi_abl_rate_tot, ',', spi_abl_tot, ',', spi_abl_bg_rate_tot, ',', spi_abl_bg_tot
+    write(20,"(i7,f12.3,*(e14.6,:))") i,xtime(i), spi_abl_rate_inj(:), spi_abl_inj(:), spi_abl_bg_rate_inj(:), spi_abl_bg_inj(:), spi_abl_rate_tot, spi_abl_tot, spi_abl_bg_rate_tot, spi_abl_bg_tot
   enddo
   close(20)
 
@@ -219,6 +219,15 @@ if (using_spi) then
   end do
   close(20)
 
+
+  open(20,file="fragments_plume_total.dat")
+  do i_spi = 1, n_spi_tot
+    spi_species_mole_D2_tmp = (1.-pellets(i_spi)%spi_species)/(1.+pellets(i_spi)%spi_species)
+    write(20,'(6f12.3,e14.6,f12.3)')  pellets(i_spi)%spi_R, -pellets(i_spi)%spi_phi, pellets(i_spi)%spi_Z, &
+                                      pellets(i_spi)%spi_Vel_R, -pellets(i_spi)%spi_Vel_RxZ, pellets(i_spi)%spi_Vel_Z, &
+                                      pellets(i_spi)%spi_radius, spi_species_mole_D2_tmp
+  end do
+  close(20)
 
 endif
 

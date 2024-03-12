@@ -633,6 +633,7 @@ current_pfc(10) = 0.07 !-0.15753674
  Z_end   = 0.2	
 		
  F0    = 0.47	
+ eta_coul_log_dep = .false.
 
  SDN_threshold = 5.d-3
 		

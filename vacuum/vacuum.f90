@@ -972,6 +972,7 @@ module vacuum
     if ( resistive_wall ) then
       
       call MPI_BCAST(n_wall_curr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_BCAST(n_coils,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       
       if ( n_wall_curr == 0 ) return
       
@@ -1032,7 +1033,12 @@ module vacuum
         if ( minval(sz_VFB) > 0 ) then
           allocate( vert_FB_response(sz_VFB(1), sz_VFB(2)) )
         endif
-
+        if ( n_coils>0 ) then
+          if (.not. allocated(I_coils)) then
+            allocate( I_coils(n_coils))
+            I_coils=0.d0
+          end if
+        end if
       end if
       call MPI_BCAST(wall_curr,n_wall_curr,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
       call MPI_BCAST(dwall_curr,n_wall_curr,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
@@ -1046,6 +1052,7 @@ module vacuum
       if ( minval( sz_pol) > 0 ) call MPI_BCAST(  pf_coil_name,  sz_pol(2)*COIL_NAME_LEN,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       if ( minval( sz_rmp) > 0 ) call MPI_BCAST( rmp_coil_name,  sz_rmp(2)*COIL_NAME_LEN,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       if ( minval( sz_VFB) > 0 ) call MPI_BCAST(vert_FB_response,  sz_VFB(1)*sz_VFB(2)  ,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+      if ( n_coils > 0 ) call MPI_BCAST(I_coils,  n_coils,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
     end if
     
     call MPI_BCAST(current_FB_fact,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)

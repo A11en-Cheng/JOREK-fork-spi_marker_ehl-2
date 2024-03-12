@@ -197,13 +197,15 @@ contains
     type is (particle_gc_vpar)
       select type (p_in => particle_in)
       type is (particle_gc_vpar)
-        p_out%vpar = p_in%vpar
-        p_out%mu   = p_in%mu
-        p_out%q    = p_in%q
+        p_out%vpar    = p_in%vpar
+        p_out%mu      = p_in%mu
+        p_out%B_norm  = p_in%B_norm
+        p_out%q       = p_in%q
       class default
-        p_out%vpar = 0.d0
-        p_out%mu   = 0.d0
-        p_out%q    = 0
+        p_out%vpar    = 0.d0
+        p_out%mu      = 0.d0
+        p_out%B_norm  = 0.d0
+        p_out%q       = 0
       end select
     type is (particle_gc_Qin)
     select type (p_in => particle_in)
