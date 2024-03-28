@@ -49,16 +49,36 @@ function dummy_initial_run() {
   touch jorek_restart.h5
 }
 
-# --- Generic function for comparing test results (values of end.h5 versus jorek_restart.h5).
-#     This function may be used for all testcases, but it is also possible to define specific
-#     functions in the testcase settings.sh files.
+function dummy_initial_run_particles() {
+  touch jorek_restart.h5 particle_restart.h5
+}
+
+# --- Generic function for comparing test results (dataset of end.h5 versus 
+#     output of the executed code, default output: jorek_restart.h5, 
+#     default dataset name: values). This function may be used for all testcases,
+#     but it is also possible to define specific functions in the testcase 
+#     settings.sh files.
 function compare_results_generic() {
-  threshold=$1
-  ln -s ${testcasedir}/end.h5 end.h5                                                 || exit 1
-  if [ "$printdiff" == "yes" ]; then
-    echo "Difference of 'values' between result and reference: `python $startdir/tools/maximum-difference.py` (threshold: $threshold)"
+  if [ -z "$1" ]; then
+    printf "\n$ERROR_COL ERROR: No threshold provided for results comparison\n $NO_COL"
+    exit 1
   fi
-  h5diff -d $threshold jorek_restart.h5 end.h5 values                                || exit 1
+  threshold=$1
+  if [ -z "$2" ]; then
+    resultfile="jorek_restart.h5"
+  else
+    resultfile=$2
+  fi
+  if [ -z "$3" ]; then
+    values="values "
+  else
+    values=$3
+  fi
+  ln -s ${testcasedir}/end.h5 end.h5
+  if [ "$printdiff" == "yes" ]; then
+    echo "Difference of 'values' between result and reference: `python $startdir/tools/maximum-difference.py -fn1 end.h5 -fn2 ${resultfile} -dn ${values}` (threshold: $threshold)"
+  fi
+  h5diff -v -r -d $threshold $resultfile end.h5 $values
 }
 
 if [ -z "$PRERUN" ]; then
@@ -85,6 +105,7 @@ printdiff="no"          # (preset)
 debugoptions=""         # (preset)
 checkexists="no"        # (preset)
 compiletest="no"        # (preset)
+isparticletest="no"     # (preset)
 if [ -z "$compilethreads" ]; then
     compilethreads="8"  # (preset)
 fi
@@ -172,6 +193,11 @@ while [ $# -gt 0 ]; do
 done
 echo " tmpdir = " $tmpdir
 
+# --- Detect if a particle testcase must be run
+if [[ "$testcase" =~ .*"particle".* ]]; then
+  isparticletest="yes"  
+  printf "\n$NO_COL Particle test case detected\n"
+fi
 
 # --- Detect which case of test (run test or compile test)
 if [ "${testcase:0:17}" == "compile_objs_all_" ]; then
@@ -190,7 +216,6 @@ elif [ ! -d  "${startdir}/testcases/$testcase" ]; then
   printf "\n$ERROR_COL ERROR: Testcase '$testcase' does not exist. Use command line option -l to list available test cases.$NO_COL\n"
   exit 1
 fi
-
 
 if [ "$checkexists" == "yes" ]; then
   echo "Case $testcase exists."
@@ -232,6 +257,23 @@ if [ "$compiletest" != "yes" ]; then
   source $testcasedir/settings.sh
 fi
 
+# --- Check if the restart_file and the result_file variables are set
+#     if not, set them respectively to jorek_restart.h5
+if [ -z ${restart_file+x} ]; then
+  restart_file="jorek_restart.h5"
+fi
+if [ -z ${result_file+x} ]; then
+  result_file="jorek_restart.h5"
+fi
+
+# --- Check if the particle example exists
+if [ "$isparticletest" == "yes" ]; then
+  # --- Check if the particle example exists
+  if [ ! -f "${codedir}/${particle_example_dir}/${particle_example}.f90" ]; then
+    printf "\n$ERROR_COL ERROR: Testcase '$testcase', particle example '$particle_example' does not exist.$NO_COL\n"
+    exit 1
+  fi
+fi
 
 # --- Set hard-coded parameters and compile
 if [ "$compile" == "yes" ]; then
@@ -280,7 +322,7 @@ if [ "$runit" == "yes" ]; then
     cp $binaries_initial $tmpdir                          || exit 1
   fi
   cd $tmpdir                                              || exit 1
-    
+
   # --- Some preparations
   if [ -n "$PRERUN" ]; then
     eval $PRERUN                                          || exit 1
@@ -291,7 +333,7 @@ if [ "$runit" == "yes" ]; then
 
   # --- Run the test case
   if [ "$initialrun" == "no" ]; then
-    cp ${testcasedir}/begin.h5 jorek_restart.h5           || exit 1
+    cp ${testcasedir}/begin.h5 $restart_file              || exit 1
     restart_run                                           || exit 1
     compare_results
     returncode=$?
@@ -301,10 +343,11 @@ if [ "$runit" == "yes" ]; then
       echo "Test '$testcase' failed."
     fi
   else
+    echo "${restart_file} ${result_file}"
     initial_run                                           || exit 1
-    cp jorek_restart.h5 ${testcasedir}/begin.h5           || exit 1
+    cp $restart_file ${testcasedir}/begin.h5              || exit 1
     restart_run                                           || exit 1
-    cp jorek_restart.h5 ${testcasedir}/end.h5             || exit 1
+    cp $result_file ${testcasedir}/end.h5                 || exit 1
   fi
 
   # --- Remove the temporary directory

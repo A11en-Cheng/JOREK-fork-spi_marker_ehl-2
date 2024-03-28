@@ -587,7 +587,7 @@ mpi_required = 0
 
   call tr_print_memsize("BeforeTimeStepping")
   call r3_info_print (-2, -2, 'INITIALIZATION')    ! timing
-  
+
   if (.not. associated(aux_node_list)) allocate(aux_node_list) ! information of particle moments is stored in aux_list
 
   index_now = index_start  ! index_now: Index of current timestep

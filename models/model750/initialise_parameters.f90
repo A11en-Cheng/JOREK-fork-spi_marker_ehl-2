@@ -167,7 +167,8 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 vms_coeff_rho, vms_coeff_Ti, vms_coeff_Te,          &
                 vms_coeff_T, vms_coeff_rhon, vms_coeff_rhoimp,      &
                 vacuum_min, strumpack_matching,                     &
-                forceSDN, SDN_threshold, eta_coul_log_dep
+                forceSDN, SDN_threshold, eta_coul_log_dep,          &
+                export_aux_node_list
 
 
 if (my_id .eq. 0) then

@@ -5,6 +5,14 @@
 module mod_particle_types
   implicit none
   private
+  public :: particle_base_id,particle_fieldline_id,particle_gc_id
+  public :: particle_gc_vpar_id,particle_gc_Qin_id,particle_kinetic_id
+  public :: particle_kinetic_leapfrog_id,particle_kinetic_relativistic_id
+  public :: particle_gc_relativistic_id
+  public :: particle_base_size,particle_fieldline_size,particle_gc_size
+  public :: particle_gc_vpar_size,particle_gc_Qin_size,particle_kinetic_size
+  public :: particle_kinetic_leapfrog_size,particle_kinetic_relativistic_size
+  public :: particle_gc_relativistic_size
   public :: particle_base, particle_kinetic, particle_kinetic_leapfrog
   public :: particle_gc, particle_fieldline
   public :: particle_kinetic_relativistic, particle_gc_relativistic
@@ -13,6 +21,31 @@ module mod_particle_types
   public :: copy_particle
   public :: copy_particle_base
   public :: copy_particle_kinetic_leapfrog
+  public :: codify_particle_type
+  public :: find_active_particle_id
+  !> publicity only for unit testing
+#ifdef UNIT_TESTS
+  public :: find_active_particle_id_seq
+  public :: find_active_particle_id_openmp
+#endif
+
+  !> buffer size in bits for each particle type
+  integer,parameter :: particle_base_size                 = 480
+  integer,parameter :: particle_fieldline_size            = 736
+  integer,parameter :: particle_gc_size                   = 640
+  integer,parameter :: particle_gc_vpar_size              = 640
+  integer,parameter :: particle_gc_Qin_size               = 2496
+  integer,parameter :: particle_kinetic_size              = 704
+  integer,parameter :: particle_kinetic_leapfrog_size     = 704
+  integer,parameter :: particle_kinetic_relativistic_size = 704
+  integer,parameter :: particle_gc_relativistic_size      = 640
+  !> enumerator of the particle type 
+  enum, bind(C)
+  enumerator :: particle_base_id=0,particle_fieldline_id,particle_gc_id,&
+                particle_gc_vpar_id,particle_gc_Qin_id,particle_kinetic_id,&
+                particle_kinetic_leapfrog_id,particle_kinetic_relativistic_id,&
+                particle_gc_relativistic_id
+  endenum
 
   !> The base type for all other particles. Includes only the position and weight elements
   !> Integration in a 2D finite element method is included in the form of 2 coordinates
@@ -97,6 +130,17 @@ module mod_particle_types
     real(kind=8), dimension(2) :: p  !< 1: parallel momentum [AMU m/s], 2: magnetic moment [(AMU*m**2)/(T*s**2)]
     integer(kind=1) :: q !< charge [e]
  end type particle_gc_relativistic
+
+!> interfaces ------------------------------------------------------------------------------
+interface codify_particle_type
+  module procedure codify_single_particle_type
+  module procedure codify_particle_list_alloc_type
+end interface codify_particle_type
+
+interface find_active_particle_id
+  module procedure find_active_particle_id_base
+  module procedure find_active_particle_id_type
+end interface find_active_particle_id
 
 contains
   !> Convenience function to obtain q if it exists, or 0 otherwise
@@ -279,4 +323,300 @@ contains
     end select
   end subroutine copy_particle
 
+  !> codify_single_particle_type returns a codified 
+  !> particle type for a particle
+  !> condification:
+  !>   0 -> default
+  !>   1 -> particle_fieldline
+  !>   2 -> particle_gc
+  !>   3 -> particle_gc_vpar
+  !>   4 -> particle_gc_Qin
+  !>   5 -> particle_kinetic
+  !>   6 -> particle_kinetic_leapfrog
+  !>   7 -> particle_kinetic_relativistic
+  !>   8 -> particle_gc_relativistic
+  function codify_single_particle_type(particle) result(p_type)
+    implicit none
+    class(particle_base),intent(in) :: particle
+    integer :: p_type
+    p_type = 0
+    select type (p=>particle)
+      type is (particle_fieldline)
+      p_type = particle_fieldline_id
+      type is (particle_gc)
+      p_type = particle_gc_id
+      type is (particle_gc_vpar)
+      p_type = particle_gc_vpar_id
+      type is (particle_gc_Qin)
+      p_type = particle_gc_Qin_id
+      type is (particle_kinetic)
+      p_type = particle_kinetic_id
+      type is (particle_kinetic_leapfrog)
+      p_type = particle_kinetic_leapfrog_id
+      type is (particle_kinetic_relativistic)
+      p_type = particle_kinetic_relativistic_id
+      type is (particle_gc_relativistic)
+      p_type = particle_gc_relativistic_id
+    end select
+  end function codify_single_particle_type
+ 
+  !> codify_particle_list_alloc_type returns a 
+  !> codified particle type for a particle list
+  !> condification:
+  !>   1 -> particle_fieldline
+  !>   2 -> particle_gc
+  !>   3 -> particle_gc_vpar
+  !>   4 -> particle_gc_Qin
+  !>   5 -> particle_kinetic
+  !>   6 -> particle_kinetic_leapfrog
+  !>   7 -> particle_kinetic_relativistic
+  !>   8 -> particle_gc_relativistic
+  function codify_particle_list_alloc_type(particle_list) result(p_type)
+    implicit none
+    class(particle_base),dimension(:),allocatable,intent(in) :: particle_list
+    integer :: p_type
+    p_type = 0
+    select type (p=>particle_list)
+      type is (particle_fieldline)
+      p_type = particle_fieldline_id
+      type is (particle_gc)
+      p_type = particle_gc_id
+      type is (particle_gc_vpar)
+      p_type = particle_gc_vpar_id
+      type is (particle_gc_Qin)
+      p_type = particle_gc_Qin_id
+      type is (particle_kinetic)
+      p_type = particle_kinetic_id
+      type is (particle_kinetic_leapfrog)
+      p_type = particle_kinetic_leapfrog_id
+      type is (particle_kinetic_relativistic)
+      p_type = particle_kinetic_relativistic_id
+      type is (particle_gc_relativistic)
+      p_type = particle_gc_relativistic_id
+    end select
+  end function codify_particle_list_alloc_type
+
+  !> find_active_particle_id_type returns the number 
+  !> and index of acitve particles withing a list for 
+  !> are specific type of particle (encoded).
+  !> Active particles are particles having i_elm>0.
+  !> If particle code - particle type do not match
+  !> returns 0 
+  !> inputs:
+  !>   particle_code: (integer) encoded particle type
+  !>   n_particles:   (integer) number of particles
+  !>   particle_list: (particle_base)(n_particles) particle list
+  !> outputs:
+  !>   n_active_particles: (integer) number of active particles
+  !>   active_particle_id: (integer)(n_particles) active particle indices
+  subroutine find_active_particle_id_type(particle_code,n_particles,&
+  particle_list,n_active_particles,active_particle_id)
+    implicit none
+    !> inputs
+    integer,intent(in) :: particle_code,n_particles
+    class(particle_base),dimension(:),allocatable,intent(in) :: particle_list
+    !> outputs
+    integer,intent(out) :: n_active_particles
+    integer,dimension(n_particles),intent(out) :: active_particle_id
+    !> use select type as if condition, ok it is ugly ...
+    n_active_particles = 0; active_particle_id = 0;
+    select type (p_list=>particle_list)
+      type is (particle_fieldline)
+        if(particle_code.eq.particle_fieldline_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+      type is (particle_gc)
+        if(particle_code.eq.particle_gc_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+      type is (particle_gc_vpar)
+        if(particle_code.eq.particle_gc_vpar_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+      type is (particle_gc_Qin)
+        if(particle_code.eq.particle_gc_Qin_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+      type is (particle_kinetic)
+        if(particle_code.eq.particle_kinetic_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+      type is (particle_kinetic_leapfrog)
+        if(particle_code.eq.particle_kinetic_leapfrog_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+      type is (particle_kinetic_relativistic)
+        if(particle_code.eq.particle_kinetic_relativistic_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+      type is (particle_gc_relativistic)
+        if(particle_code.eq.particle_gc_relativistic_id) &
+          call find_active_particle_id_base(n_particles,particle_list,&
+               n_active_particles,active_particle_id)
+    end select
+  end subroutine find_active_particle_id_type
+
+  !> find_active_particle_id_base returns the number 
+  !> and index of acitve particles withing a list
+  !> active particles are particles having i_elm>0
+  !> interface for the sequential and openmp versions
+  !> inputs:
+  !>   n_particles:   (integer) number of particles
+  !>   particle_list: (particle_base)(n_particles) particle list
+  !>   n_particles_per_tile_in: (integer)(optional) number of
+  !>                            particles per tile
+  !> outputs:
+  !>   n_active_particles: (integer) number of active particles
+  !>   active_particle_id: (integer)(n_particles) active particle indices
+  subroutine find_active_particle_id_base(n_particles,particle_list,&
+  n_active_particles,active_particle_id)
+    implicit none
+    !> inputs
+    integer,intent(in) :: n_particles
+    class(particle_base),dimension(:),allocatable,intent(in) :: particle_list
+    !> outputs
+    integer,intent(out) :: n_active_particles
+    integer,dimension(n_particles),intent(out) :: active_particle_id
+#ifdef _OPENMP
+    call find_active_particle_id_openmp(n_particles,particle_list,&
+    n_active_particles,active_particle_id)
+#else
+    call find_active_particle_id_seq(n_particles,particle_list,&
+    n_active_particles,active_particle_id)
+#endif
+  end subroutine find_active_particle_id_base
+
+  !> find_active_particle_id_seq returns the number 
+  !> and index of acitve particles withing a list
+  !> active particles are particles having i_elm>0
+  !> sequential version
+  !> inputs:
+  !>   n_particles:   (integer) number of particles
+  !>   particle_list: (particle_base)(n_particles) particle list
+  !> outputs:
+  !>   n_active_particles: (integer) number of active particles
+  !>   active_particle_id: (integer)(n_particles) active particle indices
+  subroutine find_active_particle_id_seq(n_particles,particle_list,&
+  n_active_particles,active_particle_id)
+    implicit none
+    !> inputs
+    integer,intent(in) :: n_particles
+    class(particle_base),dimension(:),allocatable,intent(in) :: particle_list
+    !> outputs
+    integer,intent(out) :: n_active_particles
+    integer,dimension(n_particles),intent(out) :: active_particle_id
+    !> variables
+    integer :: ii
+    n_active_particles = 0; active_particle_id = 0;
+    do ii=1,n_particles
+      if(particle_list(ii)%i_elm.lt.1) cycle !< skip invalid particle
+       n_active_particles = n_active_particles + 1
+       active_particle_id(n_active_particles) = ii
+    enddo
+  end subroutine find_active_particle_id_seq
+
+  !> find_active_particle_id_openmp returns the number 
+  !> and index of acitve particles withing a list
+  !> active particles are particles having i_elm>0
+  !> openmp enabled version.
+  !> Note: the proposed openmp version is suboptimal and
+  !>       hence, it must be improved in future
+  !> inputs:
+  !>   n_particles:   (integer) number of particles
+  !>   particle_list: (particle_base)(n_particles) particle list
+  !> outputs:
+  !>   n_active_particles: (integer) number of active particles
+  !>   active_particle_ids: (integer)(n_particles) active particle indices
+  subroutine find_active_particle_id_openmp(n_particles,particle_list,&
+  n_active_particles,active_particle_ids)
+    !$ use omp_lib
+    implicit none
+    !> inputs
+    integer,intent(in)          :: n_particles
+    class(particle_base),dimension(:),allocatable,intent(in) :: particle_list
+    !> outputs
+    integer,intent(out) :: n_active_particles
+    integer,dimension(n_particles),intent(out) :: active_particle_ids
+    !> variables
+    integer :: ii,jj,n_tiles
+    integer :: n_particles_per_tile=25
+    integer,dimension(:),allocatable :: n_active_particles_tile
+    integer,dimension(:,:),allocatable :: particle_ids_tile
+
+     !> initialisation
+     n_active_particles=0; active_particle_ids=0;
+     !> compute the number of tiles given an expected number of tiles
+     n_tiles = 1+(n_particles/n_particles_per_tile)
+     !> allocate arrays and initialise them if needed
+     !allocate(start_id(n_tiles)); allocate(end_id(n_tiles));
+     allocate(n_active_particles_tile(n_tiles)); n_active_particles_tile=0;
+     allocate(particle_ids_tile(n_particles_per_tile,n_tiles)); particle_ids_tile=0;
+
+    !> find active particles and store their index for each thread
+    !$omp parallel do default(private) firstprivate(n_tiles,n_particles_per_tile) &
+    !$omp shared(particle_list,n_active_particles_tile,particle_ids_tile) &
+    !$omp schedule(dynamic)
+    do ii=1,n_tiles-1
+      do jj=n_particles_per_tile*(ii-1)+1,n_particles_per_tile*ii
+        if(particle_list(jj)%i_elm.lt.1) cycle !< skip invalid particle
+        n_active_particles_tile(ii) = n_active_particles_tile(ii) + 1
+        particle_ids_tile(n_active_particles_tile(ii),ii) = jj
+      enddo
+    enddo
+    !$omp end parallel do
+    !> do remaining particles
+    do jj=n_particles_per_tile*(n_tiles-1)+1,n_particles
+      if(particle_list(jj)%i_elm.lt.1) cycle !< skip invalid particle
+      n_active_particles_tile(n_tiles) = n_active_particles_tile(n_tiles) + 1
+      particle_ids_tile(n_active_particles_tile(n_tiles),n_tiles) = jj
+    enddo
+    !> assemble the particle id array
+    do ii=1,n_tiles
+      active_particle_ids(n_active_particles+1:n_active_particles+n_active_particles_tile(ii)) = &
+      particle_ids_tile(1:n_active_particles_tile(ii),ii)
+      n_active_particles = n_active_particles + n_active_particles_tile(ii)
+    enddo
+
+    !> cleanup
+    deallocate(n_active_particles_tile); deallocate(particle_ids_tile);
+  end subroutine find_active_particle_id_openmp
+
+  !> routines used for packing and unpacking particle types in MPI buffers
+  !> pack the particle_base_type
+  subroutine mpi_pack_particle_base(p_in,buffer,buff_position,ierr)
+    use mpi
+    implicit none
+    !> inputs-outputs:
+    integer,intent(inout) :: buff_position,ierr
+    !> inputs:
+    class(particle_base),intent(in) :: p_in
+    !> outputs:
+    character(len=particle_base_size),intent(out) :: buffer
+    !> pack datatype
+    call MPI_PACK(p_in%x,3,MPI_DOUBLE_PRECISION,buffer,particle_base_size,buff_position,MPI_COMM_WORLD,ierr)
+    call MPI_PACK(p_in%st,2,MPI_DOUBLE_PRECISION,buffer,particle_base_size,buff_position,MPI_COMM_WORLD,ierr)
+    call MPI_PACK(p_in%weight,1,MPI_DOUBLE_PRECISION,buffer,particle_base_size,buff_position,MPI_COMM_WORLD,ierr)
+    call MPI_PACK(p_in%i_elm,1,MPI_INTEGER,buffer,particle_base_size,buff_position,MPI_COMM_WORLD,ierr)
+    call MPI_PACK(p_in%i_life,1,MPI_INTEGER,buffer,particle_base_size,buff_position,MPI_COMM_WORLD,ierr)
+    call MPI_PACK(p_in%t_birth,1,MPI_REAL,buffer,particle_base_size,buff_position,MPI_COMM_WORLD,ierr)
+  end subroutine mpi_pack_particle_base
+
+  !> unpack the particle base type
+  subroutine mpi_unpack_particle_base(buffer,p_out,buff_position,ierr)
+    use mpi
+    implicit none
+    !> inputs-outputs
+    integer,intent(inout) :: buff_position,ierr
+    !> input
+    character(len=particle_base_size),intent(in) :: buffer
+    !> outputs:
+    class(particle_base),intent(out) :: p_out
+    !> unpack datatype
+    call MPI_UNPACK(buffer,particle_base_size,buff_position,p_out%x,3,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,ierr)
+    call MPI_UNPACK(buffer,particle_base_size,buff_position,p_out%st,2,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,ierr)
+    call MPI_UNPACK(buffer,particle_base_size,buff_position,p_out%weight,1,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,ierr)
+    call MPI_UNPACK(buffer,particle_base_size,buff_position,p_out%i_elm,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+    call MPI_UNPACK(buffer,particle_base_size,buff_position,p_out%i_life,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+    call MPI_UNPACK(buffer,particle_base_size,buff_position,p_out%t_birth,1,MPI_REAL,MPI_COMM_WORLD,ierr)
+  end subroutine mpi_unpack_particle_base
 end module mod_particle_types

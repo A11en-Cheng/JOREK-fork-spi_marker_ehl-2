@@ -492,12 +492,12 @@ subroutine merge_restart(node_list,element_list, restart_file, format_rst,my_id,
   implicit none
 
   ! --- Routine parameters
-  type(type_node_list),    intent(inout) :: node_list
-  type(type_element_list), intent(inout) :: element_list
-  character(len=*),        intent(in)    :: restart_file !< Filename of new restart file to import
-  integer,                 intent(out)   :: ierr
-  integer,                 intent(in)    :: format_rst !< Restart file format
-  integer,                 intent(in)    :: my_id
+  type(type_node_list),    intent(inout)     :: node_list
+  type(type_element_list), intent(inout)     :: element_list
+  character(len=*),        intent(in)        :: restart_file !< Filename of new restart file to import
+  integer,                 intent(out)       :: ierr
+  integer,                 intent(in)        :: format_rst !< Restart file format
+  integer,                 intent(in)        :: my_id
 
   ! --- Internal variables
   real*8, allocatable, dimension(:,:,:,:) :: values

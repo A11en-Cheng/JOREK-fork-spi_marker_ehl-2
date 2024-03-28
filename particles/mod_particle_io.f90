@@ -186,7 +186,8 @@ if (allocated(sim%groups)) then
       call MPI_Gatherv(v(3,:), n_here, MPI_REAL8, &
                        v_all(3,:), particles_per_proc, [(sum(particles_per_proc(0:i-1),1), i=0,n_cpu-1)], &
                        MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
-      ! q
+
+    ! q
       allocate(q(n_here), q_all(n_total))
       do j=1,n_here
         q(j) = p(j)%q
@@ -295,7 +296,7 @@ if (allocated(sim%groups)) then
       call MPI_Gatherv(mu(:), n_here, MPI_REAL8, &
         mu_all(:), particles_per_proc, [(sum(particles_per_proc(0:i-1),1), i=0,n_cpu-1)], &
         MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
-      
+
       ! B_norm
       allocate(B_norm(n_here), B_norm_all(n_total))
       do j=1,n_here
@@ -362,6 +363,7 @@ if (allocated(sim%groups)) then
       do j=1,n_here
         v(:,j) = p(j)%p
       end do
+
 !      call MPI_Gatherv(v(:,:), 3*n_here, MPI_REAL8, &
 !        v_all(:,:), particles_per_proc*3, [(sum(particles_per_proc(0:i-1),1)*3, i=0,n_cpu-1)], &
 !        MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
@@ -374,7 +376,7 @@ if (allocated(sim%groups)) then
       call MPI_Gatherv(v(3,:), n_here, MPI_REAL8, &
                        v_all(3,:), particles_per_proc, [(sum(particles_per_proc(0:i-1),1), i=0,n_cpu-1)], &
                        MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
-
+ 
       ! q
       allocate(q(n_here), q_all(n_total))
       do j=1,n_here
@@ -398,6 +400,7 @@ if (allocated(sim%groups)) then
       do j=1,n_here
         v(:,j) = p(j)%p
       end do
+
 !      call MPI_Gatherv(v(:,:), 2*n_here, MPI_REAL8, &
 !        v_all(:,:), particles_per_proc*2, [(sum(particles_per_proc(0:i-1),1)*2, i=0,n_cpu-1)], &
 !        MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
@@ -416,7 +419,6 @@ if (allocated(sim%groups)) then
       call MPI_Gatherv(q(:), n_here, MPI_INTEGER, &
         q_all(:), particles_per_proc, [(sum(particles_per_proc(0:i-1),1), i=0,n_cpu-1)], &
         MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-
       if (my_id .eq. 0) then
         call HDF5_array2D_saving(file,v_all,2,n_total,group_name//"v") 
         call HDF5_array1D_saving_int(file,q_all,n_total,group_name//"q") 

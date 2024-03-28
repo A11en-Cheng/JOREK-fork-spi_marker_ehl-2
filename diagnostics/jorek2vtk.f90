@@ -179,7 +179,6 @@ write(*,*) '***************************************'
 call flush_it(6)
 
 allocate(node_list)
-allocate(aux_node_list)
 allocate(element_list)
 allocate(bnd_elm_list)
 allocate(bnd_node_list)
@@ -335,10 +334,17 @@ if (use_pellet) then
 endif
 
 if (include_psi_norm) then
-  call add_vtk_entry('psi_norm    ', 'psi_norm    ',    i_psin, n_scalars, si_units, scalar_names) 
+  call add_vtk_entry('psi_norm    ', 'psi_norm    ',    i_psin, n_scalars, si_units, scalar_names)
 endif
 
 allocate(iibg(n_adas),iproj(n_var))
+
+if (include_projections) then
+  do i = 1, n_var
+    write(proj_label, '(a4,i2.2)') 'aux_', i
+    call add_vtk_entry(proj_label, proj_label, iproj(i), n_scalars, si_units, scalar_names) 
+  end do
+end if
 
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
   if (include_neutral_dens) then
@@ -355,13 +361,6 @@ if (include_radiation) then
   call add_vtk_entry('Brems       ', 'Brems_Wm-3  ',    ineu(3), n_scalars, si_units, scalar_names) 
   call add_vtk_entry('Joule       ', 'Joule_Wm-3  ',    ineu(4), n_scalars, si_units, scalar_names) 
 #endif
-
-if (include_projections) then
-  do i = 1, n_var
-    write(proj_label, '(a4,i2.2)') 'aux_', i
-    call add_vtk_entry(proj_label, proj_label, iproj(i), n_scalars, si_units, scalar_names) 
-  end do
-end if
 
 #ifdef WITH_Impurities
   call add_vtk_entry('Ionis       ', 'Ionis_Jm-3  ',    iimp(1), n_scalars, si_units, scalar_names) 
@@ -425,16 +424,8 @@ do k_tor=1, n_tor
   mode(k_tor) = + int(k_tor / 2) * n_period
 enddo
 
-if (include_projections) then
-  filename_proj = trim(proj_basename)//'_restart.h5' ! only hdf5 format supported for particle projections
-  call import_hdf5_restart_aux(aux_node_list, filename_proj, rst_format, ierr)
-  if (ierr .ne. 0) then
-    write(*,*) 'ERROR: Cannot find projection restart file. Check if proj_basename is set properly.'
-    stop
-  end if
-end if
 
-call import_restart(node_list, element_list, 'jorek_restart', rst_format, ierr, .true.)
+call import_restart(node_list,  element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
 
 call initialise_basis                              ! define the basis functions at the Gaussian points
 
@@ -712,7 +703,7 @@ do i=1,element_list%n_elements
           ! --- Full toroidal electric field evaluated at t_now - dt/2
           E_R   = - F0 * (U_x - 0.5d0*dU_x)
           E_Z   = - F0 * (U_y - 0.5d0*dU_y)
-          E_phi = - dpsi/tstep /BigR - F0*(U-0.5d0*dU)/BigR 
+          E_phi = - dpsi/tstep /BigR  
            !*** compute diagnostics ***
           v_perp  = R * sqrt(u_x*u_x + u_y*u_y)
 
@@ -1112,13 +1103,14 @@ do i=1,element_list%n_elements
                   - xjac_y * (- w_s * R_t + w_t * R_s )  / xjac**2
 
             ! --- Full toroidal electric field evaluated at t_now - dt/2
-            E_R   = E_R   - F0 * (U_x - 0.5d0*dU_x)
-            E_Z   = E_Z   - F0 * (U_y - 0.5d0*dU_y)
             E_phi = E_phi - dpsi/tstep * HZ(i_tor,i_plane)/BigR - F0*(U-0.5d0*dU)*HZ_p(i_tor,i_plane)/BigR 
 
           endif ! xjac
 
         enddo  ! end loop toroidal harmonics
+        ! --- Full toroidal electric field evaluated at t_now - dt/2
+        E_R   = - F0 * (U_x - 0.5d0*dU_x)
+        E_Z   = - F0 * (U_y - 0.5d0*dU_y)
         if (jorek_model .lt. 100) cycle
 
         Psi_tot = 0.d0

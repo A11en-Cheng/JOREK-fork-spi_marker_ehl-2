@@ -153,6 +153,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 cte_current_FB_fact, Z_xpoint_limit,                &
                 CARIDDI_mode, use_newton, maxNewton, gamma_Newton,  &
                 alpha_Newton, vacuum_min, strumpack_matching,       &        
+                export_aux_node_list,                               &
                 use_puffing, fueling_rate, valve_r,                 &
                 R_valve_loc, Z_valve_loc, PHI_valve_loc,            &
                 initial_E, puffing_direction, puffing_timestep,     &

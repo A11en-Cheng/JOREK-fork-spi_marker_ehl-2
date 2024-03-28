@@ -3,7 +3,7 @@ implicit none
 contains
 !> Export the current simulation state as a restart file that can be read back into JOREK or into
 !! a diagnostic program by the routine import_restart.
-subroutine export_restart(node_list,element_list,filename)
+subroutine export_restart(node_list,element_list,filename,aux_node_list)
 
   use mod_parameters
   use data_structure
@@ -13,9 +13,10 @@ subroutine export_restart(node_list,element_list,filename)
   implicit none
 
   ! --- Routine parameters
-  type(type_node_list),    intent(in) :: node_list
-  type(type_element_list), intent(in) :: element_list
-  character(len=*)       , intent(in) :: filename
+  type(type_node_list),    intent(in)                 :: node_list
+  type(type_node_list), pointer, intent(in), optional :: aux_node_list
+  type(type_element_list), intent(in)                 :: element_list
+  character(len=*)       , intent(in)                 :: filename
 
   character*17 :: fileout
 
@@ -23,19 +24,27 @@ subroutine export_restart(node_list,element_list,filename)
     ! --- Write restart binary file
     fileout = trim(filename)//".rst"
     write (6,*) " =============>, jorek2, filename = ", fileout
-    call export_binary_restart(node_list, element_list, fileout)
+    if(present(aux_node_list)) then
+       call export_binary_restart(node_list, element_list, fileout, aux_node_list)
+    else
+       call export_binary_restart(node_list, element_list, fileout)
+    endif
   elseif ( rst_hdf5 == 1 ) then
     ! --- Write restart HDF5 file
     fileout = trim(filename)//".h5"
     write (6,*) " =============>, jorek2, filename = ", fileout
-    call export_hdf5_restart(node_list, element_list, fileout)
+    if(present(aux_node_list)) then
+       call export_hdf5_restart(node_list, element_list, fileout, aux_node_list)
+    else
+       call export_hdf5_restart(node_list, element_list, fileout)
+    endif
   end if
 
 end subroutine export_restart
 
 !
 ! Export in a binary restart file
-subroutine export_binary_restart(node_list,element_list,filename)
+subroutine export_binary_restart(node_list,element_list,filename,aux_node_list)
 
   use mod_parameters
   use data_structure
@@ -48,9 +57,10 @@ subroutine export_binary_restart(node_list,element_list,filename)
 #include "version.h"
 
   ! --- Routine parameters
-  type(type_node_list),    intent(in) :: node_list
-  type(type_element_list), intent(in) :: element_list
-  character(len=*),        intent(in) :: filename
+  type(type_node_list),        intent(in)          :: node_list
+  type(type_node_list),pointer,intent(in),optional :: aux_node_list
+  type(type_element_list),     intent(in)          :: element_list
+  character(len=*),            intent(in)          :: filename
 
   ! --- Local variables
   integer :: i
@@ -84,6 +94,13 @@ subroutine export_binary_restart(node_list,element_list,filename)
      write(21) node_list%node(i)%x
      write(21) node_list%node(i)%values
      write(21) node_list%node(i)%deltas
+     if(present(aux_node_list)) then
+       if(export_aux_node_list .and. associated(aux_node_list)) then
+         if(aux_node_list%n_nodes .gt. 0) then
+           write(21) aux_node_list%node(i)%values
+         endif
+      endif
+    endif
 #ifdef fullmhd
      write(21) node_list%node(i)%psi_eq               !< equilibrium flux at the nodes
      write(21) node_list%node(i)%Fprof_eq             !< equilibrium profile R*B_phi at the nodes
@@ -263,7 +280,7 @@ end subroutine export_binary_restart
 
  ! 
  ! Export in a HDF5 binary restart file
-subroutine export_hdf5_restart(node_list,element_list,filename)
+subroutine export_hdf5_restart(node_list,element_list,filename,aux_node_list)
  
   use data_structure
   use phys_module
@@ -282,9 +299,10 @@ subroutine export_hdf5_restart(node_list,element_list,filename)
 #include "version.h"
  
   ! --- Routine parameters
-  type(type_node_list),    intent(in) :: node_list
-  type(type_element_list), intent(in) :: element_list
-  character*(*),           intent(in) :: filename
+  type(type_node_list),         intent(in)         :: node_list
+  type(type_node_list),pointer,intent(in),optional :: aux_node_list
+  type(type_element_list),      intent(in)         :: element_list
+  character*(*),                intent(in)         :: filename
 
   ! --- Local variables
   integer :: i
@@ -298,6 +316,8 @@ subroutine export_hdf5_restart(node_list,element_list,filename)
   real(RKIND), allocatable :: t_x(:,:,:,:)                 ! n_coord_tor, n_degrees, n_dim
   real(RKIND), allocatable :: t_values(:,:,:,:)            !       n_tor, n_degrees, n_var
   real(RKIND), allocatable :: t_deltas(:,:,:,:)            !       n_tor, n_degrees, n_var
+  real(RKIND), allocatable :: t_aux_values(:,:,:,:)        !       n_tor, n_degrees, n_var
+
 
   real(RKIND), allocatable :: t_psi_eq(:,:)                ! n_degrees
   real(RKIND), allocatable :: t_Fprof_eq(:,:)              ! n_degrees
@@ -363,6 +383,12 @@ subroutine export_hdf5_restart(node_list,element_list,filename)
        "node_list%values",CAT_UNKNOWN)
   call tr_allocate(t_deltas,1,node_list%n_nodes,1,n_tor,1,n_degrees,1,n_var, &
        "node_list%deltas",CAT_UNKNOWN)
+  if(present(aux_node_list)) then
+    if(export_aux_node_list .and. associated(aux_node_list)) then
+      call tr_allocate(t_aux_values,1,node_list%n_nodes,1,n_tor,1,n_degrees,1,n_var, &
+          "aux_node_list%values",CAT_UNKNOWN)
+    endif
+  endif
 
 #ifdef fullmhd
   call tr_allocate(t_psi_eq,1,node_list%n_nodes,1,n_degrees, &
@@ -424,9 +450,9 @@ subroutine export_hdf5_restart(node_list,element_list,filename)
 
   !
   do i=1,node_list%n_nodes
-     t_x(i,:,:,:)        = node_list%node(i)%x
-     t_values(i,:,:,:) = node_list%node(i)%values
-     t_deltas(i,:,:,:) = node_list%node(i)%deltas
+     t_x(i,:,:,:)          = node_list%node(i)%x
+     t_values(i,:,:,:)     = node_list%node(i)%values
+     t_deltas(i,:,:,:)     = node_list%node(i)%deltas
 
 #ifdef fullmhd
      t_psi_eq(i,:)     = node_list%node(i)%psi_eq
@@ -453,6 +479,14 @@ subroutine export_hdf5_restart(node_list,element_list,filename)
         t_constrained(i)  = 'F'
      end if
   end do
+
+  if(present(aux_node_list)) then
+    if(export_aux_node_list .and. associated(aux_node_list)) then
+      do i=1,aux_node_list%n_nodes
+        t_aux_values(i,:,:,:) = aux_node_list%node(i)%values
+      enddo
+    endif
+  endif
 
   do i=1,element_list%n_elements
      t_vertex(i,:)       = element_list%element(i)%vertex
@@ -523,6 +557,14 @@ subroutine export_hdf5_restart(node_list,element_list,filename)
        node_list%n_nodes,n_tor,n_degrees,n_var,'values'//char(0))
   call HDF5_array4D_saving(file_id,t_deltas, &
        node_list%n_nodes,n_tor,n_degrees,n_var,'deltas'//char(0))
+  if(present(aux_node_list)) then
+    if(export_aux_node_list .and. associated(aux_node_list)) then
+      if(aux_node_list%n_nodes .gt. 0) then
+        call HDF5_array4D_saving(file_id,t_aux_values, &
+           node_list%n_nodes,n_tor,n_degrees,n_var,'aux_values'//char(0))
+      endif
+    endif
+  endif
 
 #ifdef fullmhd
   call HDF5_array2D_saving(file_id,t_psi_eq, &
@@ -823,13 +865,18 @@ subroutine export_hdf5_restart(node_list,element_list,filename)
   ! Export restart vacuum 
   call export_HDF5_restart_vacuum(file_id, freeboundary, resistive_wall)
 
-  ! -> clode file
+  ! -> close file
   call HDF5_close(file_id)
 
   ! -> Deallocate arrays
   call tr_deallocate(t_x,"x",CAT_UNKNOWN)
   call tr_deallocate(t_values,"values",CAT_UNKNOWN)
   call tr_deallocate(t_deltas,"deltas",CAT_UNKNOWN)
+  if(present(aux_node_list)) then
+    if(export_aux_node_list .and. associated(aux_node_list)) then
+      call tr_deallocate(t_aux_values,"aux_values",CAT_UNKNOWN)
+    endif
+  endif
 #ifdef fullmhd
   call tr_deallocate(t_psi_eq,"psi_eq",CAT_UNKNOWN)
   call tr_deallocate(t_Fprof_eq,"Fprof_eq",CAT_UNKNOWN)

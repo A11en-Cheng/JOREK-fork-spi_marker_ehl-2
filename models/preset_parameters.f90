@@ -345,7 +345,7 @@ subroutine preset_parameters
   ! ------------------------------------------
   ! --- Default boundary conditions ----------
   ! ------------------------------------------
-
+  loop_voltage = 0.d0
   ! --- Dirichlet
   bcs(:)%dirichlet%psi     = .true.
   bcs(:)%dirichlet%u       = .true.
@@ -576,6 +576,7 @@ subroutine preset_parameters
   linear_run         = .false.
   
   export_for_nemec   = .false.
+  export_aux_node_list = .true.
   
   ! Use iterative solver by default if n_tor>1.
   if ( n_tor == 1) then

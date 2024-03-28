@@ -6,6 +6,30 @@
 # --------------------------------------------------------------- #
 
 # general purpose routines -------------------------------------- #
+
+# Check for launchers in environment variables
+# inputs:
+#   launchers: (dict(string)) launchers to be invoked for 
+#              executing a unit test application
+# outputs:
+#   launchers: (dict(string)) launchers to be invoked for 
+#              executing a unit test application
+def get_launchers_from_environment(launchers):
+  from os import environ
+  from os import getenv
+  if("MPIRUN" in environ):
+    print("Found variable for MPI launcher: override!")
+    launchers["mpi"] = getenv("MPIRUN")+"2 "
+    if("SERIALRUN" in environ):
+      launchers["mpi"] = launchers["mpi"]+getenv("SERIALRUN")
+    else:
+      launchers["mpi"] = launchers["mpi"]+"./"
+    print(launchers["mpi"])
+  if("SERIALRUN" in environ):
+    print("Found variable for MPI launcher: override!")
+    launchers["serial"] = getenv("SERIALRUN")
+  return launchers
+
 # Append path of packages
 # inputs:
 #   package_path: (list,string) package paths to add
@@ -471,6 +495,8 @@ def execute_all_unit_tests(test_dirs,test_parallel,test_basket_prefix,\
 test_prefix,test_suffix,test_ext,driver_suffix,launchers,result_dir,\
 result_prefix,result_ext,result_map,remove_driver,remove_results,\
 log_fruit_summary,test_modules_to_be_run=[],debug_options=0):
+  # check for launchers defined by environment variables
+  launchers = get_launchers_from_environment(launchers)
   # initialise the failure and error counters
   n_failures=0; n_errors=0; failed_tests=[]; error_tests=[];
   if(len(test_modules_to_be_run)>0):
@@ -520,7 +546,8 @@ def generate_argument_parser(dict_path='./util/python_utils' ):
   parser.add_argument('--directories','-d',type=str,nargs='*',\
   required=False,action='store',dest='test_dirs',\
   default=['./particles/tests','./elements/tests','./diagnostics/tests',\
-  './communication/tests','./core/tests','./grids/tests','./tools/tests'],\
+  './communication/tests','./core/tests','./grids/tests',\
+  './tools/tests','./particles/postprocessors/tests'],\
   help='relative paths of the directories containing unit tests')
   parser.add_argument('--parallelisms','-p',type=str,nargs='*',\
   required=False,action='store',dest='test_parallel',\

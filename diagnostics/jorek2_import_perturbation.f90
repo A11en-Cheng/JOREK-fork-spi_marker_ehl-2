@@ -145,7 +145,7 @@ program jorek2_import_perturbation
   ! Export restart file with perturbation
   write(*,*)' '
   write(*,*)'Exporting restart...'
-  call export_restart(node_list,element_list,'jorek_restart')
+  call export_restart(node_list, element_list,'jorek_restart')
 
   write(*,*)'Finished'
 

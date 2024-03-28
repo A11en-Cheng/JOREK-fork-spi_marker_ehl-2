@@ -3,13 +3,14 @@
 !! Documentation at http://jorek.eu/wiki
 program jorek2_postproc
   
-  use nodes_elements, only: node_list, element_list
+  use nodes_elements, only: node_list, element_list, aux_node_list
   use phys_module
   use mod_new_diag
   use parse_commands, only: read_command, type_command
   use exec_commands,  only: exec_command, specific_help
   use settings,       only: set_setting
   use basis_at_gaussian, only: initialise_basis
+  use mod_import_restart
   
   implicit none
   
@@ -49,7 +50,7 @@ program jorek2_postproc
   
   ! --- Print getting started information
   call specific_help('getting_started')
-  
+
   do ! (main loop: Read, parse, and execute one command after the other)
     
     ! --- Read and parse a command line
