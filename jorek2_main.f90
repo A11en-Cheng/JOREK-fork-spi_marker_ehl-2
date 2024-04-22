@@ -417,6 +417,11 @@ mpi_required = 0
       ! --- Compute the plasma equilibrium
       call equilibrium(my_id, node_list, element_list, bnd_node_list, bnd_elm_list, xpoint,xcase, .false.)
 
+    else
+      if (my_id == 0 .and. export_polar_boundary) then
+        call boundary_from_grid(node_list, element_list, bnd_node_list, bnd_elm_list, .false.)
+        call export_boundary(node_list, bnd_elm_list, bnd_node_list)
+      endif
     end if ! if (n_flux > 1) then
  
     if (my_id == 0) then
@@ -630,8 +635,8 @@ mpi_required = 0
     minRad = 0.0
     
     if (bootstrap) then
-      call bootstrap_find_minRad(mhd_sim%node_list, mhd_sim%element_list, ES%R_axis, ES%Z_axis, ES%psi_axis, ES%psi_bnd)
-      call bootstrap_get_q_and_ft_splines(mhd_sim%node_list, mhd_sim%element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
+      call bootstrap_find_minRad(my_id,mhd_sim%node_list, mhd_sim%element_list, ES%R_axis, ES%Z_axis, ES%psi_axis, ES%psi_bnd)
+      call bootstrap_get_q_and_ft_splines(my_id,mhd_sim%node_list, mhd_sim%element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
     endif
     
     call tr_debug_write("JMAIN:Find_axis_R",ES%R_axis)

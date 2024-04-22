@@ -346,9 +346,9 @@ subroutine do_jorek_timestep(this, sim, ev)
   ! --- Prepare minor radius and q-,ft-,B-splines for bootstrap current
   minRad=0.d0
   if (bootstrap) then
-    call bootstrap_find_minRad(sim%fields%node_list, sim%fields%element_list, this%es%R_axis, this%es%Z_axis, this%es%psi_axis, this%es%psi_bnd)
+    call bootstrap_find_minRad(sim%my_id, sim%fields%node_list, sim%fields%element_list, this%es%R_axis, this%es%Z_axis, this%es%psi_axis, this%es%psi_bnd)
 
-    call bootstrap_get_q_and_ft_splines(sim%fields%node_list, sim%fields%element_list, this%es%psi_axis, this%es%psi_xpoint, this%es%R_xpoint, this%es%Z_xpoint)
+    call bootstrap_get_q_and_ft_splines(sim%my_id, sim%fields%node_list, sim%fields%element_list, this%es%psi_axis, this%es%psi_xpoint, this%es%R_xpoint, this%es%Z_xpoint)
   endif
   
   call clck_time_barrier(t1)

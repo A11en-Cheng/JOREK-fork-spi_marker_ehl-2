@@ -159,7 +159,8 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 visco_par_heating, CARIDDI_mode,                    &
                 T_min_ZKpar,                                        &
                 use_newton, maxNewton, gamma_Newton, alpha_Newton,  &
-                vacuum_min, strumpack_matching, export_aux_node_list, &
+                vacuum_min, strumpack_matching, xpoint_search_tries,&
+                export_aux_node_list, bgf_rpolar, bgf_tht,          &
                 visco_old_setup, visco_heating
 
 if (my_id .eq. 0) then

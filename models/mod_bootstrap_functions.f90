@@ -234,7 +234,7 @@ end subroutine bootstrap_current
 !---------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------
-subroutine bootstrap_find_minRad(node_list, element_list, R_axis, Z_axis, psi_axis, psi_bnd)
+subroutine bootstrap_find_minRad(my_id, node_list, element_list, R_axis, Z_axis, psi_axis, psi_bnd)
 
   use data_structure
   use phys_module
@@ -242,10 +242,11 @@ subroutine bootstrap_find_minRad(node_list, element_list, R_axis, Z_axis, psi_ax
 
   implicit none
   ! --- Routine parameters
-  type (type_node_list),        intent(inout) :: node_list
-  type (type_element_list),     intent(inout) :: element_list
-  real*8, 			intent(in)    :: R_axis, Z_axis
-  real*8, 			intent(in)    :: psi_axis, psi_bnd
+  integer,                  intent(in)    :: my_id
+  type (type_node_list),    intent(inout) :: node_list
+  type (type_element_list), intent(inout) :: element_list
+  real*8, 			            intent(in)    :: R_axis, Z_axis
+  real*8, 			            intent(in)    :: psi_axis, psi_bnd
   
   ! --- Internal parameters
   type (type_surface_list) 	:: surface_list, flux_list
@@ -265,12 +266,12 @@ subroutine bootstrap_find_minRad(node_list, element_list, R_axis, Z_axis, psi_ax
     flux_list%n_psi = 1
     call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
     flux_list%psi_values(1) = psi_bnd
-    call find_flux_surfaces(0, xpoint,xcase,node_list,element_list,flux_list)
+    call find_flux_surfaces(my_id, xpoint,xcase,node_list,element_list,flux_list)
     call find_theta_surface(node_list, element_list, flux_list, 1, 0.0, R_axis, Z_axis,i_elm_find,s_find,t_find,i_find)
     ! --- If this didn't work, it means psi=1.0 is the grid boundary, try with psi=0.99
     if (i_find .eq. 0) then
       flux_list%psi_values(1) = 0.99 * (psi_bnd - psi_axis) + psi_axis
-      call find_flux_surfaces(0,xpoint,xcase,node_list,element_list,flux_list)
+      call find_flux_surfaces(my_id,xpoint,xcase,node_list,element_list,flux_list)
       call find_theta_surface(node_list, element_list, flux_list, 1, 0.0, R_axis, Z_axis,i_elm_find,s_find,t_find,i_find)
     endif
     if (i_find .ne. 0) then
@@ -346,7 +347,7 @@ subroutine bootstrap_find_minRad(node_list, element_list, R_axis, Z_axis, psi_ax
     flux_list%n_psi = 1
     call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
     flux_list%psi_values(1) = psi_bnd
-    call find_flux_surfaces(0,xpoint,xcase,node_list,element_list,flux_list)
+    call find_flux_surfaces(my_id,xpoint,xcase,node_list,element_list,flux_list)
     call find_theta_surface(node_list, element_list, flux_list, 1, 0.0, R_axis, Z_axis,i_elm_find,s_find,t_find,i_find)
     call interp_RZ(node_list,element_list,i_elm_find(1),s_find(1),t_find(1),R_find,Z_find)
     call tr_deallocate(flux_list%psi_values,"flux_list%psi_values",CAT_GRID)
@@ -373,7 +374,7 @@ end subroutine bootstrap_find_minRad
 !---------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------
-subroutine bootstrap_get_averaged_j_spline(node_list, element_list, psi_axis, psi_xpoint, R_xpoint, Z_xpoint)
+subroutine bootstrap_get_averaged_j_spline(my_id, node_list, element_list, psi_axis, psi_xpoint, R_xpoint, Z_xpoint)
 
   use data_structure
   use phys_module
@@ -383,6 +384,7 @@ subroutine bootstrap_get_averaged_j_spline(node_list, element_list, psi_axis, ps
 
   implicit none
   ! --- Routine parameters
+  integer,                  intent(in)    :: my_id
   type (type_node_list),    intent(inout) :: node_list
   type (type_element_list), intent(inout) :: element_list
   real*8,                   intent(in)    :: psi_axis, psi_xpoint(2)
@@ -469,17 +471,35 @@ subroutine bootstrap_get_averaged_j_spline(node_list, element_list, psi_axis, ps
     endif
   endif
 
-  ! --- Define number of psi values and allocate flux_list structure
-  flux_list%n_psi = n_psi
-  call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
-  
-  ! --- Allocate sep_list structure (that's for plotting only)
-  sep_list%n_psi =3
-  if(xcase .eq. DOUBLE_NULL) sep_list%n_psi =6
-  call tr_allocate(sep_list%psi_values,1,sep_list%n_psi,"sep_list%psi_values",CAT_GRID)
-  
-  ! --- Call the routine
-  call define_flux_values(node_list, element_list, flux_list, sep_list, xcase, psi_xpoint_tmp, n_grids, sigmas)
+  ! If we are dealing with an X-point flux-aligned grid, use define_flux values, otherwise use find_flux_values.
+  if (xpoint .and. (n_flux .gt. 1)) then
+    ! --- Define number of psi values and allocate flux_list structure
+    flux_list%n_psi = n_psi
+    call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
+
+    ! --- Allocate sep_list structure (that's for plotting only)
+    sep_list%n_psi =3
+    if(xcase .eq. DOUBLE_NULL) sep_list%n_psi =6
+    call tr_allocate(sep_list%psi_values,1,sep_list%n_psi,"sep_list%psi_values",CAT_GRID)
+
+    ! --- Call the routine
+    call define_flux_values(node_list, element_list, flux_list, sep_list, xcase, psi_xpoint_tmp, n_grids, sigmas)
+  else
+    ! --- Define number of psi values and allocate flux_list structure
+    n_psi = n_spline_vtk
+    flux_list%n_psi = n_psi
+    call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
+
+    ! --- Call the routine
+    do i=1,flux_list%n_psi
+      flux_list%psi_values(i) = psi_axis + 1.2*(psi_bnd - psi_axis) * float(i)/float(flux_list%n_psi)
+    enddo
+    call find_flux_surfaces(my_id,xpoint,xcase,node_list,element_list,flux_list)
+
+    call tr_allocate(sep_list%psi_values,1,1,"sep_list%psi_values",CAT_GRID)
+    sep_list%psi_values(1) = psi_bnd
+    call find_flux_surfaces(my_id,xpoint,xcase,node_list,element_list,sep_list)
+  endif
   
   
   ! ---------------------------------------------
@@ -564,7 +584,7 @@ end subroutine bootstrap_get_averaged_j_spline
 !---------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------
-subroutine bootstrap_get_q_and_ft_splines(node_list, element_list, psi_axis, psi_xpoint, R_xpoint, Z_xpoint)
+subroutine bootstrap_get_q_and_ft_splines(my_id, node_list, element_list, psi_axis, psi_xpoint, R_xpoint, Z_xpoint)
 
   use data_structure
   use phys_module
@@ -574,6 +594,7 @@ subroutine bootstrap_get_q_and_ft_splines(node_list, element_list, psi_axis, psi
 
   implicit none
   ! --- Routine parameters
+  integer,                  intent(in)    :: my_id
   type (type_node_list),    intent(inout) :: node_list
   type (type_element_list), intent(inout) :: element_list
   real*8,                   intent(in)    :: psi_axis, psi_xpoint(2)
@@ -665,17 +686,35 @@ subroutine bootstrap_get_q_and_ft_splines(node_list, element_list, psi_axis, psi
     endif
   endif
 
-  ! --- Define number of psi values and allocate flux_list structure
-  flux_list%n_psi = n_psi
-  call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
-  
-  ! --- Allocate sep_list structure (that's for plotting only)
-  sep_list%n_psi =3
-  if(xcase .eq. DOUBLE_NULL) sep_list%n_psi =6
-  call tr_allocate(sep_list%psi_values,1,sep_list%n_psi,"sep_list%psi_values",CAT_GRID)
-  
-  ! --- Call the routine
-  call define_flux_values(node_list, element_list, flux_list, sep_list, xcase, psi_xpoint_tmp, n_grids, sigmas)
+  ! If we are dealing with an X-point flux-aligned grid, use define_flux values, otherwise use find_flux_values.
+  if (xpoint .and. (n_flux .gt. 1)) then
+    ! --- Define number of psi values and allocate flux_list structure
+    flux_list%n_psi = n_psi
+    call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
+
+    ! --- Allocate sep_list structure (that's for plotting only)
+    sep_list%n_psi =3
+    if(xcase .eq. DOUBLE_NULL) sep_list%n_psi =6
+    call tr_allocate(sep_list%psi_values,1,sep_list%n_psi,"sep_list%psi_values",CAT_GRID)
+
+    ! --- Call the routine
+    call define_flux_values(node_list, element_list, flux_list, sep_list, xcase, psi_xpoint_tmp, n_grids, sigmas)
+  else
+    ! --- Define number of psi values and allocate flux_list structure
+    n_psi = n_spline
+    flux_list%n_psi = n_psi
+    call tr_allocate(flux_list%psi_values,1,flux_list%n_psi,"flux_list%psi_values",CAT_GRID)
+
+    ! --- Call the routine
+    do i=1,flux_list%n_psi
+      flux_list%psi_values(i) = psi_axis + 1.2*(psi_bnd - psi_axis) * float(i)/float(flux_list%n_psi)
+    enddo
+    call find_flux_surfaces(my_id,xpoint,xcase,node_list,element_list,flux_list)
+
+    call tr_allocate(sep_list%psi_values,1,1,"sep_list%psi_values",CAT_GRID)
+    sep_list%psi_values(1) = psi_bnd
+    call find_flux_surfaces(my_id,xpoint,xcase,node_list,element_list,sep_list)
+  endif
   
   ! -----------------
   ! --- Get q-profile

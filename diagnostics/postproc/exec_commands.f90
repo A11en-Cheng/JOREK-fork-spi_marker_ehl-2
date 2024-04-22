@@ -153,6 +153,8 @@ module exec_commands
           call expressions_four(command, ierr)
         case ( 'fluxsurfaces' )
           call fluxsurfaces(command, ierr)
+        case ( 'fluxsurface' )
+          call fluxsurface(command, ierr)
         case ( 'for' )
           call loop_start(command, ierr)
         case ( 'four2d' )
@@ -237,11 +239,11 @@ module exec_commands
       select case ( trim(command%args(0)) )
         case ( 'expressions', 'expressions_int', 'mark_coords', 'int2d', 'int3d','midplane',       &
           'average', 'point', 'pol_line', 'int_along_pol_line', 'tor_line', 'equil_params',        &
-          'qprofile', 'q_at_psin', 'fluxsurfaces', 'separatrix', 'set', 'four2d', 'gourdon',       &
-          'jorek-units', 'jnorm_bnd_curr', 'si-units', 'grid', 'grid_diagnostics', 'rectangle',    &
-          'rectangular_torus', 'energy_spectrum', 'average_h5', 'I_halo_TPF', 'spi-state',         &
-          'shards', 'zeroD_quantities', 'boundary_quantities', 'find_q_surface', 'midplane2d',     &
-          'expressions_four', 'RHS_terms_vtk')
+          'qprofile', 'q_at_psin', 'fluxsurfaces', 'fluxsurface', 'separatrix', 'set', 'four2d',   &
+          'gourdon', 'jorek-units', 'jnorm_bnd_curr', 'si-units', 'grid', 'grid_diagnostics',      &
+          'rectangle', 'rectangular_torus', 'energy_spectrum', 'average_h5', 'I_halo_TPF',         &
+          'spi-state', 'shards', 'zeroD_quantities', 'boundary_quantities', 'find_q_surface',      &
+          'midplane2d', 'expressions_four', 'RHS_terms_vtk')
           call add_to_command_queue(command, ierr)
         case ( 'help' )
           call help(command, ierr)
@@ -331,8 +333,8 @@ module exec_commands
     ! --- Prepare minor radius and q-,ft-,B-splines for bootstrap current
     minRad = 0.0
     if (bootstrap) then
-      call bootstrap_find_minRad(node_list, element_list, ES%R_axis, ES%Z_axis, ES%psi_axis, ES%psi_bnd)
-      call bootstrap_get_q_and_ft_splines(node_list, element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
+      call bootstrap_find_minRad(0,node_list, element_list, ES%R_axis, ES%Z_axis, ES%psi_axis, ES%psi_bnd)
+      call bootstrap_get_q_and_ft_splines(0,node_list, element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
     endif
     
     t_now         = t_start
@@ -2159,7 +2161,7 @@ module exec_commands
     call check_exprs_selected(ierr);           if ( ierr /= 0 ) return
     units = get_int_setting('units', ierr)
 
-    allocate(res(expr_list%n_expr+1))
+    allocate(res(expr_list%n_expr))
     res = 0.d0   
  
     write(filename,'(4a)') trim(DIR), 'integrals3D',  &
@@ -2177,7 +2179,6 @@ module exec_commands
         iostat=ierr)
     
     if ( first_step ) then
-      write(i_file,'(a)',advance='no') '# time                   '
       do i = 1, expr_list%n_expr
         s = trim(expr_list%expr(i)%name)
         write(i_file,'(a)',advance='no') s
@@ -2707,6 +2708,98 @@ module exec_commands
     
   end subroutine fluxsurfaces
   
+
+  !> Output the flux surface.
+  subroutine fluxsurface(command, ierr)
+  
+    ! --- Routine parameters
+    type(type_command), intent(in)  :: command     !< Command to be executed
+    integer,            intent(out) :: ierr        !< Error flag
+    
+    
+    ! --- Local variables
+    integer                  :: i, j, i_elm, ip, nplot, i_file
+    type (type_surface_list) :: surface_list
+    character(len=1024)      :: filename, comment
+    type(t_expr_list)        :: tmp_expr_list
+    real*8                   :: psi_min, psi_max, psi_min2, psi_max2, ss1, dss1, ss2, dss2, tt1,   &
+      dtt1, tt2, dtt2, u, si, dsi, ti, dti, R, R_s, R_t, R_st, R_ss, R_tt, Z, Z_s, Z_t, Z_st, Z_ss,&
+      Z_tt, target_psi
+    
+    ierr = 0
+    
+    ! --- Some checks
+    call check_args(command%n_args,ierr,1);  if ( ierr /= 0 ) return
+    call check_step_imported(ierr);          if ( ierr /= 0 ) return
+
+    target_psi = to_float(command%args(1), ierr); if ( ierr /= 0 ) return
+    
+    write(filename,'(5a)') trim(DIR), 'fluxsurface_at_psi_', trim(real2str(target_psi)), &
+      trim(step_range_string(index_start,index_start)), '.dat'
+
+    if (target_psi < 0.0 .or. target_psi > 1.0) then
+      write(*,*), 'fluxsurface target psi must be a valid normalised psi.'
+      return
+    endif
+
+    target_psi = ES%psi_axis + target_psi * (ES%psi_bnd - ES%psi_axis)
+
+    ! --- Find flux surfaces
+    surface_list%n_psi = 1
+    allocate( surface_list%psi_values(1) )
+    surface_list%psi_values(1) = target_psi
+    call find_flux_surfaces(0,xpoint, xcase, node_list, element_list, surface_list)
+    
+    ! --- Write out flux surfaces
+    nplot  = 5
+    i_file = 111
+    call open_ascii_file(ierr, i_file, filename, .false.)
+      
+    ! --- Loop over all segments of this flux surface
+    do j=1,surface_list%flux_surfaces(1)%n_pieces
+      
+      ! --- Bezier element, in which the current flux surface segment is located
+      i_elm = surface_list%flux_surfaces(1)%elm(j)
+      ss1  = surface_list%flux_surfaces(1)%s(1,j)
+      dss1 = surface_list%flux_surfaces(1)%s(2,j)
+      ss2  = surface_list%flux_surfaces(1)%s(3,j)
+      dss2 = surface_list%flux_surfaces(1)%s(4,j)
+      
+      tt1  = surface_list%flux_surfaces(1)%t(1,j)
+      dtt1 = surface_list%flux_surfaces(1)%t(2,j)
+      tt2  = surface_list%flux_surfaces(1)%t(3,j)
+      dtt2 = surface_list%flux_surfaces(1)%t(4,j)
+      
+      ! --- Loop over nplot points in a flux surface segment
+      do ip = 1, nplot
+        u = -1. + 2.*float(ip-1)/float(nplot-1)
+        
+        ! --- Determine s and t values of the current point inside element i_elm
+        call CUB1D(ss1, dss1, ss2, dss2, u, si, dsi)
+        call CUB1D(tt1, dtt1, tt2, dtt2, u, ti, dti)
+        
+        ! --- Determine (R,Z)-coordinates of the current point on the current flux surface
+        call interp_RZ(node_list, element_list, i_elm, si, ti, R, R_s, R_t, R_st, R_ss, R_tt, &
+          Z, Z_s, Z_t, Z_st, Z_ss, Z_tt)
+          
+        ! --- Write out the (R,Z)-coordinates
+        write(i_file,'(2ES16.7)') R, Z
+      end do
+      
+      write(i_file,*)
+      write(i_file,*)
+      
+    end do
+    
+    close(i_file)
+    
+    ! --- Clean up.
+    if ( allocated(surface_list%psi_values)    ) deallocate(surface_list%psi_values)
+    if ( allocated(surface_list%flux_surfaces) ) deallocate(surface_list%flux_surfaces)
+    
+  end subroutine fluxsurface
+
+
   !> Output vtk file of individual terms of the RHS in elm_matrix 
   subroutine RHS_terms_vtk(command, first_step, ierr)
 
@@ -3738,9 +3831,5 @@ module exec_commands
     write(*,*)
     
   end subroutine grid_diagnostics
-  
-  
-  
-  
   
 end module exec_commands

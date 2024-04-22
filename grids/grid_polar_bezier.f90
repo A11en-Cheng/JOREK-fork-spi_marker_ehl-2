@@ -7,7 +7,7 @@ use tr_module
 use mod_parameters
 use data_structure
 use mod_neighbours, only: update_neighbours
-use phys_module, only: psi_axis_init, XR_r, SIG_r, XR_tht, SIG_tht, fix_axis_nodes, force_central_node, treat_axis, n_flux
+use phys_module, only: psi_axis_init, XR_r, SIG_r, XR_tht, SIG_tht, bgf_rpolar, bgf_tht, fix_axis_nodes, force_central_node, treat_axis, n_flux
 use mod_grid_conversions
 use mod_node_indices
 
@@ -107,10 +107,10 @@ do j=1,np+1
   T1(j) = real(j-1)/real(np)
 enddo
 
-call meshac2(nr,S2,XR_r(1),XR_r(2),SIG_r(1),SIG_r(2),0.6d0,1.0d0)
+call meshac2(nr,S2,XR_r(1),XR_r(2),SIG_r(1),SIG_r(2),bgf_rpolar,1.0d0)
 call spline(nr,S1,S2,0.d0,0.d0,2,SP1,SP2,SP3,SP4)
 
-call meshac2(np+1,T2,XR_tht(1),XR_tht(2),SIG_tht(1),SIG_tht(2),0.6d0,1.0d0)
+call meshac2(np+1,T2,XR_tht(1),XR_tht(2),SIG_tht(1),SIG_tht(2),bgf_tht,1.0d0)
 call spline(np+1,T1,T2,0.d0,0.d0,2,TP1,TP2,TP3,TP4)
 
 acentre2 = acentre * 2.d0 / fbnd(1) !###

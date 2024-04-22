@@ -7,6 +7,8 @@
 # Author: Matthias Hoelzl, IPP Garching
 #
 
+debug="false"
+
 # --- Cleanup things when the user presses Ctrl-C or the script finishes.
 trap cleanup 1 2 3 6
 function cleanup () {
@@ -18,7 +20,7 @@ function cleanup () {
   echo ""
   echo "Waiting for threads to finish..."
   wait
-  if [ ! -z "$local_tmp_dir" ]; then
+  if [ "$debug" == "false" ] && [ ! -z "$local_tmp_dir" ]; then
     rm -rf "$local_tmp_dir"
   fi
   echo "...done."
@@ -213,6 +215,9 @@ while [ $# -gt 1 ]; do
   if [ "$1" == "-j" ]; then
     nthreads="$2"
     shift 2
+  elif [ "$1" == "-debug" ]; then
+    debug="true"
+    shift 1
   elif [ "$1" == "-only" ]; then
     selected_steps="$2"
     shift 2
