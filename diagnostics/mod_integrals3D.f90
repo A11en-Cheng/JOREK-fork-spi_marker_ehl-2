@@ -73,6 +73,7 @@ real*8  :: eq_sp(n_plane,0:n_var,n_gauss,n_gauss), eq_tp(n_plane,0:n_var,n_gauss
 real*8  :: eq_aux_g(n_plane,0:n_var,n_gauss,n_gauss), eq_aux_s(n_plane,0:n_var,n_gauss,n_gauss)
 real*8  :: eq_aux_t(n_plane,0:n_var,n_gauss,n_gauss), eq_aux_p(n_plane,0:n_var,n_gauss,n_gauss)
 real*8  :: eq_spp(n_plane,0:n_var,n_gauss,n_gauss), eq_tpp(n_plane,0:n_var,n_gauss,n_gauss)
+real*8  :: eq_s_3d(n_plane,0:n_var,n_gauss,n_gauss), eq_t_3d(n_plane,0:n_var,n_gauss,n_gauss)
 real*8  :: wgauss_copy(n_gauss)
 real*8  :: psi_axisym(n_gauss,n_gauss)
 
@@ -126,6 +127,7 @@ real*8  :: fric_disp_tot, fric_disp, friction_dissip_tot
 real*8  :: H_int, H_ext, S_int, S_ext, heating_in, heating_out, source_in, source_out
 real*8  :: psi_xpoint(2),R_xpoint(2),Z_xpoint(2),s_xpoint(2),t_xpoint(2)
 real*8  :: dTdx, dTdy, drhodx, drhody, dPdx, dPdy, dpsidx, dpsidy, dudx, dudy, drhondx, drhondy, drhoimpdx, drhoimpdy
+real*8  :: dpsidx_3d, dpsidy_3d
 real*8  :: dTedx, dTedy, dTidx, dTidy, dPedx, dPedy, dPidx, dPidy
 real*8  :: w0, dwdx, dwdy, u0_xpp, u0_ypp
 real*8  :: source_volume, source_pellet, eta_T, eta_T_ohm, Z_eff
@@ -240,6 +242,9 @@ integer    :: i_imp, i_phi                                    ! Loop for more th
 real*8     :: frad_bg, Lrad_imp                               ! Retain hard-coded fitting for argon
 #endif
 
+! SAW energy functional (linear MHD)
+real*8     :: SAW_tot, saw_energy_tot, saw_ene_dens, BB2_zero
+
 #ifndef NOMPIVERSION
 call MPI_COMM_SIZE(MPI_COMM_WORLD, n_cpu, ierr) ! number of MPI procs
 n_cpu = max(n_cpu,1)
@@ -313,6 +318,7 @@ thm_wk_e_tot = 0.d0
 thm_wk_i_tot = 0.d0
 mag_wk_tot   = 0.d0
 mag_src_tot  = 0.d0
+SAW_tot      = 0.d0
 varmin   = +1.d99
 varmax   = -1.d99
 R2curr_tmp = 0.d0
@@ -402,7 +408,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp          central_density, pellet_particles,pellet_density, pellet_volume,                &
 !$omp          local_pellet_particles, local_plasma_particles, local_pellet_volume,            &
 !$omp          heli_tot,  keep_current_prof, psi_off, visco_par, visco_par_heating, thm_wk_tot,&
-!$omp          thm_wk_e_tot, thm_wk_i_tot, visco, visco_T_dependent, visco_old_setup,          &
+!$omp          thm_wk_e_tot, thm_wk_i_tot, visco, visco_T_dependent, visco_old_setup, SAW_tot, &
 !$omp          mag_wk_tot, vpar_disp_tot, vprp_disp_tot, fric_disp_tot, area1, mag_src_tot,    &
 !$omp          eta_ohmic, central_mass, R2curr_tmp, Zcurr_tmp,                                 &
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
@@ -426,8 +432,9 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp   private(ife,iv,inode,element,nodes,aux_nodes,i,j, k,in, mp, ms, mt, i_surface,         &
 !$omp           x_g, y_g, x_s, y_s, x_t, y_t, xjac, xjac_R, xjac_Z, eq_g, eq_s, eq_t, eq_p,    &
 !$omp           x_ss, x_tt, x_st, y_ss, y_tt, y_st, eq_ss, eq_tt, eq_st, eq_sp, eq_tp,         &
-!$omp           eq_spp, eq_tpp, psi_axisym, eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p,            &
+!$omp           eq_spp, eq_tpp, psi_axisym, eq_s_3d, eq_t_3d, eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p,&
 !$omp           wst, BigR, r0, T0, Te0, zj0, ps0, dTdx, dTdy, drhodx, drhody, dpsidx, dpsidy, dudx, dudy,  &
+!$omp           dpsidx_3d, dpsidy_3d, saw_ene_dens, BB2_zero,                                  &
 !$omp           w0, dwdx, dwdy, u0_xpp, u0_ypp, visco_T, visco_fact_old, visco_fact_new,       &
 !$omp           dpdx, dpdy, phi, Ti0, psi_as_coord, vprp_disp,                                 &
 !$omp           source_pellet, source_volume, eq_zne, eq_zTe, vpar0, BB2,                      &
@@ -494,7 +501,7 @@ omp_tid      = 0
 !$omp                VM_int, VM_tot, Vol, P_tot, D_tot,J2_tot, J2_int, J2_ext,                &
 !$omp                heli_tot, mag_wk_tot, vpar_disp_tot, thm_wk_tot, area1, mag_src_tot,     &
 !$omp                fric_disp_tot, Vol_surface, De_surface, Pe_surface, R2curr_tmp, Zcurr_tmp,&
-!$omp                C_intern_3d,C_ext_3d,H_impl_int, H_impl_ext, vprp_disp_tot,              &
+!$omp                C_intern_3d,C_ext_3d,H_impl_int, H_impl_ext, vprp_disp_tot, SAW_tot,     &
 !$omp                thm_wk_e_tot, thm_wk_i_tot)
 
 do ife = ife_min, ife_max
@@ -543,7 +550,7 @@ do ife = ife_min, ife_max
   enddo
 
   eq_g(:,:,:,:) = 0.d0; eq_s(:,:,:,:) = 0.d0; eq_t(:,:,:,:) = 0.d0; eq_p(:,:,:,:) = 0.d0; eq_ss(:,:,:,:) = 0.d0; eq_tt(:,:,:,:) = 0.d0; eq_st(:,:,:,:) = 0.d0; 
-  eq_sp(:,:,:,:) = 0.d0; eq_tp(:,:,:,:) = 0.d0; eq_spp(:,:,:,:) = 0.d0; eq_tpp(:,:,:,:) = 0.d0;
+  eq_sp(:,:,:,:) = 0.d0; eq_tp(:,:,:,:) = 0.d0; eq_spp(:,:,:,:) = 0.d0; eq_tpp(:,:,:,:) = 0.d0; eq_s_3d(:,:,:,:) = 0.d0; eq_t_3d(:,:,:,:) = 0.d0;
   eq_aux_g(:,:,:,:) = 0.d0; eq_aux_s(:,:,:,:) = 0.d0; eq_aux_t(:,:,:,:) = 0.d0; eq_aux_p(:,:,:,:) = 0.d0;
 
   do i=1,n_vertex_max
@@ -573,6 +580,11 @@ do ife = ife_min, ife_max
 
                 eq_spp(mp,k,ms,mt) = eq_spp(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_s(i,j,ms,mt)*HZ_pp(in,mp)
                 eq_tpp(mp,k,ms,mt) = eq_tpp(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_t(i,j,ms,mt)*HZ_pp(in,mp)
+                
+                if ( in == 1 ) cycle ! Record only the non-axisymmetric components
+                eq_s_3d(mp,k,ms,mt) = eq_s_3d(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_s(i,j,ms,mt)* HZ(in,mp)
+                eq_t_3d(mp,k,ms,mt) = eq_t_3d(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_t(i,j,ms,mt)* HZ(in,mp)
+             
               enddo
             enddo
 
@@ -736,6 +748,9 @@ do ife = ife_min, ife_max
         vpar_y = ( - x_t(ms,mt) * vpar_s + x_s(ms,mt) * vpar_t ) / xjac
 
         BB2 = (F0*F0 + dpsidx*dpsidx + dpsidy*dpsidy) / BigR**2
+
+        dpsidx_3d = (   y_t(ms,mt) * eq_s_3d(mp,var_psi,ms,mt) - y_s(ms,mt) * eq_t_3d(mp,var_psi,ms,mt) ) / xjac
+        dpsidy_3d = ( - x_t(ms,mt) * eq_s_3d(mp,var_psi,ms,mt) + x_s(ms,mt) * eq_t_3d(mp,var_psi,ms,mt) ) / xjac
 
         !dPdx = r0 * dTdx + T0 * drhodx
         !dPdy = r0 * dTdy + T0 * drhody
@@ -1531,6 +1546,12 @@ do ife = ife_min, ife_max
 
         endif
 
+        BB2_zero = (F0 **2 + (dpsidx - dpsidx_3d) **2 + (dpsidy - dpsidy_3d) **2) / BigR ** 2
+        ! SAW energy functional (linear MHD), see the first term of eq. (8.31) in Freidberg's Ideal MHD
+        ! and/or the first term of eq. (2.18) in J. Plasma Phys. (2022), vol. 88, 905880512
+        saw_ene_dens = (F0 **2 * (dpsidx_3d**2 + dpsidy_3d**2) + ((dpsidx - dpsidx_3d) **2 + (dpsidy - dpsidy_3d) **2) * (dpsidx_3d**2 + dpsidy_3d**2) & 
+               - ((dpsidx - dpsidx_3d) * dpsidx_3d + (dpsidy - dpsidy_3d) * dpsidy_3d) ** 2) / (BigR**4 * BB2_zero)
+        SAW_tot = SAW_tot + saw_ene_dens * xjac * BigR * wst * delta_phi
       enddo
     enddo
   enddo
@@ -2039,6 +2060,7 @@ call MPI_AllReduce(VK_tot,kin_perp_tot,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_W
 call MPI_AllReduce(VM_int,mag_in,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(VM_ext,mag_out,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(VM_tot,mag_tot,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(SAW_tot,saw_energy_tot,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(J2_int,ohm_in,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(J2_ext,ohm_out,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(J2_tot,ohm_tot,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -2103,6 +2125,7 @@ kin_perp_tot         = VK_tot
 mag_in               = VM_int
 mag_out              = VM_ext
 mag_tot              = VM_tot
+saw_energy_tot       = SAW_tot
 ohm_in               = J2_int
 ohm_out              = J2_ext
 ohm_tot              = J2_tot
@@ -2256,6 +2279,7 @@ kin_perp_out         = n_period * kin_perp_out* fact_mu0  * 0.5d0
 mag_tot              = n_period * mag_tot     * fact_mu0  * 0.5d0
 mag_in               = n_period * mag_in      * fact_mu0  * 0.5d0
 mag_out              = n_period * mag_out     * fact_mu0  * 0.5d0
+saw_energy_tot       = n_period * saw_energy_tot * fact_mu0  * 0.5d0
 ohm_tot              = n_period * ohm_tot     * fact_flux
 ohm_in               = n_period * ohm_in      * fact_flux
 ohm_out              = n_period * ohm_out     * fact_flux
@@ -2525,6 +2549,9 @@ if (my_id .eq. 0) then
       case ( 'Ohmic_out' )
         res(iexpr) = ohm_out 
 
+      case ( 'saw_ene' )
+        res(iexpr) = saw_energy_tot
+
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
       case ( 'Rad_tot' )
         res(iexpr) = total_radiation
@@ -2579,13 +2606,13 @@ if (my_id .eq. 0) then
         res(iexpr) = current_out 
 
       case ( 'int3d_jR_tot' )
-        res(iexpr+1) = current_R_tot 
+        res(iexpr) = current_R_tot 
 
       case ( 'int3d_jR_in' )
-        res(iexpr+1) = current_R_in 
+        res(iexpr) = current_R_in 
 
       case ( 'int3d_jR_out' )
-        res(iexpr+1) = current_R_out 
+        res(iexpr) = current_R_out 
 
       case ( 'li3' )
         res(iexpr) = li3

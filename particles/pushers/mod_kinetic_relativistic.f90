@@ -10,14 +10,15 @@ use constants, only: EL_CHG,ATOMIC_MASS_UNIT,SPEED_OF_LIGHT
 implicit none
 
 private
-public volume_preserving_push_cartesian,volume_preserving_push_jorek
-public relativistic_kinetic_to_particle
-public gc_to_relativistic_kinetic
-public relativistic_kinetic_to_gc
-public relativistic_kinetic_to_relativistic_gc
-public runge_kutta_fixed_dt_relativistic_particle_push
-public runge_kutta_fixed_dt_relativistic_particle_push_jorek
-public volume_preserving_push_analytical
+public :: volume_preserving_push_cartesian,volume_preserving_push_jorek
+public :: relativistic_kinetic_to_particle
+public :: gc_to_relativistic_kinetic
+public :: relativistic_kinetic_to_gc
+public :: relativistic_kinetic_to_relativistic_gc
+public :: runge_kutta_fixed_dt_relativistic_particle_push
+public :: runge_kutta_fixed_dt_relativistic_particle_push_jorek
+public :: volume_preserving_push_analytical
+public :: compute_relativistic_kinetic_orbital_basis_cartesian
 
 contains
 
@@ -793,5 +794,41 @@ function gc_to_relativistic_kinetic(node_list,element_list,in,time,mass,chi,B) r
   out%p = vector_cylindrical_to_cartesian(out%x(3),out%p)
 end function gc_to_relativistic_kinetic
 
+!---------------------------------------------------------------------------
+!> compute the kinetic relativistic particle orbital basis in 
+!> cartesian coordiantes (L. Carbajal et al., 
+!> Plasma Phys. Control. Fusion, vol. 59, p. 124001, 2017).
+!> inputs:
+!>   particle:     (particle_kinetic_relativistic) full orbit relativistic particle
+!>   mass:         (real8) particle mass in AMU
+!>   E_field_cart: (real8)(3) electric field in cartesian coordinates
+!>   B_field_cart: (real8)(3) magnetic field in cartesian coordinates
+!> outputs:
+!>   T_cart:   (real8)(3) direction tangent to the velocity vector v/||v||
+!>   N_cart:   (real8)(3) direction tangent to the normal acceleration
+!>             (v X B - E - (E*T_cart)*T_cart) normalised to 1
+!>   B_cart:   (real8)(3) binormal direction T_cart X N_cart normalised to 1
+subroutine compute_relativistic_kinetic_orbital_basis_cartesian(particle,&
+mass,E_field_cart,B_field_cart,T_cart,N_cart,B_cart)
+  use mod_math_operators, only: cross_product
+  use mod_coordinate_transforms, only: vectors_to_orthonormal_basis
+  implicit none
+  !> inputs
+  type(particle_kinetic_relativistic),intent(in) :: particle
+  real*8                                         :: mass
+  real*8,dimension(3),intent(in)                 :: E_field_cart,B_field_cart
+  !> outputs
+  real*8,dimension(3),intent(out) :: T_cart,N_cart,B_cart
+  !> variables
+  real*8 :: gam
 
+  !> compute the relativistic factor
+  gam = sqrt(1.d0+((particle%p(1)*particle%p(1)+particle%p(2)*particle%p(2)+&
+  particle%p(3)*particle%p(3))/(mass*mass*SPEED_OF_LIGHT*SPEED_OF_LIGHT)))
+  !> compute orbital basis
+  call vectors_to_orthonormal_basis(particle%p,cross_product(particle%p/(mass*gam),&
+  B_field_cart)+E_field_cart,T_cart,N_cart,B_cart)
+end subroutine compute_relativistic_kinetic_orbital_basis_cartesian
+
+!---------------------------------------------------------------------------
 end module mod_kinetic_relativistic

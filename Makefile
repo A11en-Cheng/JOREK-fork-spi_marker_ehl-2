@@ -43,45 +43,55 @@ doc docs:
 
 
 # Directories containing sources, ordered by number of files
-DIRS := diagnostics			\
-	diagnostics/tests		\
-	models				\
-	communication			\
-	communication/IMAS              \
-	communication/tests             \
-	grids/grid_utils		\
-	grids/tests			\
-	solvers				\
-	models/$(MODEL)			\
-	refinement			\
-	matrix				\
-	particles 			\
-	particles/pushers 		\
-	particles/examples 		\
-	particles/diagnostics 		\
-	particles/tests 		\
-	particles/projection_functions  \
-	particles/benchmarks/pusher_cartesian \
-	particles/benchmarks/pusher	\
-	particles/benchmarks/projection \
-	particles/ccoll                 \
-	elements			\
-	elements/tests			\
-	grids				\
-	plots				\
-	diagnostics/new_diag		\
-	diagnostics/postproc		\
-	tools				\
-	tools/rng                       \
-	tools/fruit                     \
-	tools/tests                     \
-	non_regression_tests/unit_tests \
-	datatypes			\
-	benchmarks                      \
-	core                            \
-	core/tests                      \
-	.				\
-	vacuum				
+DIRS := diagnostics				\
+        diagnostics/tests			\
+	models					\
+	communication				\
+	communication/IMAS			\
+	communication/tests             	\
+	grids/grid_utils			\
+	grids/tests   				\
+	solvers					\
+	models/$(MODEL)				\
+	refinement				\
+	matrix					\
+	particles				\
+	particles/pushers			\
+	particles/examples			\
+	particles/diagnostics			\
+	particles/tests				\
+	particles/postprocessors		\
+	particles/postprocessors/spectra	\
+	particles/postprocessors/lights		\
+	particles/postprocessors/lens		\
+	particles/postprocessors/filters	\
+	particles/postprocessors/camera		\
+	particles/postprocessors/examples	\
+	particles/postprocessors/tests		\
+	particles/postprocessors/utils		\
+	particles/projection_functions		\
+	particles/benchmarks/pusher_cartesian	\
+	particles/benchmarks/pusher		\
+	particles/benchmarks/projection		\
+	particles/ccoll                         \
+	elements				\
+	elements/tests				\
+	grids					\
+	plots					\
+	diagnostics/new_diag			\
+	diagnostics/postproc			\
+	tools					\
+	tools/rng				\
+	tools/fruit				\
+	tools/tests				\
+	non_regression_tests/unit_tests		\
+	datatypes				\
+	benchmarks				\
+	core					\
+	core/tests                      	\
+	.					\
+	vacuum
+
 DIRS+=$(EXTRA_DIRS) # Specified in Makefile.inc or commandline
 
 # All .f90 files we should generate .d dependency files for

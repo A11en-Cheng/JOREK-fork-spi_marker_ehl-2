@@ -14,6 +14,7 @@ module mod_gc_relativistic
   public gc_to_relativistic_gc
   public relativistic_gc_to_gc
   public compute_relativistic_factor
+  public compute_relativistic_gc_rhs
   public relativistic_gc_to_relativistic_kinetic
   public relativistic_gc_momenta_from_E_cospitch
   public runge_kutta_fixed_dt_gc_push_jorek

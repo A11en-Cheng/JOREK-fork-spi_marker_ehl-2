@@ -84,14 +84,14 @@ real*8                :: psi_xpoint(2), R_xpoint(2), Z_xpoint(2), s_xpoint(2), t
 real*8                :: psi_norm, psi_bnd, grad_psi
 real*8                :: J_phi, J_R, J_Z, eta_T
 real*8                :: E_phi, E_R, E_Z, dU_x, dU_y, Jpol_R, Jpol_Z, FFp
-real*8                :: xjac, xjac_x, xjac_y, v_perp, Psi_J, R_p, error, Btot, BigR
+real*8                :: xjac, xjac_x, xjac_y, v_perp, Psi_J, R_p, error, Btot, BigR, BB2_zero
 real*8                :: particle_source, D_prof, ZK_prof, source_pellet, ZKpar_T
 real*8                :: Jb,rho_norm,t_norm
 integer               :: i_elm_axis, i_elm_xpoint(2), k_tor, ifail, ierr
 logical               :: without_n0_mode, SI_units
 logical               :: include_fluxes, include_neo, include_magnetic_field, include_velocity_field
 logical               :: include_bootstrap, include_psi_norm, include_electric_field, include_Jpol, RphiZ_coords
-logical               :: include_projections
+logical               :: include_projections, include_saw_ene
 character*80          :: proj_basename, filename_proj
 real*8                :: toroidal_angle
 
@@ -110,7 +110,7 @@ real*8                :: r0_real8, rn0_real8, lnA
 real*8                :: T0_corr, r0_corr, rn0_corr, ne_JOREK, T_or_Te, T_or_Te_corr, T_or_Te_0 
 integer               :: i_imp, offset_bgimp, i_bg     ! Loop for more than one background impurity
 integer               :: i_proj
-integer               :: i_psin, i_test, iimp(6), i_ne, ineu(7), ibg_tot, i_pellet(2), i_flux(8), i_neo(10), i_boot(2)
+integer               :: i_psin, i_test, iimp(6), i_ne, ineu(7), ibg_tot, i_pellet(2), i_flux(8), i_neo(10), i_boot(2), i_saw
 integer               :: i_full(11), i_vec_B, i_vec_V, i_vec_E, i_vec_Jpol
 integer, allocatable  :: iibg(:), iproj(:)
 character*36          :: imp_label, proj_label
@@ -157,7 +157,7 @@ real*8  :: Rp, Zp, Rmin, Rmax, Zmin, Zmax, s_out, t_out, R_out, Z_out
 namelist /vtk_params/ nsub, i_tor, i_plane, without_n0_mode, SI_units, &
                       include_fluxes, include_neo, include_magnetic_field, include_velocity_field,&
                       include_bootstrap, include_psi_norm, include_electric_field, include_Jpol, RphiZ_coords,&
-                      include_projections, proj_basename
+                      include_projections, proj_basename, include_saw_ene
 
 
 write(*,*) '***************************************'
@@ -174,12 +174,12 @@ write(*,*) '   -include_Jpol'
 write(*,*) '   -include_bootstrap'
 write(*,*) '   -include_psi_norm'
 write(*,*) '   -include_projections'
+write(*,*) '   -include_saw_ene'
 write(*,*) '***************************************'
 
 call flush_it(6)
 
 allocate(node_list)
-allocate(aux_node_list)
 allocate(element_list)
 allocate(bnd_elm_list)
 allocate(bnd_node_list)
@@ -208,6 +208,7 @@ RphiZ_coords           = .false. ! use xyz transformation (R,0,Z) instead of (R,
 
 include_radiation    = .false. 
 include_neutral_dens = .false.
+include_saw_ene      = .false. 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 include_radiation    = .true.
 include_neutral_dens = .true.
@@ -245,6 +246,7 @@ write(*,*) 'include_Jpol      =', include_Jpol
 write(*,*) 'include_bootstrap =', include_bootstrap
 write(*,*) 'include_psi_norm  =', include_psi_norm
 write(*,*) 'include_projections =', include_projections
+write(*,*) 'include_saw_ene =', include_saw_ene
 
 if (include_projections) then
   write(*,*) ' -proj_basename =', trim(proj_basename)
@@ -335,10 +337,17 @@ if (use_pellet) then
 endif
 
 if (include_psi_norm) then
-  call add_vtk_entry('psi_norm    ', 'psi_norm    ',    i_psin, n_scalars, si_units, scalar_names) 
+  call add_vtk_entry('psi_norm    ', 'psi_norm    ',    i_psin, n_scalars, si_units, scalar_names)
 endif
 
 allocate(iibg(n_adas),iproj(n_var))
+
+if (include_projections) then
+  do i = 1, n_var
+    write(proj_label, '(a4,i2.2)') 'aux_', i
+    call add_vtk_entry(proj_label, proj_label, iproj(i), n_scalars, si_units, scalar_names) 
+  end do
+end if
 
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
   if (include_neutral_dens) then
@@ -355,13 +364,6 @@ if (include_radiation) then
   call add_vtk_entry('Brems       ', 'Brems_Wm-3  ',    ineu(3), n_scalars, si_units, scalar_names) 
   call add_vtk_entry('Joule       ', 'Joule_Wm-3  ',    ineu(4), n_scalars, si_units, scalar_names) 
 #endif
-
-if (include_projections) then
-  do i = 1, n_var
-    write(proj_label, '(a4,i2.2)') 'aux_', i
-    call add_vtk_entry(proj_label, proj_label, iproj(i), n_scalars, si_units, scalar_names) 
-  end do
-end if
 
 #ifdef WITH_Impurities
   call add_vtk_entry('Ionis       ', 'Ionis_Jm-3  ',    iimp(1), n_scalars, si_units, scalar_names) 
@@ -381,6 +383,10 @@ end if
 
   call add_vtk_entry('Imp_bg      ', 'Imp_bg_Wm-3 ',  ibg_tot, n_scalars, si_units, scalar_names)  ! total bg radiation 
 
+endif
+
+if (include_saw_ene) then
+  call add_vtk_entry('SAW_energy  ', 'SAW_ene_Jm-3 ',  i_saw, n_scalars, si_units, scalar_names)  ! SAW energy functional (linear MHD)
 endif
 
 #ifdef fullmhd
@@ -425,16 +431,8 @@ do k_tor=1, n_tor
   mode(k_tor) = + int(k_tor / 2) * n_period
 enddo
 
-if (include_projections) then
-  filename_proj = trim(proj_basename)//'_restart.h5' ! only hdf5 format supported for particle projections
-  call import_hdf5_restart_aux(aux_node_list, filename_proj, rst_format, ierr)
-  if (ierr .ne. 0) then
-    write(*,*) 'ERROR: Cannot find projection restart file. Check if proj_basename is set properly.'
-    stop
-  end if
-end if
 
-call import_restart(node_list, element_list, 'jorek_restart', rst_format, ierr, .true.)
+call import_restart(node_list,  element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
 
 call initialise_basis                              ! define the basis functions at the Gaussian points
 
@@ -457,9 +455,9 @@ call boundary_from_grid(node_list, element_list, bnd_node_list, bnd_elm_list, .f
 
 minRad = 0.0
 if (bootstrap) then
-  call bootstrap_find_minRad(node_list, element_list, ES%R_axis, ES%Z_axis, ES%psi_axis, ES%psi_bnd)
-  call bootstrap_get_q_and_ft_splines(node_list, element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
-  call bootstrap_get_averaged_j_spline(node_list, element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
+  call bootstrap_find_minRad(0,node_list, element_list, ES%R_axis, ES%Z_axis, ES%psi_axis, ES%psi_bnd)
+  call bootstrap_get_q_and_ft_splines(0,node_list, element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
+  call bootstrap_get_averaged_j_spline(0,node_list, element_list, ES%psi_axis, ES%psi_xpoint, ES%R_xpoint, ES%Z_xpoint)
 endif
 
 grad_psi = 0.d0
@@ -712,7 +710,7 @@ do i=1,element_list%n_elements
           ! --- Full toroidal electric field evaluated at t_now - dt/2
           E_R   = - F0 * (U_x - 0.5d0*dU_x)
           E_Z   = - F0 * (U_y - 0.5d0*dU_y)
-          E_phi = - dpsi/tstep /BigR - F0*(U-0.5d0*dU)/BigR 
+          E_phi = - dpsi/tstep /BigR  
            !*** compute diagnostics ***
           v_perp  = R * sqrt(u_x*u_x + u_y*u_y)
 
@@ -1112,13 +1110,14 @@ do i=1,element_list%n_elements
                   - xjac_y * (- w_s * R_t + w_t * R_s )  / xjac**2
 
             ! --- Full toroidal electric field evaluated at t_now - dt/2
-            E_R   = E_R   - F0 * (U_x - 0.5d0*dU_x)
-            E_Z   = E_Z   - F0 * (U_y - 0.5d0*dU_y)
             E_phi = E_phi - dpsi/tstep * HZ(i_tor,i_plane)/BigR - F0*(U-0.5d0*dU)*HZ_p(i_tor,i_plane)/BigR 
 
           endif ! xjac
 
         enddo  ! end loop toroidal harmonics
+        ! --- Full toroidal electric field evaluated at t_now - dt/2
+        E_R   = - F0 * (U_x - 0.5d0*dU_x)
+        E_Z   = - F0 * (U_y - 0.5d0*dU_y)
         if (jorek_model .lt. 100) cycle
 
         Psi_tot = 0.d0
@@ -1220,6 +1219,20 @@ do i=1,element_list%n_elements
 
            scalars(inode,i_pellet(2)) = local_source
         endif ! use_pellet
+        
+        ! SAW energy functional (linear MHD), see the first term of eq. (8.31) in Freidberg's Ideal MHD
+        ! and/or the first term of eq. (2.18) in J. Plasma Phys. (2022), vol.88, 905880512
+        BB2_zero = 0.d0 
+        if (include_saw_ene) then
+          BB2_zero = (F0 **2 + ps0_x **2 + ps0_y **2 ) / BigR**2
+          if ( without_n0_mode ) then
+            scalars(inode,i_saw) = (F0**2 * (ps_x**2 + ps_y **2) + (ps0_x**2 + ps0_y **2) * (ps_x**2 + ps_y**2) & 
+                         - (ps0_x * ps_x + ps0_y * ps_y)**2) / (BigR**4*BB2_zero)
+          else
+            scalars(inode,i_saw) = (F0**2 * ((ps_x-ps0_x)**2 + (ps_y-ps0_y)**2) + (ps0_x**2 + ps0_y **2) * ((ps_x-ps0_x)**2 + (ps_y-ps0_y)**2) & 
+                         - ((ps_x-ps0_x)*ps0_x + (ps_y-ps0_y)*ps0_y)**2) / (BigR**4*BB2_zero)
+          endif
+        endif
 
         ! vectors(inode,:,1) = (/ - R * u0_y ,   + R * u0_x ,   0.d0 /)
         ! vectors(inode,:,2) = (/ + ps_y /R * scalars(inode,7), - ps_x /R * scalars(inode,7), 0.d0 /) * Btot
@@ -1247,7 +1260,7 @@ do i=1,element_list%n_elements
 enddo  ! n_elements
 
 #if (!defined WITH_Impurities)
-  if (deuterium_adas)  ad_deuterium =  read_adf11(0,'96_h') !< for both include_radiation and include_neutral_dens
+  if (deuterium_adas)  ad_deuterium =  read_adf11(0,'96_h',trim(adas_dir)) !< for both include_radiation and include_neutral_dens
   if (include_radiation) then
     do i=1,nnos
       r0_real8  = scalars(i,var_rho)
@@ -1590,8 +1603,10 @@ if (SI_units) then
 
     !============================================u in m/s
     scalars(i,var_u) = scalars(i,var_u)/t_norm
-    !============================================j_phi in MA/m2
-    scalars(i,var_zj) = currdens(i) / MU_zero * 1.e-6
+    if (jorek_model .ge. 199) then
+      !============================================j_phi in MA/m2
+      scalars(i,var_zj) = currdens(i) / MU_zero * 1.e-6
+    endif
     !============================================density in 1e20m-3
     scalars(i,var_rho) = scalars(i,var_rho) * central_density
     if (with_impurities) then
@@ -1741,6 +1756,9 @@ if (SI_units) then
    end do
   end if
 #endif /* WITH_Impurities */
+  if (include_saw_ene) then
+    scalars(i,i_saw) = scalars(i,i_saw)/(2*MU_ZERO)
+  endif
 #endif /* end of non-full-MHD part*/
 
   enddo  ! nnos

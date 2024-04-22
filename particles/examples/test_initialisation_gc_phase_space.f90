@@ -1052,7 +1052,7 @@ x_min,x_max,n_real_param,real_param,n_int_param,int_param)
   x(1) = sqrt(x_min(1)**2 + (x_max(1)**2 - x_min(1)**2)*x(1))
   x(2:3) = x_min(2:3) + (x_max(2:3)-x_min(2:3))*x(2:3)
   x(4) = (x_min(4)**3 + (x_max(4)**3-x_min(4)**3)*x(4))**(1d0/3d0)
-  x(5) = acos(cos(x_min(5))-(cos(x_max(5))-cos(x_min(5)))*x(5))
+  x(5) = acos(cos(x_min(5))+(cos(x_max(5))-cos(x_min(5)))*x(5))
   x(6) = x_min(6) + (x_max(6)-x_min(6))*x(6)
   !> find RZ coordinates
   call find_RZ(fields%node_list,fields%element_list,x(1),x(2),&

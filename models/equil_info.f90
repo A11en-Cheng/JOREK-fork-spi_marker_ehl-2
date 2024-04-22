@@ -13,7 +13,7 @@ module equil_info
   use data_structure,     only: type_node_list, type_element_list, type_bnd_element_list
   use gauss
   use basis_at_gaussian,  only: H, H_s, H_t, n_degrees
-  use phys_module,        only: R_geo, Z_geo, FF_0, psi_axis_t, psi_bnd_t, Z_xpoint_t, index_now, SDN_threshold, tokamak_device, Z_xpoint_limit
+  use phys_module,        only: R_geo, Z_geo, FF_0, psi_axis_t, psi_bnd_t, Z_xpoint_t, index_now, SDN_threshold, tokamak_device, Z_xpoint_limit, xpoint_search_tries
   use mod_interp
   
   
@@ -417,7 +417,7 @@ module equil_info
   real*8  :: R, R_s, R_t, Z, Z_s, Z_t, P, P_s, P_t, P_st, P_ss, P_tt
   real*8  :: x(2), s, t, xerr, ferr, s_xp_init(2), t_xp_init(2)
   real*8  :: R_axis0, Z_axis0, R_xpoint0, Z_xpoint0, r_margin, s_axis, t_axis, psi_axis, fac_axis_xpoint       
-  integer :: ij_xpoint(2,2), i, iv, ms, mt, kf, kv, i_tries, n_tries, i_init       
+  integer :: ij_xpoint(2,2), i, iv, ms, mt, kf, kv, i_tries, i_init
   integer :: i_elm_xp_init(2), min_indices_lw(3), min_indices_up(3)
   integer :: i_elm_axis, ifail_axis   
   logical :: found_upper, found_lower
@@ -431,8 +431,7 @@ module equil_info
   endif
 
   ifail   = 1
-  n_tries = 500             
-  r_margin = 0.015*R_geo          ! X-point found in sqrt((R-R_axis)^2 + (Z-Z_axis)^2) < r_margin will be dismissed and excluded from next loop. ! Grids in this circle must < n_tries                
+  r_margin = 0.015*R_geo          ! X-point found in sqrt((R-R_axis)^2 + (Z-Z_axis)^2) < r_margin will be dismissed and excluded from next loop. ! Grids in this circle must < xpoint_search_tries
   fac_axis_xpoint = 4      ! If the min(|grad_psi|) point fulfilling the previous comment is still closer to the axis than (fac_axis_xpoint * r_margin), assume that x-point has disappeared.
                           ! X-point where |grad_psi|=0 has no root, but where |grad_psi| ~< r_margin * div_psi(axis) can be accepted. 
 
@@ -528,7 +527,7 @@ module equil_info
 
     i_init = 0
 
-    do i_tries=1,  n_tries  ! --- start attempts to find the lower x-point
+    do i_tries=1,  xpoint_search_tries  ! --- start attempts to find the lower x-point
       
       ! --- min_indices = indices for gaussian point with min |grad_psi|,   (1) = element index, (2) = s-gaussian point index, (3) = t-gaussian point index
       min_indices_lw(:) = minloc(grad_psi, mask=include_pt_lw)
@@ -576,7 +575,7 @@ module equil_info
 
     i_init = 0
 
-    do i_tries=1,  n_tries  ! --- start attempts to find the upper x-point
+    do i_tries=1,  xpoint_search_tries  ! --- start attempts to find the upper x-point
 
       ! --- min_indices = indices for gaussian point with min |grad_psi|,   (1) = element index, (2) = s-gaussian point index, (3) = t-gaussian point index
       min_indices_up(:) = minloc(grad_psi, mask=include_pt_up)
@@ -649,7 +648,7 @@ module equil_info
       write(*,'(A,i6,4f14.8)') ' Lower X-point : ',i_elm_xpoint(1),R_xpoint(1),Z_xpoint(1),psi_xpoint(1),sqrt(ps_x**2+ps_y**2)
     endif
     
-    if (.not. found_lower)         write(*,*) 'WARNING: lower X-point not properly found after ', n_tries, ' attempts'
+    if (.not. found_lower)         write(*,*) 'WARNING: lower X-point not properly found after ', xpoint_search_tries, ' attempts'
     
   endif
 
@@ -682,7 +681,7 @@ module equil_info
       write(*,'(A,i6,4f14.8)') ' Upper X-point : ',i_elm_xpoint(2),R_xpoint(2),Z_xpoint(2),psi_xpoint(2),sqrt(ps_x**2+ps_y**2)
     endif
       
-    if (.not. found_upper)         write(*,*) 'WARNING: upper X-point not properly found after ', n_tries, ' attempts'
+    if (.not. found_upper)         write(*,*) 'WARNING: upper X-point not properly found after ', xpoint_search_tries, ' attempts'
 
   endif
 

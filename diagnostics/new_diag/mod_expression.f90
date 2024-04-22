@@ -99,6 +99,9 @@ module mod_expression
   
   !> Initialization for the module. Should be called before any other 
   subroutine init_expr()
+    character(LEN_NAME)    :: s1
+    character(LEN_DESCR)     :: s2
+    integer         :: i
     
     exprs_all%n_expr     = 0
     exprs_all_int%n_expr = 0
@@ -147,6 +150,11 @@ module mod_expression
     call add(exprs_all, 'nimp        ', 'Impurity Density                                      ')
     call add(exprs_all, 'Z_eff       ', 'Effective charge of all species                       ')
 #endif
+    do i = 1,n_var
+      write(s1,'(a,i2.2)') 'aux', i
+      write(s2,'(a,i2.2)') 'Particle projection #', i
+      call add(exprs_all, s1, s2)
+    enddo 
     call add(exprs_all, 'T           ', 'Temperature (Electrons plus Ions)                     ')
     call add(exprs_all, 'Te          ', 'Electron temperature (assuming Ti=Te)                 ')
     call add(exprs_all, 'vpar        ', 'Parallel Velocity (along magnetic field lines)        ')
@@ -326,6 +334,7 @@ module mod_expression
     call add(exprs_all_int, 'LCFS_deltaU ', 'Upper triangularity   (as in PPCF 55 (2013) 095009)   ')
     call add(exprs_all_int, 'LCFS_deltaL ', 'Lower triangularity   (as in PPCF 55 (2013) 095009)   ')
     call add(exprs_all_int, 'tot_radiated', 'Total radiated power by the main impurities           ')
+    call add(exprs_all_int, 'saw_ene     ', 'SAW energy functional (linear MHD)                    ')
 
     call add(exprs_all_four, 'absolute    ', 'Absolute value of 2D Fourier analysis                 ')
     call add(exprs_all_four, 'real        ', 'Real part      of 2D Fourier analysis                 ')
@@ -551,7 +560,8 @@ module mod_expression
   
   !> Evaluate one/several expressions at one/several poloidal and one/several toroidal positions.
   subroutine eval_expr(eq, units, expr_list, pol_pos_list, tor_pos_list, result, ierr, flux_av, only_n0)
-
+    use nodes_elements, only: aux_node_list
+    
     character(len=64), parameter :: THIS_ROUTINE_NAME = trim(THIS_MOD_NAME) // ':eval_expr'
     
     ! --- Routine parameters
@@ -569,8 +579,9 @@ module mod_expression
     type(t_pol_pos), pointer :: pol_pos
     type(t_tor_pos), pointer :: tor_pos
     type(type_element)       :: element
-    type(type_node)          :: nodes(n_vertex_max), aux_nodes(n_vertex_max)
-    integer :: ipolpos, jpolpos, itorpos, iexpr, ielm, i, j, k, i_tor
+    type(type_node)          :: nodes(n_vertex_max)
+    type(type_node)          :: aux_nodes(n_vertex_max)
+    integer :: ipolpos, jpolpos, itorpos, iexpr, ielm, i, j, k, i_tor, n
     real*8  :: xjac, xjac_R, xjac_Z, R, R_s, R_t, R_st, R_ss, R_tt, Z, Z_s, Z_t, Z_st, Z_ss, Z_tt, &
       s, t, H(n_vertex_max,n_degrees), H_s(n_vertex_max,n_degrees), H_t(n_vertex_max,n_degrees),   &
       H_st(n_vertex_max,n_degrees), H_ss(n_vertex_max,n_degrees), H_tt(n_vertex_max,n_degrees),    &
@@ -597,13 +608,13 @@ module mod_expression
     real*8 :: Ti0, Ti0_s, Ti0_t, Ti0_st, Ti0_ss, Ti0_tt, Ti0_p, Ti0_pp, Te0, Te0_s, Te0_t, Te0_st, &
       Te0_ss, Te0_tt, Te0_p, Te0_pp, Ti0_R, Ti0_Z, Te0_R, Te0_Z, Er, Vtheta, Mach_par, Mach_pol,   &
       Vsound, Vneo, Vperp_e, Vperp_i, V_ExB, Vstar_e, Vstar_i, mu_neo, ki_neo, J_boot, Te0_eV,     &
-      ne0_20, ln_Lambda, ln_Lambda0, dpsi_dt 
+      ne0_20, ln_Lambda, ln_Lambda0, dpsi_dt
     real*8 :: T0_corr, Ti0_corr, Te0_corr, r0_corr, rn0_corr
     real*8 :: T_or_Te, T_or_Te_corr, T_or_Te_0 
     real*8 :: FFprime_loc, Jpol, JpolR, JpolZ, Btot, Jpar, Jpar_ionsat, fact_jsat, Bnorm, Btan, Jtor
     real*8 :: p_prime_loc
     real*8 :: nmlR, nmlZ, theta_geo, VR, VZ, V_phi, Vpar_tot, VperpR, VperpZ
-    real*8 :: hh, hh_s, hh_t, hh_ss, hh_tt, hh_st, hhz, hhz_p, hhz_pp, sz, vv(0:n_var)
+    real*8 :: hh, hh_s, hh_t, hh_ss, hh_tt, hh_st, hhz, hhz_p, hhz_pp, sz, vv(0:n_var), va(n_var), aux(20)
     real*8 :: delta_g(n_var), delta_s(n_var), delta_t(n_var)
     ! --- Fluxes
     real*8  ::  ZKpar_flux, ZKipar_flux, ZKepar_flux, ZKperp_flux, ZKiperp_flux, ZKeperp_flux,     &
@@ -751,6 +762,9 @@ module mod_expression
         ! --- Elements and nodes
         element  = pol_pos%element
         nodes(:) = pol_pos%nodes(:)
+        if(export_aux_node_list .and. associated(aux_node_list)) then
+           aux_nodes(:) = aux_node_list%node(pol_pos%element%vertex(:))
+        endif
         
         ! --- Loop over toroidal positions
         loop_tor: do itorpos = 1, tor_pos_list%n_pos
@@ -795,6 +809,7 @@ module mod_expression
 
           delta_g(:) = 0.d0; delta_s(:) = 0.d0; delta_t(:) = 0.d0
           Fprofile = 0.d0;  Fprofile_s = 0.d0;  Fprofile_t = 0.d0
+          aux = 0.d0
           
           ! --- Reconstruct variables
           do i = 1, n_vertex_max
@@ -825,6 +840,10 @@ module mod_expression
                 hhz_pp = HZ_pp(i_tor)
                 vv(:)  = 0.d0
                 vv(1:n_var)  = nodes(i)%values(i_tor,j,:)
+		va(:)  = 0.d0
+                if(export_aux_node_list .and. associated(aux_node_list)) then
+                   va(1:n_var)  = aux_nodes(i)%values(i_tor,j,:)
+                endif
                 
                 ! --- Poloidal Flux
                 ps0      = ps0      + vv(var_psi) * sz * hh    * hhz
@@ -936,6 +955,10 @@ module mod_expression
                 rimp0_p   = rimp0_p     + vv(var_rhoimp) * sz * hh    * hhz_p
                 rimp0_pp  = rimp0_pp    + vv(var_rhoimp) * sz * hh    * hhz_pp
 
+                ! --- Particle projections
+                do n = 1, n_var
+                   aux(n) = aux(n) + va(n) * sz * hh    * hhz
+                end do
 
                 ! --- AR
                 AR0      = AR0      + vv(var_AR) * sz * hh    * hhz
@@ -1792,6 +1815,36 @@ module mod_expression
               case ( 'Z_eff' )
                 res = Z_eff
 #endif
+              
+              case ( 'aux01' )
+                res = aux(1)
+
+              case ( 'aux02' )
+                res = aux(2)
+
+              case ( 'aux03' )
+                res = aux(3)
+
+              case ( 'aux04' )
+                res = aux(4)
+
+              case ( 'aux05' )
+                res = aux(5)
+
+              case ( 'aux06' )
+                res = aux(6)
+
+              case ( 'aux07' )
+                res = aux(7)
+
+              case ( 'aux08' )
+                res = aux(8)
+
+              case ( 'aux09' )
+                res = aux(9)
+
+              case ( 'aux10' )
+                res = aux(10)
 
               case ( 'T' )
                 res = T0 * fact_T

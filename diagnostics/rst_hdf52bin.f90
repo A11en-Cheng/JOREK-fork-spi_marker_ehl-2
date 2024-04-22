@@ -57,7 +57,7 @@ program RST_convert_hdf52bin
 
   ! --- Read the restart HDF5 file
   if (verbose) write (6,*) " =============> rst_hdf52bin for filename = ",filein
-  call import_hdf5_restart(node_list, element_list, filein, rst_format, ierr)
+  call import_hdf5_restart(node_list, element_list, filein, rst_format, ierr, aux_node_list=aux_node_list)
 
   index_now = index_start
   t_now     = t_start
@@ -77,6 +77,6 @@ program RST_convert_hdf52bin
 
   ! -- Write the BINARY restart file
   if (verbose) write (6,*) " =============> rst_hdf52bin, write BIN file = ",fileout
-  call export_binary_restart(node_list, element_list, fileout)
+  call export_binary_restart(node_list, element_list, fileout, aux_node_list)
 
 end program RST_convert_hdf52bin

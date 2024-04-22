@@ -40,6 +40,7 @@ type, extends(action) :: jorek_timestep_action
 
   ! Coupling data for in construct_matrix
   type(type_node_list), pointer                 :: node_list => null() !< Current node list
+  type(type_node_list), pointer                 :: aux_node_list => null() !< Current node list for particles
   type(type_element_list), pointer              :: element_list => null() !< Current element list    
   type(type_bnd_element_list), pointer          :: bnd_elm_list !< List of boundary elements
   type(type_bnd_node_list), pointer             :: bnd_node_list !< List of boundary nodes.  
@@ -345,9 +346,9 @@ subroutine do_jorek_timestep(this, sim, ev)
   ! --- Prepare minor radius and q-,ft-,B-splines for bootstrap current
   minRad=0.d0
   if (bootstrap) then
-    call bootstrap_find_minRad(sim%fields%node_list, sim%fields%element_list, this%es%R_axis, this%es%Z_axis, this%es%psi_axis, this%es%psi_bnd)
+    call bootstrap_find_minRad(sim%my_id, sim%fields%node_list, sim%fields%element_list, this%es%R_axis, this%es%Z_axis, this%es%psi_axis, this%es%psi_bnd)
 
-    call bootstrap_get_q_and_ft_splines(sim%fields%node_list, sim%fields%element_list, this%es%psi_axis, this%es%psi_xpoint, this%es%R_xpoint, this%es%Z_xpoint)
+    call bootstrap_get_q_and_ft_splines(sim%my_id, sim%fields%node_list, sim%fields%element_list, this%es%psi_axis, this%es%psi_xpoint, this%es%R_xpoint, this%es%Z_xpoint)
   endif
   
   call clck_time_barrier(t1)
@@ -508,7 +509,7 @@ subroutine do_jorek_timestep(this, sim, ev)
   ! --- Write a restart file every nout timesteps
   if ( (sim%my_id == 0) .and. (mod(index_now,nout) == 0) ) then
     write(fileout,'(A5,i5.5)') 'jorek',index_now
-    call export_restart(sim%fields%node_list, sim%fields%element_list, fileout)
+    call export_restart(sim%fields%node_list, sim%fields%element_list, fileout, aux_node_list)
   endif
   
   ! --- Exit the code if NaNs are detected.
@@ -536,7 +537,7 @@ subroutine do_jorek_timestep(this, sim, ev)
 
   ! Write a restart file on code exit
   if (sim%stop_now .and. sim%my_id .eq. 0) then
-    call export_restart(sim%fields%node_list, sim%fields%element_list, 'jorek_restart')
+    call export_restart(sim%fields%node_list, sim%fields%element_list, 'jorek_restart', aux_node_list)
   end if
 
   select type (fields => sim%fields)

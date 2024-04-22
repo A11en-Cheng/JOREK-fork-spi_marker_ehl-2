@@ -71,7 +71,7 @@ subroutine initialize(node_list, my_id, n_cpu)
 
   ! --- Local variables
   integer, allocatable :: first_index_usable(:), mm(:)
-  integer :: i, j, k, l, ind_max, n_bnd, ind_bnd, ind1, ind2
+  integer :: i, j, k, l, m, ind_max, n_bnd, ind_bnd, ind1, ind2
   
   if ( DEBUG_OUTPUT ) write(*,*) 'Initializing module mod_exchange_indices'
   
@@ -114,12 +114,11 @@ subroutine initialize(node_list, my_id, n_cpu)
   allocate(exchange_table(n_bnd*8,2))
   allocate(first_index_usable(n_cpu))
   allocate(mm(n_cpu))
-  first_index_usable(:) = -1
+  first_index_usable(:) = 999999
   ii: do i = 1, n_cpu
     do j = 1, node_list%n_nodes
       if ( is_responsible(node_list%node(j)%index(1), i) .and. (node_list%node(j)%index(1)>1) ) then
-        first_index_usable(i) = node_list%node(j)%index(1)
-        cycle ii
+        first_index_usable(i) = MIN(first_index_usable(i), node_list%node(j)%index(1))
       end if
     end do
   end do ii
@@ -133,11 +132,13 @@ subroutine initialize(node_list, my_id, n_cpu)
   ! --- Prepare a "table" of indices to be exchanged
   ind_bnd = 0
   j       = 1
+  m       = 0 
   mm(:)   = first_index_usable(:)
   if ( DEBUG_OUTPUT ) write(*,*) 'mm before:', mm(:)
   do i = 1, node_list%n_nodes
     if ( node_list%node(i)%boundary > 0 ) then
-      k = (real(j)/real(8*n_bnd))*n_cpu + 1 ! with which MPI rank to we want to exchange this index?
+      k = (real(m)/real(n_bnd-1))*(n_cpu-1) + 1 ! with which MPI rank to we want to exchange this index?
+      m = m + 1
       if ( k == n_cpu ) cycle ! the last MPI rank doesn't need to exchange with itself
       do l = 1, 4 ! the four dofs of one node
         ind1    = node_list%node(i)%index(l) ! exchange this index
@@ -199,7 +200,7 @@ subroutine exchange_indices(node_list, my_id, n_cpu, back)
   
   ! --- Initialize when called the first time in a run (or after a grid change)
   if ( .not. initialized ) call initialize(node_list, my_id, n_cpu)
-  
+
   ! --- Exchange the indices
   l = 0
   do i = 1, node_list%n_nodes

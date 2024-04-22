@@ -29,13 +29,14 @@ real*8             :: B_scale, I_scale, R_scale, F_axis, factor, dfactor
 real*8             :: ellip_in,tria_up_in,tria_low_in,quad_up_in,quad_low_in,r0_in,z0_in,a0_in
 integer            :: mx,my,kx,ky,nxest,nyest,lwrk,kwrk,ier,iopt,nx,ny, i1, j1,iostatus, str_id,ierr
 integer            :: nr, nz, n_psi, nbbs, limitr, i,j, nc, n_tht, n_sol, n_ext, ivtk, n_tht_in
-character          :: AA*52, tokamak_name*50,boundary_type*100
+character          :: AA*52, tokamak_name*50, boundary_type*50, line*100
 character          :: buffer*80, lf*1, str1*12, str2*24, string_in*250,eqdsk_string_r_min*250
 
 integer          :: err_alloc
 logical          :: ferr
 real*8,allocatable :: ne_spline(:)
 !----------------------------- read eqdsk file -----------
+integer            :: start_idx, end_idx
 namelist /eqdsk2jorek_params/ tokamak_name,boundary_type,ellip_in,tria_up_in,&
                               tria_low_in,quad_up_in,quad_low_in,n_tht_in,r0_in,&
                               z0_in,a0_in,pres_bnd,B_scale,I_scale,R_scale,smth,eqdsk_string_r_min
@@ -52,7 +53,7 @@ tokamak_name  = 'ITER'
 !>   R = R_axis + r_minor*cos(theta+triangularity*sin(theta)+quadrangularity*sin(2*theta))
 !>   Z = Z_axis + r_minor*ellipticity*sin(theta)
 !> ITER: CLOSE_WALL_FIT, OUTSIDE_WALL (default)
-!> JET: OUTSIDE_WALL, OUTSIDE_WALL_SHORT_LEG, CIRCULAR
+!> JET: OUTSIDE_WALL, OUTSIDE_WALL_SHORT_LEG, CIRCULAR, LIMITER, INSIDE_LIMITER
 !> DIII-D: OUTSIDE_WALL, NIMROD_M3DC1
 !>
 !> eqdsk_string_r_min: string of the EQDSK file identifying the plasma minor radius
@@ -72,10 +73,29 @@ write(*,*) ' EQDSK to JOREK2 '
 ! --- Read parameters from namelist file 'eqdsk2jorek.nml' if it exists
 open(42, file='eqdsk2jorek.nml', action='read', status='old', iostat=ierr)
 if ( ierr == 0 ) then
-  write(*,*) 'Reading parameters from eqdsk2jorek.nml namelist.'
-  read(42,eqdsk2jorek_params)
-  close(42)
+    ! Read lines until reaching the end of the file
+    do
+        read(42, '(a)', iostat=ierr) line
+        if (ierr /= 0) exit ! Exit loop if end of file or read error
+        if (index(line, 'tokamak_name') > 0) then    ! Check if tokamak_name is specified in the namelist file
+            if (index(line, '!') > 0 .and. index(line, '!') < index(line,'tokamak_name')) exit ! Check if the line is commented out
+            start_idx = index(line, "'") +1
+            end_idx = index(line(start_idx:), "'") + start_idx-2
+            tokamak_name = line(start_idx:end_idx) ! Extract the tokamak name value
+            if (tokamak_name == 'JET') then
+                boundary_type = 'OUTSIDE_WALL_SHORT_LEG' 
+                write(*,*) 'Changed the default boundary for JET'
+            end if
+        end if
+    end do
+    rewind(42)
+    write(*,*) 'Reading parameters from eqdsk2jorek.nml namelist.'
+    read(42,eqdsk2jorek_params)
+    close(42)
+else
+    write(*,*) '!!!NOTE: No/Could not open namelist file!!!!'
 end if 
+ 
 
 write(*,*) '   Tokamak = ', tokamak_name
 write(*,*) '   Boundary type = ',boundary_type
@@ -305,7 +325,7 @@ else if (tokamak_name == 'JET') then
     z0     = 0.15 * R_scale
     a0     = 1.1  * R_scale
 
-  !-------------------- try circular plasmas
+ !-------------------- try circular plasmas
   else if(boundary_type == 'CIRCULAR') then
     ellip  = 1.
     tria_u = 0.
@@ -316,6 +336,32 @@ else if (tokamak_name == 'JET') then
     r0     = rmaxis * R_scale
     z0     = zmaxis * R_scale
     a0     = a_minor * R_scale
+
+ !-------------------- contour that has same shape as limiter without the legs
+  else if(boundary_type == 'LIMITER') then
+    ellip  = 1.7264
+    tria_u = 0.276
+    tria_l = 0.2497
+    quad_u = -0.07
+    quad_l = 0.1274
+    n_tht  = 257
+    r0     = 2.875 * R_scale
+    z0     = 0.2213 * R_scale
+    a0     = 1.026 * R_scale
+
+ !-------------------- contour that fits inside the limiter and includes part of limiter leg
+  else if(boundary_type == 'INSIDE_LIMITER') then
+    ellip  = 1.785
+    tria_u = 0.26
+    tria_l = 0.2497
+    quad_u = -0.03
+    quad_l = 0.29
+    n_tht  = 257
+    r0     = 2.865 * R_scale
+    z0     = 0.19 * R_scale
+    a0     = 0.999 * R_scale
+
+
   else
     write(*,*) 'JOREK boundary not or wrongly specified, stopping' 
     stop
@@ -435,6 +481,13 @@ do i=n_tht/2+1,n_tht
   z_bnd(i) = z0 + a0 * ellip * sin(angle)
   call bispev(tx,nx,ty,ny,c,kx,ky,r_bnd(i),1,z_bnd(i),1,psi_bnd(i),wrk,lwrk,iwrk,kwrk,ier)
 enddo
+
+! write r_bnd(j), z_bnd(j)                     
+open(21,file='JOREK_bnd.dat')
+  do j=1,n_tht
+    write(21,'(2e16.8)') r_bnd(j), z_bnd(j)
+  enddo
+close(21)
 
 
 write(*,*) ' plotting results'  

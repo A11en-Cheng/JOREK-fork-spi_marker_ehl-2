@@ -283,6 +283,20 @@ ifeq (1, $(USE_STRUMPACK))
   EXTRA_FLAGS := $(EXTRA_FLAGS) -lstdc++ -std=c++14
 endif
 
+ifeq (1, $(USE_STD_BESSELK))
+  DEFINES := $(DEFINES) -DUSE_STD_BESSELK
+  EXTRA_FLAGS := $(EXTRA_FLAGS) -lstdc++ -std=c++17
+  USE_BOOST = 0
+endif
+
+ifeq (1, $(USE_BOOST))
+  DEFINES := $(DEFINES) -DUSE_BOOST
+  LIBS    := $(LIBS) $(LIB_BOOST)
+  INCLUDES := $(INCLUDES) $(INC_BOOST)
+  EXTRA_FLAGS := $(EXTRA_FLAGS) -lstdc++ -std=c++17
+  USE_STD_BESSELK = 0
+endif
+
 ifeq (1, $(USE_BICGSTAB))
   DEFINES  := $(DEFINES) -DUSE_BICGSTAB
 else
@@ -301,6 +315,9 @@ ifeq (1, $(USE_CATALYST))
   DEFINES  := $(DEFINES) -DUSE_CATALYST
 endif
 
+ifeq (1, $(USE_TASKLOOP))
+  DEFINES  := $(DEFINES) -DUSE_TASKLOOP
+endif
 
 # Do not check to make these files to speed up and clean -d output
 Makefile: ;

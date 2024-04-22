@@ -125,7 +125,8 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 cte_current_FB_fact, Z_xpoint_limit, eta_ohmic,     &
                 CARIDDI_mode, use_newton, maxNewton, gamma_Newton,  &
                 alpha_Newton, vacuum_min, strumpack_matching,       &
-                forceSDN, SDN_threshold
+                forceSDN, SDN_threshold, xpoint_search_tries,       &
+                export_aux_node_list, bgf_rpolar, bgf_tht
 
 if (my_id .eq. 0) then
 

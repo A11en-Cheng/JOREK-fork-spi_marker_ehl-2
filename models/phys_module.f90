@@ -52,6 +52,7 @@ module phys_module
   real*8  :: density_reflection   !< density reflection coeefficient on open fieldlines
   real*8  :: neutral_reflection   !< reflection coefficient of ions into neutrals (model500)
   real*8  :: imp_reflection       !< impurity reflection coefficient on open fieldlines
+  real*8  :: loop_voltage         !< Apply a loop voltage at the boundary of the computational domain (in V; works only for fixed boundary)
   logical :: old_deuterium_atomic !< use old fit to calculate atomic coefficients for D (ionization, recombination, radiation), otherwise a better fit is used
   logical :: deuterium_adas       !< use OPEN ADAS to calculate ionization, recombination and radiation coeffients for deuterium                        
   logical :: deuterium_adas_1e20  !< use OPEN ADAS with fixed density=1e20 to calculate ionization, recombination and radiation coeffients for deuterium
@@ -74,6 +75,7 @@ module phys_module
   logical :: import_equil         !< (presently unused)
   logical :: xpoint               !< X-point plasma or not? see also xcase
   real*8  :: Z_xpoint_limit(2)    !< Search the lower X-point in the region Z < Z_xpoint_limit(1) and the upper X-point in the region Z > Z_xpoint_limit(2) 
+  integer :: xpoint_search_tries  !< The number of candidate elements to check for being the element containing the upper or lower X-point.
   logical :: bootstrap            !< Evolve the Bootstrap current consistently with time?
   real*8  :: minRad               !< Approximation of minor radius for bootstrap current calculation
   logical :: refinement           !< Use mesh refinement? (not presently available)
@@ -92,6 +94,7 @@ module phys_module
   logical :: no_mach1_bc          !< Never apply Mach-1 BCs
   logical :: Mach1_openBC         !< Full-MHD: Apply Mach-1 BCs inside mod_boundary_matrix_open.f90 (or mod_boundary_conditions.f90)
   logical :: Mach1_fix_B          !< Full-MHD: Use the initial magnetic field for Mach1 BCs on targets, ie. without AR and AZ variations
+  logical :: export_polar_boundary !< Option to export boundary.txt even in the case of a polar boundary.
 
   ! --- RESISTIVITY SWITCHES FOR AR AND AZ EQUATIONS
   ! --- 1.
@@ -118,6 +121,7 @@ module phys_module
   logical :: keep_n0_const        !< Perform a linear run where the equilibrium quantities (i_tor=1) do not change with time?
   logical :: linear_run           !< Same as keep_n0_const, to be replaced soon by true linear run where modes are independent
   logical :: export_for_nemec     !< Export equilibrium information for the NEMEC code?
+  logical :: export_aux_node_list !< Include the aux_node_list for particle projections in the restart files
   logical :: use_murge            !< (Deprecated, Cannot be used any more)
   logical :: use_murge_element    !< (Deprecated, Cannot be used any more)
   logical :: use_BLR_compression  !< Use Block-Low-Rank (BLR) compression in MUMPS / PaStiX 6 solvers
@@ -576,7 +580,8 @@ module phys_module
   real*8  :: SIG_tht(2)        	    !< Width of grid accumulation (two positions) (for polar grid)
   real*8  :: XR_z(2)           	    !< Z-position of square grid accumulation (two positions) (for square grid)
   real*8  :: SIG_z(2)          	    !< Z-Width of grid accumulation (two positions) (for square grid)
-  real*8  :: bgf_r, bgf_z           !< Background for meshac distribution or R and Z accumulation (only for square grid!)
+  real*8  :: bgf_r, bgf_z           !< Background for meshac distribution for R-Z accumulation
+  real*8  :: bgf_rpolar, bgf_tht    !< Background for meshac distribution for R-theta accumulation
   
   !> @name Flux surface grid
   !! Parameters defining a flux-aligned grid without X-point in the poloidal plane.

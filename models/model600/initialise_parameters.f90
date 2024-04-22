@@ -29,7 +29,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 n_outer, n_inner, n_up_priv, n_up_leg, n_up_leg_out,&
                 n_tht_equidistant,                                  &
                 psi_axis_init, XR_r, SIG_r, XR_tht, SIG_tht,        &
-                XR_z, SIG_z, bgf_r, bgf_z,                          &
+                XR_z, SIG_z, bgf_r, bgf_z, bgf_rpolar, bgf_tht,     &
                 SIG_closed, SIG_open, SIG_private, SIG_theta,       &
                 SIG_leg_0, SIG_leg_1, dPSI_open, dPSI_private,      &
                 SIG_up_leg_0, SIG_up_leg_1, SIG_up_priv,            &
@@ -213,7 +213,9 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 T_min_ZKpar,Ti_min_ZKpar,Te_min_ZKpar,              &
                 CARIDDI_mode, use_newton, maxNewton, gamma_Newton,  &
                 alpha_Newton, vacuum_min, strumpack_matching,       &
-                visco_old_setup, visco_heating, eta_coul_log_dep
+                visco_old_setup, visco_heating, eta_coul_log_dep,   &
+                export_polar_boundary, xpoint_search_tries,         &
+                loop_voltage, export_aux_node_list
 
 
 if (my_id .eq. 0) then
