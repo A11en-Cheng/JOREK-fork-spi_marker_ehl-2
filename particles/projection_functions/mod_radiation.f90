@@ -53,16 +53,22 @@ function proj_Lz(sim, group, particle)
 #endif
 end function proj_Lz
 
-function get_Lz(sim, group, iz, n_e, T_e, n_n)
+function get_Lz(sim, group, iz, n_e, T_e, n_neutral)
   type(particle_sim), intent(in) :: sim
   integer, intent(in) :: group
   integer, intent(in) :: iz
   real*8, intent(in)  :: n_e, T_e
-  real*8, intent(in), optional :: n_n
+  real*8, intent(in), optional :: n_neutral
   real*8 :: get_Lz
-  real*8 :: log_T_e, log_n_e
+  real*8 :: log_T_e, log_n_e, n_n
   real*8 :: prb, plt, prc
   integer :: q
+
+  if (present(n_neutral)) then
+    n_n = n_neutral
+  else ! otherwise set it to zero
+    n_n = 0.0
+  endif
 
   log_T_e = log10(T_e)
   log_n_e = log10(n_e)
