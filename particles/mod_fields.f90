@@ -316,6 +316,7 @@ real*8               :: R, R_s, R_t, Z, Z_s, Z_t, xjac, m_i_over_m_imp
 real*8 :: T_norm !< temperature normalisation
 real*8 :: n_norm !< temperature normalisation
 
+#ifdef WITH_Neutrals
 call fields%interp_PRZ(time,i_elm,&
 #ifdef WITH_TiTe
       [var_rho, var_Te, var_rhoimp, var_rhon],& ! electron temperature
@@ -323,6 +324,16 @@ call fields%interp_PRZ(time,i_elm,&
       [var_rho, var_T, var_rhoimp, var_rhon],& ! electron temperature + ion temperature (assumed equal)
 #endif
           4,st(1),st(2),phi,P,P_s,P_t,P_phi,P_time,R,R_s,R_t,Z,Z_s,Z_t)
+#else
+call fields%interp_PRZ(time,i_elm,&
+#ifdef WITH_TiTe
+      [var_rho, var_Te, var_rhoimp],& ! electron temperature
+#else
+      [var_rho, var_T, var_rhoimp],& ! electron temperature + ion temperature (assumed equal)
+#endif
+          3,st(1),st(2),phi,P,P_s,P_t,P_phi,P_time,R,R_s,R_t,Z,Z_s,Z_t)
+#endif
+
 
 select case ( trim(imp_type(index_main_imp)) )
   case('D2')
@@ -341,10 +352,13 @@ end select
 
 n_bg  = P(1) - P(3)
 n_imp = P(3) * m_i_over_m_imp
-n_n   = P(4)
 n_bg  = max(central_density * n_bg * 1d20,1d16)        ! plasma density [1/m^3], capped against negative
 n_imp = max(central_density * n_imp * 1d20,0.0)        ! plasma density [1/m^3], capped against negative
+n_n   = 0.
+#ifdef WITH_Neutrals
+n_n   = P(4)
 n_n   = max(central_density * n_n * 1d20,0.0)          ! plasma density [1/m^3], capped against negative
+#endif
 T_norm = (1.d0/K_BOLTZ/(2.d0*MU_ZERO*central_density*1.d20))
 #ifdef WITH_TiTe
 T_norm = T_norm*2.d0 ! P(1) contains the electron temperature, reverse previous correction
