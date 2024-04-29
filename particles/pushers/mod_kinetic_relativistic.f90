@@ -11,6 +11,7 @@ implicit none
 
 private
 public :: volume_preserving_push_cartesian,volume_preserving_push_jorek
+public :: volume_preserving_radiation_push_jorek
 public :: relativistic_kinetic_to_particle
 public :: gc_to_relativistic_kinetic
 public :: relativistic_kinetic_to_gc

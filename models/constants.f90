@@ -18,6 +18,7 @@ module constants
   real*8,  parameter :: MASS_ELECTRON = 9.10938291d-31           !< electron mass [kg]
   real*8,  parameter :: SPEED_OF_LIGHT = 2.997924580105029d+8    !< speed of light in (m/s)
   real*8,  parameter :: MOLE_NUMBER   = 6.02214076d23            !< The Avogadro constant
+  real*8,  parameter :: HBAR          = 1.05457180d-34           !< Reduced Planck constant [Js]
 
   !> @name Constants which describe the domain of a certain position (used by function which_domain)
   integer, parameter :: DOMAIN_PLASMA         = 0    !< Plasma region
