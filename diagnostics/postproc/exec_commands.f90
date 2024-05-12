@@ -67,7 +67,7 @@ module exec_commands
   
   private
   public exec_command, general_help, specific_help, clean_up, average, expr_list, step_imported, qprofile, &
-         zeroD_quantities, separatrix, rectangle
+         zeroD_quantities, separatrix, rectangle, boundary_quantities
 
   
   
@@ -1667,7 +1667,7 @@ module exec_commands
 
 
   !> Expressions in the computational boundary
-  subroutine boundary_quantities(command, first_step, ierr)
+  subroutine boundary_quantities(command, first_step, ierr, res2d_tmp)
     
     use mod_position, only: bnd_pos, tor_pos
     
@@ -1675,6 +1675,7 @@ module exec_commands
     type(type_command), intent(in)  :: command     !< Command to be executed
     logical,            intent(in)  :: first_step  !< First time step of a for loop?
     integer,            intent(out) :: ierr        !< Error flag
+    real*8, allocatable, optional, intent(out) :: res2d_tmp(:,:,:)
     
     ! --- Local variables
     real*8  :: phimin, phimax
@@ -1721,17 +1722,22 @@ module exec_commands
 
     write(comment,'(a,i6.6, a, 1ES14.6)') 'time step #', index_now, ",  t_now = ", t_now 
 
-    ! --- Print every toroidal angle plane
-    do i_phi = 1, nphi
-      res1d = res2d(i_phi,:,:)
-      if ( i_phi==1 ) then
-        call write_ascii_1d(ierr, ES, expr_list, res1d, FORM_TABLE, header=.true.,           &
-         filename=trim(filename), append=(.not. first_step), blanks=.true., comment=trim(comment))
-      else
-        call write_ascii_1d(ierr, ES, expr_list, res1d, FORM_TABLE, header=.false.,           &
-         filename=trim(filename), append=(.true.), blanks=.false.)
-      endif
-    enddo
+    if (present(res2d_tmp)) then
+      allocate( res2d_tmp(size(res2d,1),size(res2d,2),size(res2d,3)) )
+      res2d_tmp = res2d
+    else
+      ! --- Print every toroidal angle plane
+      do i_phi = 1, nphi
+        res1d = res2d(i_phi,:,:)
+        if ( i_phi==1 ) then
+          call write_ascii_1d(ierr, ES, expr_list, res1d, FORM_TABLE, header=.true.,           &
+          filename=trim(filename), append=(.not. first_step), blanks=.true., comment=trim(comment))
+        else
+          call write_ascii_1d(ierr, ES, expr_list, res1d, FORM_TABLE, header=.false.,           &
+          filename=trim(filename), append=(.true.), blanks=.false.)
+        endif
+      enddo
+    endif
     
     if ( allocated(result) ) deallocate(result)
     

@@ -230,7 +230,7 @@ subroutine preset_parameters
 
   D_prof_neg         = 1.d-5
   D_prof_neg_thresh  = 0.d0 ! default is zero for keeping the old behavior
-  D_prof_imp_neg_thresh  = 0.d0 ! default is zero for keeping the old behavior
+  D_prof_imp_neg_thresh  = -1.d3 ! disabled by default to avoid convergence issues
   D_prof_tot_neg_thresh  = 0.d0 ! default is zero for keeping the old behavior
 
   D_imp_extra_R = 0.d0

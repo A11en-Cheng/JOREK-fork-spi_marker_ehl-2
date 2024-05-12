@@ -146,6 +146,8 @@ module mod_expression
     call add(exprs_all, 'omega       ', 'Toroidal Vorticity Component                          ')
     call add(exprs_all, 'rho         ', 'Mass Density                                          ')
     call add(exprs_all, 'ne          ', 'Electron Density                                      ')
+    call add(exprs_all, 'ni_main     ', 'Main ion Density                                      ')
+    call add(exprs_all, 'nn_main     ', 'Density of main ion neutrals                          ')
 #ifdef WITH_Impurities
     call add(exprs_all, 'nimp        ', 'Impurity Density                                      ')
     call add(exprs_all, 'Z_eff       ', 'Effective charge of all species                       ')
@@ -190,6 +192,7 @@ module mod_expression
     call add(exprs_all, 'Vperp_i     ', 'Ion Perpendicular Velocity                            ')
     call add(exprs_all, 'V_ExB_pol   ', 'Poloidal component of ExB Velocity                    ')
     call add(exprs_all, 'V_ExB_R     ', 'R component of ExB Velocity                           ')
+    call add(exprs_all, 'V_ExB_Z     ', 'Z component of ExB Velocity                           ')
     call add(exprs_all, 'Vstar_e     ', 'Electron Diamagnetic Velocity                         ')
     call add(exprs_all, 'Vstar_i     ', 'Ion Diamagnetic Velocity                              ')
     call add(exprs_all, 'ki_neo      ', 'Neoclassical Heat Diffusivity                         ')
@@ -1801,12 +1804,21 @@ module mod_expression
                 
               case ( 'rho' )
                 res = r0 * fact_rho
+
+              case ( 'nn_main' )
+                res = rn0 * fact_ne
                 
               case ( 'ne' )
 #ifdef WITH_Impurities
                 res = ne_JOREK * fact_ne 
 #else
                 res = r0 * fact_ne
+#endif
+              case ( 'ni_main' )
+#ifdef WITH_Impurities
+                  res = (r0-rimp0) * fact_ne 
+#else
+                  res = r0 * fact_ne
 #endif
 
 #ifdef WITH_Impurities
@@ -2004,6 +2016,9 @@ module mod_expression
 
               case ( 'V_ExB_R' )
                 res = -R*u0_Z / fact_time 
+ 
+              case ( 'V_ExB_Z' )
+                res = R*u0_R / fact_time
 
               case ( 'Vstar_e' )
                 res = Vstar_e / fact_time

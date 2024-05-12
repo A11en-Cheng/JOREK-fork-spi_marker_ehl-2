@@ -1,110 +1,36 @@
 !  -*-f90-*-  (for emacs)    vim:set filetype=fortran:  (for vim)
 !
-!> @brief
-!> A module for evaluating special functions needed in 
-!> computing the relativistic collision coefficients.
-!>
-!> contains:
-!> \f$ L_0(x,\Theta)=\int_0^{x}ds\frac{e^{(1-\sqrt{1+s^2})/\Theta}}{\sqrt{1+s^2}} \f$ \\
-!> \f$ L_1(x,\Theta)=\int_0^{x}ds\; e^{(1-\sqrt{1+s^2})/\Theta} \f$ \\
-!> \f$ exp(x)K_2(x) \f$
-!<
-module special_mod 
-  use func_mod, only : func_real8_1d
-  use simpson_mod, only : simpson_adaptive
+!> A module for evaluating specific Bessel functions.
+!> Source: http://people.sc.fsu.edu/~jburkardt/f_src/specfun/specfun.f90
+!> 
+!> NOTE: output of functions bessel_k0, bessel_k1,  and bessel_k2 is scaled
+!> by scalar e^(x), i.e., f_scaled = e^(x)*f_exact  to avoid under & overflow issues.
+module mod_bessel
   implicit none
   
   private
 
-  real*8, parameter :: DEFAULT_L0L1_eps    = 1.D-8
-  real*8, parameter :: DEFAULT_L0L1_cutoff = 1.D-7
-
-  public :: special_L0L1, &
-           &special_besk2exp, &
-           &special_besk1exp, &
-           &special_besk0exp, &
-           &special_test
+  public :: bessel_k2exp, bessel_k1exp, bessel_k0exp
 
 contains
 
-  !> Evaluates the functions \f$ L_0(x,\Theta), L_1(x,\Theta) \f$0
-  !> The cutoff parameter (< 1) divides the integral in two
-  !> parts at x_cutoff = sqrt((1-theta * ln(cutoff))**2 -1).
-  !> This helps to ensure that adaptive integration does not
-  !> fail when theta is very small. 
-  subroutine special_L0L1(x,theta,L0,L1,L0L1_eps,L0L1_cutoff)
-    implicit none
-    real*8, intent(in) :: x,theta
-    real*8, intent(in), optional :: L0L1_eps,L0L1_cutoff
 
-    real*8, intent(out) :: L0,L1
-
-    real*8 :: def_cutoff, x_cutoff
-    real*8 :: def_tol, tol
-    procedure(func_real8_1d), pointer :: L0_ptr => null(), L1_ptr => null()
-
-    def_tol = DEFAULT_L0L1_eps
-    def_cutoff = DEFAULT_L0L1_cutoff
-    if(present(L0L1_eps)) def_tol = L0L1_eps
-    if(present(L0L1_cutoff)) def_cutoff = L0L1_cutoff
-
-    x_cutoff=sqrt((1.D0 - theta * log(def_cutoff))**2 - 1.D0)
-
-    L0_ptr => L0_integrand
-    L1_ptr => L1_integrand
-    
-    if(x_cutoff > x) then
-       tol = 0.5D0 * def_tol * x
-       L0 = simpson_adaptive(L0_ptr,0.D0,x,tol,10)
-       L1 = simpson_adaptive(L1_ptr,0.D0,x,tol,10)
-    else
-       tol = 0.5D0 * def_tol * x_cutoff
-       L0 = simpson_adaptive(L0_ptr,0.D0,x_cutoff,tol,10)+simpson_adaptive(L0_ptr,x_cutoff,x,tol,20)
-       L1 = simpson_adaptive(L1_ptr,0.D0,x_cutoff,tol,10)+simpson_adaptive(L1_ptr,x_cutoff,x,tol,20)
-    end if
-
-  contains
-
-    function L0_integrand(x) result (val)
-      real*8, intent(in) :: x
-      real*8 :: val,gamma
-      gamma = sqrt(1.D0+x**2)
-      val = exp((1.D0-gamma)/theta)/gamma
-    end function L0_integrand
-    
-    function L1_integrand(x) result (val)
-      real*8, intent(in) :: x
-      real*8 :: val,gamma
-      gamma = sqrt(1.D0+x**2)
-      val = exp((1.D0-gamma)/theta)
-    end function L1_integrand
-
-  end subroutine special_L0L1
-
-  !> Few functions for evaluating modified Bessel function of second type
-  !> Source: http://people.sc.fsu.edu/~jburkardt/f_src/specfun/specfun.f90
-  !> besk2 evaluates function K2. Higher order functions could be evaluated
+ 
+  !> Evaluates function K2. Higher order functions could be evaluated
   !> easily by implementing this function recursively.
-  !> 
-  !> NOTE: output of functions special_besk0, special_besk1,
-  !> and special_besk2 is scaled
-  !> by scalar e^(x), i.e., f_scaled = e^(x)*f_exact 
-  !> to avoid under & overflow
-  !> issues.
-  !<
-  function special_besk2exp(x) result(out)
+  function bessel_k2exp(x) result(out)
 
     implicit none
 
     real (kind = 8) x,out
 
     if(x .eq. 0.0) then
-       out = special_besk0exp(x)
+       out = bessel_k0exp(x)
     else
-       out = special_besk0exp(x)+2*special_besk1exp(x)/x 
+       out = bessel_k0exp(x) + 2 * bessel_k1exp(x) / x 
     end if
 
-  end function special_besk2exp
+  end function bessel_k2exp
 
   !*****************************************************************************80
   !
@@ -137,22 +63,21 @@ contains
   !
   !    Output, real ( kind = 8 ) BESK0, the value of the function.
   !
-
-  function special_besk0exp ( x )
+  function bessel_k0exp ( x )
 
     implicit none
 
-    real ( kind = 8 ) special_besk0exp
+    real ( kind = 8 ) bessel_k0exp
     integer ( kind = 4 ) jint
     real ( kind = 8 ) result
     real ( kind = 8 ) x
 
     jint = 2 ! Scaled = true
-    call special_calck0 ( x, result, jint )
-    special_besk0exp = result
+    call bessel_calck0 ( x, result, jint )
+    bessel_k0exp = result
 
     return
-  end function special_besk0exp
+  end function bessel_k0exp
   
 
   !*****************************************************************************80
@@ -185,24 +110,24 @@ contains
   !    Output, real ( kind = 8 ) BESK1, the value of the function.
   !
 
-  function special_besk1exp ( x )
+  function bessel_k1exp ( x )
 
     implicit none
 
-    real ( kind = 8 ) special_besk1exp
+    real ( kind = 8 ) bessel_k1exp
     integer ( kind = 4 ) jint
     real ( kind = 8 ) result
     real ( kind = 8 ) x
 
     jint = 2 ! Scaled = true
-    call special_calck1 ( x, result, jint )
-    special_besk1exp = result
+    call bessel_calck1 ( x, result, jint )
+    bessel_k1exp = result
 
     return
-  end function special_besk1exp
+  end function bessel_k1exp
 
 
-  subroutine special_calck0 ( arg, result, jint )
+  subroutine bessel_calck0 ( arg, result, jint )
 
     !*****************************************************************************80
     !
@@ -383,9 +308,9 @@ contains
     end if
 
     return
-  end subroutine special_calck0
+  end subroutine bessel_calck0
 
-  subroutine special_calck1 ( arg, result, jint )
+  subroutine bessel_calck1 ( arg, result, jint )
 
     !*****************************************************************************80
     !
@@ -573,53 +498,6 @@ contains
     end if
 
     return
-  end subroutine special_calck1
+  end subroutine bessel_calck1
 
-
-
-  !> a test routine that check the evaluation of the special functions
-  !< 
-  subroutine special_test()
-    implicit none
-
-    ! L0 and L1 functions
-    real*8 :: x, theta, L0,L1,expK2
-    integer:: i
-    
-    x=1.D1
-    theta = 1.D-5
-    call special_L0L1(x,theta,L0,L1)
-    write(*,*) "x = ",x," theta = ",theta
-    write(*,*) "(L1-L0)/L1 = ", (L1-L0)/L1
-    write(*,*) "(L1-app1)/L1 = ",(L1-sqrt(2.D0*atan(1.D0)*theta)*erf(x/sqrt(2*theta)))/L1
-    write(*,*) "(L1-app2)/L1 = ",(L1-special_besk1exp(1.D0/theta))/L1
-    
-    x=1.D-3
-    theta = 1.D-5
-    call special_L0L1(x,theta,L0,L1)
-    write(*,*) "x = ",x," theta = ",theta
-    write(*,*) "(L1-L0)/L1 = ", (L1-L0)/L1
-    write(*,*) "(L1-app1)/L1 = ",(L1-sqrt(2.D0*atan(1.D0)*theta)*erf(x/sqrt(2*theta)))/L1
-    write(*,*) "(L1-app2)/L1 = ",(L1-special_besk1exp(1.D0/theta))/L1
-
-    x=1.D1
-    theta = 1.D-1
-    call special_L0L1(x,theta,L0,L1)
-    write(*,*) "x = ",x," theta = ",theta
-    write(*,*) "(L1-L0)/L1 = ", (L1-L0)/L1
-    write(*,*) "(L1-app1)/L1 = ",(L1-sqrt(2.D0*atan(1.D0)*theta)*erf(x/sqrt(2*theta)))/L1
-    write(*,*) "(L1-app2)/L1 = ",(L1-special_besk1exp(1.D0/theta))/L1
-    write(*,*) "(L0-app3)/L0 = ",(L0-special_besk0exp(1.D0/theta))/L0
-    write(*,*) "L0, exp(1/theta)BesselK(0,1/theta) = ", L0,special_besk0exp(1.D0/theta)
-
-    x=1.D-3
-    theta = 1.D-1
-    call special_L0L1(x,theta,L0,L1)
-    write(*,*) "x = ",x," theta = ",theta
-    write(*,*) "(L1-L0)/L1 = ", (L1-L0)/L1
-    write(*,*) "(L1-app1)/L1 = ",(L1-sqrt(2.D0*atan(1.D0)*theta)*erf(x/sqrt(2*theta)))/L1
-    write(*,*) "(L1-app2)/L1 = ",(L1-special_besk1exp(1.D0/theta))/L1
-
-  end subroutine special_test
-
-end module special_mod
+end module mod_bessel
