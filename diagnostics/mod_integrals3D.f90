@@ -153,6 +153,7 @@ real*8  :: Z_imp_s, Z_imp_t, Z_imp_p, Z_imp_x, Z_imp_y
 real*8  :: n_imp_tmp, n_imp_tmp_s,n_imp_tmp_t,n_imp_tmp_st,n_imp_tmp_ss,n_imp_tmp_tt 
 real*8  :: n_imp, n_imp_s, n_imp_t, n_imp_p, n_imp_x, n_imp_y
 real*8  :: rimp,rimp_s,rimp_t,rimp_st,rimp_ss,rimp_tt 
+real*8  :: aux_rad
 real*8  :: psi_s, psi_t, rho_s, rho_t, T_s, T_t, Ti, Ti_s, Ti_t, Te, Te_s, Te_t, p0_s, p0_t, u0_s, u0_t, ps0_s, ps0_t, p0_p, rhon_s, rhon_t, rhoimp_s, rhoimp_t, pe0_s, pe0_t, pe0_p, pi0_s, pi0_t, pi0_p
 real*8  :: u0_p, u_s, u_t, u_p
 real*8  :: u0_x, u0_y
@@ -459,7 +460,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp           source_bg, source_imp, source_bg_drift, source_imp_drift,                      &
 !$omp           source_bg_arr, source_imp_arr, source_bg_drift_arr, source_imp_drift_arr,      &
 !$omp           m_i_over_m_imp, m_imp, Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, n_imp,           &
-!$omp           ne_JOREK, P_imp, Lrad, E_ion, E_ion_bg, ion_i,                                 &
+!$omp           ne_JOREK, P_imp, Lrad, E_ion, E_ion_bg, ion_i, aux_rad,                        &
 !$omp           ion_k, Z_eff_imp, eta_coef, Ti_corr_eV,                                        &
 !$omp           Z_imp_s, Z_imp_t, Z_imp_p, Z_imp_x, Z_imp_y,                                   &
 !$omp           n_imp_s, n_imp_t, n_imp_p, n_imp_x, n_imp_y,                                   &
@@ -887,6 +888,7 @@ do ife = ife_min, ife_max
         n_imp    = 0.
    
         Z_eff    = 0.
+        aux_rad  = 0.0
 
         ! Temperatures in eV and corrected values:
         if (with_TiTe) then 
@@ -925,6 +927,7 @@ do ife = ife_min, ife_max
             E_ion_bg  = 0.
           end if
         else
+          aux_rad    = max(eq_aux_g(mp,2,ms,mt),0.0)   ! The radiation power density from particles
           Z_eff      = max(eq_aux_g(mp,3,ms,mt),0.0)   ! The sum (q^2) divided by the impurity number density
           Z_imp      = max(eq_aux_g(mp,4,ms,mt),0.0)   ! The sum (q) divided by the impurity number density
           n_imp      = eq_aux_g(mp,5,ms,mt)            ! The time averaged impurity number density
@@ -1045,7 +1048,8 @@ do ife = ife_min, ife_max
 
         local_radiation_phi(mp) = local_radiation_phi(mp) &
                                   + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad + frad_bg)&
-                                  * bigR * xjac * wst * delta_phi        
+                                  * bigR * xjac * wst * delta_phi                                  &
+                                  + (aux_rad / (MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * MASS_PROTON * CENTRAL_DENSITY * 1.d20))) * bigR * xjac * wst * delta_phi 
         local_radiation = local_radiation &
                           + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad + frad_bg)&
                           * bigR * xjac * wst * delta_phi 
