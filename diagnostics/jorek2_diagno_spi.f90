@@ -24,6 +24,7 @@ use mod_expression, only: exprs_all_int, init_expr, t_expr_list
 implicit none
 
 type (type_node_list)        :: node_list
+type (type_node_list)   ,     pointer :: aux_node_list
 type (type_element_list)     :: element_list
 type (type_bnd_node_list)    :: bnd_node_list
 type (type_bnd_element_list) :: bnd_elm_list
@@ -69,7 +70,7 @@ do i_tor=1, n_tor
   write(*,*) ' toroidal mode numbers : ',i_tor,mode(i_tor)
 enddo
 
-call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true.)
+call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
 
 call initialise_basis()                              ! define the basis functions at the Gaussian points
 
