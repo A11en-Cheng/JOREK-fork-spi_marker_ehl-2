@@ -27,7 +27,6 @@ module mod_integrals3D
   use mod_injection_source, only: total_imp_source, total_n_particles, total_n_particles_inj, total_n_particles_inj_all
   use mod_source_shape, only: source_shape
 #endif
-  use nodes_elements, only: aux_node_list
   use mod_impurity, only: radiation_function, radiation_function_linear
   use equil_info, only : get_psi_n, ES
   use mod_atomic_coeff_deuterium, only : atomic_coeff_deuterium
@@ -42,13 +41,14 @@ module mod_integrals3D
   contains
 
 
-subroutine int3d_new(my_id, node_list, element_list, bnd_node_list, bnd_elm_list, expr_list, res, units)
+subroutine int3d_new(my_id, node_list, element_list, bnd_node_list, bnd_elm_list, expr_list, res, units, aux_node_list)
 
 !$ use omp_lib
  
 implicit none
 
 type (type_node_list),        intent(in)    :: node_list
+type(type_node_list),pointer, intent(in), optional :: aux_node_list
 type (type_element_list),     intent(in)    :: element_list   
 type (type_bnd_node_list),    intent(in)    :: bnd_node_list
 type (type_bnd_element_list), intent(in)    :: bnd_elm_list   
@@ -512,7 +512,7 @@ do ife = ife_min, ife_max
   do iv = 1, n_vertex_max
     inode         = element%vertex(iv)
     nodes(iv)     = node_list%node(inode)
-    if (use_marker) aux_nodes(iv) = aux_node_list%node(inode)
+    if (present(aux_node_list)) aux_nodes(iv) = aux_node_list%node(inode)
   enddo
 
   x_g(:,:)    = 0.d0; x_s(:,:)    = 0.d0; x_t(:,:)    = 0.d0; x_ss(:,:)    = 0.d0; x_tt(:,:)    = 0.d0; x_st(:,:)    = 0.d0;
@@ -1586,7 +1586,7 @@ do m_bndelem = 1, bnd_elm_list%n_bnd_elements
       k_dir       = bndelem%direction(k_vertex,k_dof)
       k_size      = bndelem%size(k_vertex,k_dof)
       node_k      = node_list%node(k_node)
-      aux_node_k  = aux_node_list%node(k_node)
+      if (present(aux_node_list)) aux_node_k  = aux_node_list%node(k_node)
   
       x_g_1D(:)   = x_g_1D(:)  + node_k%x(1,k_dir,1) * k_size * H1  (k_vertex,k_dof,:)
       y_g_1D(:)   = y_g_1D(:)  + node_k%x(1,k_dir,2) * k_size * H1  (k_vertex,k_dof,:)
@@ -1767,7 +1767,7 @@ do m_bndelem = 1, bnd_elm_list%n_bnd_elements
         rhon_s = rhon_s + rn_s * HZ(in,mp)
         rhon_t = rhon_t + rn_t * HZ(in,mp)
 
-        if (use_marker) then
+        if (use_marker .and. present(aux_node_list)) then
           call interp(aux_node_list,element_list,m_elm,4,in,sg,tg,Z_imp_tmp,Z_imp_tmp_s,Z_imp_tmp_t,Z_imp_tmp_st,Z_imp_tmp_ss,Z_imp_tmp_tt)
           Z_imp_s = Z_imp_s + Z_imp_tmp_s * HZ(in,mp)
           Z_imp_t = Z_imp_t + Z_imp_tmp_t * HZ(in,mp)
