@@ -9,6 +9,13 @@ from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 
 
+# --- Routine to find index with nearest float value in an array
+def find_nearest(arr, target_value):
+    idx = abs(arr - target_value).argmin()
+    return arr.flat[idx],idx
+
+
+# --- Routine to constructu initial boundary of JOREK's grid
 def build_JOREK_boundary(tokamak_name):
 
   R_scale = 1
@@ -120,12 +127,14 @@ def build_JOREK_boundary(tokamak_name):
 
   return r_bnd, z_bnd, r0, z0
 
+
 print(" ")
 print(" Example of usage: ")
-print("    python imas2jorek.py -s 105033 -r 1 -u public -ts 120 -d ITER")
+print("    python imas2jorek.py -u public -d ITER -s 105033 -r 1 -t 54.5")
 print(" ")
 print(" To see options and default values do: ")
 print("    python imas2jorek.py -h ")
+print(" ")
 
 # Import shot
 parser = argparse.ArgumentParser(description="Create a JOREK input file from an equilibrium IDS in a given IMAS database",
@@ -139,10 +148,8 @@ parser.add_argument("-o", "--occurrence", type=int, default=0, help="Occurrence 
 parser.add_argument("-tk", "--tokamak", type=str, default="ITER", help="Name of the tokamak (to construct R,Z boundary)")
 parser.add_argument("-f", "--backend", type=int, default=imasdef.MDSPLUS_BACKEND,
                     help="Database format: 12=MDSPLUS, 13=HDF5")
-parser.add_argument("-ts", "--time_slice", type=int, default=0, help="The time slice index")
+parser.add_argument("-t", "--time", type=float, default=-1, help="The requested time in seconds")
 args = parser.parse_args()
-
-it = args.time_slice
 
 # cocos factors
 cocos_psi  =  1.0/(2*np.pi)       # Transform to COCOS convention 11 --> 8
@@ -154,6 +161,30 @@ input.open_env(args.user, args.database,'3')
 input.equilibrium.get()
 input.pf_active.get()
 input.core_profiles.get()
+
+# Find out array index of the requested time
+timevec  = input.equilibrium.time
+ntime    = len(timevec)
+time_req = args.time
+if ntime > 1:
+    if time_req >= 0:
+        tc, it = find_nearest(timevec, time_req)
+    else:
+        it = int(ntime/2)
+        tc = timevec[it]
+else:
+    if ntime > 0:
+        tc = timevec[0]
+    else:
+        tc = 0
+    it = 0
+    
+time = tc
+
+print(' **************** Found time and index *****************')
+print(' Time  = '+'%.5f' % tc+' s in range ['+'%.2f' % timevec[0]+','+'%.2f' % timevec[ntime-1]+'] s')
+print(' Index = ',str(it))
+print(" ")
 
 ########## Create boundary of the JOREK domain ###############
 boundary_line = build_JOREK_boundary(args.tokamak)
@@ -189,6 +220,7 @@ Z_axis       = input.equilibrium.time_slice[it].global_quantities.magnetic_axis.
 #R_xpoint     = input.equilibrium.time_slice[it].boundary_separatrix.x_point.r        
 #Z_xpoint     = input.equilibrium.time_slice[it].boundary_separatrix.x_point.z        
 
+print(' **************** Equilibrium quantities *****************')
 print( ' Ip                = %s MA'%(xip* 1e-6) )
 print( ' B_geo             = %s T'%(B_geo) )
 print( ' a_min             = %s m'%(a_min) )
@@ -199,6 +231,7 @@ print( ' beta_p, beta_tor, beta_norm    = %s , %s , %s '%(beta_p, beta_tor, beta
 print( ' li3, q_axis, q_95              = %s , %s , %s '%(li3, q_axis, q_95) )
 print( ' R_axis, Z_axis                 = %s , %s '%(R_axis, Z_axis) )
 #print( ' R_xpoint, Z_xpoint             = %s , %s '%(R_xpoint, Z_xpoint) )
+print( ' ')
 
 
 # Read 1D profiles  
@@ -216,6 +249,8 @@ n_tot    = np.zeros( len(ions[0].density))
 rho_tot  = np.zeros( len(ions[0].density))
 
 for ion in ions:
+    if (len(ion.density)<1):
+       continue
     n_tot   += ion.density
     rho_tot += ion.density*ion.element[0].a * m_proton
 
@@ -309,7 +344,7 @@ namelist.write("  amix_freeb    = 0.d0"+"\n")
 namelist.write("  use_mumps_eq  = .t."+"\n")
 namelist.write("\n")
 for i in range(0, len(coils)):
-    namelist.write("  pf_coils(%3d)%current = %18.9e  ! %s \n"%(i, coils[i].current.data[it]*cocos_curr, coils[i].name))
+    namelist.write("  pf_coils(%3d)%%current = %18.9e  ! %s \n"%(i+1, coils[i].current.data[it]*cocos_curr, coils[i].name))
     
 namelist.write("\n")
 namelist.write("  n_R      = 0"+"\n")

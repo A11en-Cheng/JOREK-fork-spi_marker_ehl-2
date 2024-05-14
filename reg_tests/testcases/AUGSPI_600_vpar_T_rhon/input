@@ -67,6 +67,8 @@
  visco_par_num = 1.d-10
  eta_num = 3.d-10
 
+ D_prof_imp_neg_thresh = 0.d0
+
  d_perp_file = 'dperp.dat'
  D_par     = 1.d-5
  D_perp_num = 1.d-11

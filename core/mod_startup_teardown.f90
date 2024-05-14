@@ -334,6 +334,13 @@ subroutine sanity_checks(my_id, n_cpu, mpi_required, mpi_provided)
 	   The lower values of the equilibrium profiles (T_1 and/or rho_1) will be used instead.'
 	write(*,*) 'For instance, try in your input file: rho_min_neg = 1.d-3 and T_min_neg = 4.02d-4 !=2.01d-5*central_density*Tmin_ev (with central_density = 1 and Tmin_eV= 20 eV)'    
   endif
+#ifdef WITH_Impurities
+  if (D_prof_imp_neg_thresh .gt. -1.d3) then
+	write(*,*) 'WARNING: You are using a value for D_prof_imp_neg_thresh that is likely to activate the correction for negative impurity density.' 
+	write(*,*) '  No problem if you know what you are doing, but this could lead to convergence issues'
+	write(*,*) '  in particular at the beginning of impurity injection when nimp is oscillating around zero.'
+  endif
+#endif
 
 #ifndef USE_BLOCK
   write(*,*) 'WARNING: You are not using USE_BLOCK=1 which might be inefficient.'

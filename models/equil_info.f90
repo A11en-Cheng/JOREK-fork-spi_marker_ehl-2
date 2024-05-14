@@ -13,7 +13,8 @@ module equil_info
   use data_structure,     only: type_node_list, type_element_list, type_bnd_element_list
   use gauss
   use basis_at_gaussian,  only: H, H_s, H_t, n_degrees
-  use phys_module,        only: R_geo, Z_geo, FF_0, psi_axis_t, psi_bnd_t, Z_xpoint_t, index_now, SDN_threshold, tokamak_device, Z_xpoint_limit, xpoint_search_tries
+  use phys_module,        only: R_geo, Z_geo, FF_0, psi_axis_t, psi_bnd_t, Z_xpoint_t, index_now, SDN_threshold, &
+                                R_axis_t, Z_axis_t, index_start, tokamak_device, Z_xpoint_limit, xpoint_search_tries
   use mod_interp
   
   
@@ -99,6 +100,7 @@ module equil_info
     real*8           :: LCFS_kappa               !< Elongation
     real*8           :: LCFS_deltaU              !< Upper triangularity
     real*8           :: LCFS_deltaL              !< Lower triangularity 
+    logical          :: LCFS_is_lost             !< If true, there are no remaining closed flux surfaces
     
   end type t_equil_state
   
@@ -129,6 +131,8 @@ module equil_info
     real*8  :: P_s, P_t, P_st, P_ss, P_tt
     
     my_id_fake  = 9999
+
+    ES%LCFS_is_lost = is_LCFS_lost(node_list, element_list, bnd_elm_list)
     
     ! --- Find the magnetic axis.
     call find_axis(my_id_fake, node_list, element_list, ES%psi_axis, ES%R_axis, ES%Z_axis,              &
@@ -717,6 +721,7 @@ module equil_info
     104 format(1x,a,i3,2f10.5)
     105 format(1x,a,i3.3,a,f10.5)
     106 format(1x,a,i3.3,a,i10)
+    107 format(1x,a,L8)
     
     ! --- General description of the plasma.
     write(*,*)
@@ -841,6 +846,7 @@ module equil_info
       write(*,102) 'kappa              =', ES%LCFS_kappa   
       write(*,102) 'delta_U            =', ES%LCFS_deltaU  
       write(*,102) 'delta_L            =', ES%LCFS_deltaL  
+      write(*,107) 'LCFS_is_lost       =', ES%LCFS_is_lost
     end if
     
     write(*,*) '=============================================================='
@@ -944,6 +950,12 @@ module equil_info
       correct_private = .true.
     else
       correct_private = .false.
+    endif
+
+    ! --- If axis is lost, assume there are no more closed surfaces
+    if (ES%LCFS_is_lost .or. abs(ES%psi_bnd - ES%psi_axis) < 1d-6 ) then
+      get_psi_n = 1.01d0
+      return
     endif
     
     get_psi_n = ( psi - ES%psi_axis ) / ( ES%psi_bnd - ES%psi_axis )
@@ -1051,6 +1063,7 @@ module equil_info
     call MPI_BCAST(ES%LCFS_kappa  ,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(ES%LCFS_deltaU ,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(ES%LCFS_deltaL ,      1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(ES%LCFS_is_lost,      1,MPI_LOGICAL         ,0,MPI_COMM_WORLD,ierr)
     
   end subroutine broadcast_equil_state
   
@@ -1157,6 +1170,55 @@ module equil_info
     end do
   
   end subroutine LCFS_shape_parameters
-  
+
+
+
+  ! --- Checks whether the LCFS was lost in the the past by checking the time
+  ! --- history of the magnetic axis, if it got too close to the grid boundary,
+  ! --- then we assume that the LCFS was lost
+  logical function is_LCFS_lost(node_list, element_list, bnd_elm_list)
+
+    implicit none
+    
+    ! --- Routine variables
+    type(type_node_list),        intent(in)    :: node_list
+    type(type_element_list),     intent(in)    :: element_list
+    type(type_bnd_element_list), intent(in)    :: bnd_elm_list
+                                                                     
+    ! --- Local variables.
+    real*8  :: P, P_s, P_t, P_st, P_ss, P_tt, R_t, Z_t, R_s, Z_s
+    real*8  :: R_out, Z_out, s_out, t_out, R1, Z1, R2, Z2 
+    real*8, allocatable :: R_elm(:), Z_elm(:), distance(:)    
+    integer :: i_elm, i_elm_out, i_elm_axis, ifail, i_bnd, i_time  
+
+    is_LCFS_lost = .false.
+
+    if( (index_start /= 0) .and. allocated(R_axis_t)) then
+    
+      allocate(R_elm(bnd_elm_list%n_bnd_elements), Z_elm(bnd_elm_list%n_bnd_elements))
+      allocate(distance(bnd_elm_list%n_bnd_elements))
+      
+      ! --- Get R, Z coordinates of the middle of the boundary element
+      do i_bnd = 1, bnd_elm_list%n_bnd_elements
+        i_elm = bnd_elm_list%bnd_element(i_bnd)%element 
+        call interp_RZ(node_list, element_list, i_elm, 0.5d0, 0.5d0, R1, R_s, R_t, Z1, Z_s, Z_t)
+        R_elm(i_bnd) = R1
+        Z_elm(i_bnd) = Z1
+      enddo
+
+      do i_time=1, index_start
+        
+        distance = sqrt( (R_elm-R_axis_t(i_time))**2  + (Z_elm-Z_axis_t(i_time))**2)
+
+        if (minval(distance)< R_geo/30.d0) then   ! --- Axis is considered lost the distance to boundary is 3% of R_geo
+          is_LCFS_lost = .true.
+          exit
+        endif
+      enddo
+
+    endif
+
+ 
+  end function is_LCFS_lost
   
 end module equil_info 
