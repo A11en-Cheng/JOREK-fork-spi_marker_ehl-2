@@ -1597,12 +1597,24 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     if (allocated(thmwork_e_tot_t)) call tr_deallocate(thmwork_e_tot_t,"thmwork_e_tot_t",CAT_UNKNOWN)
     call tr_allocate(thmwork_e_tot_t,1,index_start+nstep,"thmwork_e_tot_t",CAT_UNKNOWN)
     thmwork_e_tot_t = 0.d0
-    call HDF5_array1D_reading(file_id,thmwork_e_tot_t,'thmwork_e_tot_t')
+    call H5Lexists_f(file_id,"thmwrok_e_tot_t",flag_exists,err_exists)
+    if (flag_exists .and. err_exists == 0) then
+      call HDF5_array1D_reading(file_id,thmwork_e_tot_t,'thmwork_e_tot_t')
+    else
+      thmwork_e_tot_t = 0.d0
+      write(*,*) "Backward Compatibility: No thmwork_e_tot_t history information found, assuming none."
+    end if
 
     if (allocated(thmwork_i_tot_t)) call tr_deallocate(thmwork_i_tot_t,"thmwork_i_tot_t",CAT_UNKNOWN)
     call tr_allocate(thmwork_i_tot_t,1,index_start+nstep,"thmwork_i_tot_t",CAT_UNKNOWN)
     thmwork_i_tot_t = 0.d0
-    call HDF5_array1D_reading(file_id,thmwork_i_tot_t,'thmwork_i_tot_t')
+    call H5Lexists_f(file_id,"thmwrok_i_tot_t",flag_exists,err_exists)
+    if (flag_exists .and. err_exists == 0) then
+      call HDF5_array1D_reading(file_id,thmwork_i_tot_t,'thmwork_i_tot_t')
+    else
+      thmwork_i_tot_t = 0.d0
+      write(*,*) "Backward Compatibility: No thmwork_i_tot_t history information found, assuming none."
+    end if
 
     if (allocated(volume_t)) call tr_deallocate(volume_t,"volume_t",CAT_UNKNOWN)
     call tr_allocate(volume_t,1,index_start+nstep,"volume_t",CAT_UNKNOWN)
@@ -1777,7 +1789,13 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
       if (allocated(xtime_Ne_imp)) &
         call tr_deallocate(xtime_Ne_imp,"xtime_Ne_imp",CAT_UNKNOWN)
       call tr_allocate(xtime_Ne_imp,1,index_start+nstep,"xtime_Ne_imp",CAT_UNKNOWN)
-      call HDF5_array1D_reading(file_id,xtime_Ne_imp,"xtime_Ne_imp")
+      call H5Lexists_f(file_id,"xtime_Ne_imp",flag_exists,err_exists)
+      if (flag_exists .and. err_exists == 0) then
+        call HDF5_array1D_reading(file_id,xtime_Ne_imp,"xtime_Ne_imp")
+      else
+        xtime_Ne_imp = 0.d0
+        write(*,*) "Backward Compatibility: No xtime_Ne_imp history information found, assuming none."
+      end if
     endif
     if (allocated(xtime_P_ei)) &
       call tr_deallocate(xtime_P_ei,"xtime_P_ei",CAT_UNKNOWN)

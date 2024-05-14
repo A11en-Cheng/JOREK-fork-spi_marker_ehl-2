@@ -40,6 +40,7 @@ module exec_commands
   integer :: loop_min_step              !< Smallest timestep index of for loop
   integer :: loop_max_step              !< Largest timestep index of for loop
   integer :: loop_inc_step              !< Timestep index step width of for loop
+  integer :: istep_now                  !< Only used to pass the current time step in rad_TPF_marker to import proj
   real*8  :: loop_min_time              !< Smallest time of for loop
   real*8  :: loop_max_time              !< Largest time of for loop
   real*8  :: loop_inc_time              !< Timestep time interval width of for loop
@@ -169,6 +170,8 @@ module exec_commands
           call help(command, ierr)
         case ( 'I_halo_TPF' )
           call I_halo_TPF(command, first_step, ierr)
+        case ( 'rad_TPF_marker' )
+          call rad_TPF_marker(command, first_step, ierr)
         case ( 'jnorm_bnd_curr' )
           call jnorm_bnd_RZ(command, ierr)
         case ( 'jorek-units' )
@@ -239,11 +242,11 @@ module exec_commands
       select case ( trim(command%args(0)) )
         case ( 'expressions', 'expressions_int', 'mark_coords', 'int2d', 'int3d','midplane',       &
           'average', 'point', 'pol_line', 'int_along_pol_line', 'tor_line', 'equil_params',        &
-          'qprofile', 'q_at_psin', 'fluxsurfaces', 'fluxsurface', 'separatrix', 'set', 'four2d',   &
-          'gourdon', 'jorek-units', 'jnorm_bnd_curr', 'si-units', 'grid', 'grid_diagnostics',      &
-          'rectangle', 'rectangular_torus', 'energy_spectrum', 'average_h5', 'I_halo_TPF',         &
-          'spi-state', 'shards', 'zeroD_quantities', 'boundary_quantities', 'find_q_surface',      &
-          'midplane2d', 'expressions_four', 'RHS_terms_vtk')
+          'qprofile', 'q_at_psin', 'fluxsurfaces', 'separatrix', 'set', 'four2d', 'gourdon',       &
+          'jorek-units', 'jnorm_bnd_curr', 'si-units', 'grid', 'grid_diagnostics', 'rectangle',    &
+          'rectangular_torus', 'energy_spectrum', 'average_h5', 'I_halo_TPF', 'spi-state',         &
+          'shards', 'zeroD_quantities', 'boundary_quantities', 'find_q_surface', 'midplane2d',     &
+          'expressions_four', 'RHS_terms_vtk', 'rad_TPF_marker')
           call add_to_command_queue(command, ierr)
         case ( 'help' )
           call help(command, ierr)
@@ -306,7 +309,8 @@ module exec_commands
     real*8            :: minRad
     
     ierr = 0
-    
+    istep_now = istep
+
     write(file_name,'(a,i5.5)') 'jorek', istep
     if ( rst_hdf5 .ne. 0 ) then
       inquire (file=trim(file_name)//'.h5', exist=file_exists)
@@ -2202,6 +2206,46 @@ module exec_commands
   
   
   
+  !> Output radiation TPF according to marker's projection.
+  subroutine rad_TPF_marker(command, first_step, ierr)
+    
+    use mod_int3d_wproj
+
+    ! --- Routine parameters
+    type(type_command), intent(in)  :: command     !< Command to be executed
+    logical,            intent(in)  :: first_step  !< First time step of a for loop?
+    integer,            intent(out) :: ierr        !< Error flag
+    
+    ! --- Local variables
+    integer :: i_file, i, units
+    character(len=1024) :: filename
+    character(len=1024) :: filename_proj
+    real*8, allocatable :: res(:)
+    character(len=23)   :: s
+    type (type_node_list)   ,     pointer :: aux_node_list
+    allocate(aux_node_list)
+
+    ierr = 0
+
+    ! --- Some checks
+    call check_args(command%n_args,ierr,0,1);  if ( ierr /= 0 ) return
+    call check_step_imported(ierr);            if ( ierr /= 0 ) return
+    units = get_int_setting('units', ierr)
+
+    allocate(res(expr_list%n_expr+1))
+    res = 0.d0   
+    
+    write(filename_proj,'(a,i5.5,a)') 'projections', istep_now, '.h5'
+    call import_hdf5_restart_aux(aux_node_list, filename_proj, rst_format, ierr)
+    if (ierr .ne. 0) then
+       write(*,*) 'ERROR: Cannot find projection restart file. Check if proj_basename is set properly.'
+       stop
+    end if
+ 
+    call int3d_wproj(0, node_list, element_list, bnd_node_list, bnd_elm_list, aux_node_list, expr_list, res, units)        
+
+   
+  end subroutine rad_TPF_marker
  
 
   !> Output current density normal to the jorek boundary as a function of Rbnd

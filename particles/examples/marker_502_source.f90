@@ -43,7 +43,7 @@ type(edge_elements)                               :: D_edge
 
 
 real*8    :: timesteps, tstep_si, t_norm, rho_norm, n_norm, c0_gas
-real*8    :: target_time, t, E(3), B(3), psi, U, V(3), n_rho, n_rho_imp, n_e, T_e, rz_old(2), st_old(2)
+real*8    :: target_time, t, E(3), B(3), psi, U, V(3), n_rho, n_rho_imp, n_e, n_n, T_e, rz_old(2), st_old(2)
 real*8    :: diag_time 
 real*8    :: temp(3), T_eV, K_eV, B_norm(3)
 real*8    :: physical_particles, weight
@@ -395,18 +395,19 @@ do while (.not. sim%stop_now)
     spi_source_phi = pellets(1)%spi_phi
     
     do spi_i=1, n_spi_tot
+      if (pellets(spi_i)%spi_species > 0.) then ! to avoid regions with pre-existing pure D shards (if there is any)
+        ns_radius_local   = pellets(spi_i)%spi_radius * ns_radius_ratio
+        if (ns_radius_local < ns_radius_min) then
+          ns_radius_local = ns_radius_min
+        end if
 
-      ns_radius_local   = pellets(spi_i)%spi_radius * ns_radius_ratio
-      if (ns_radius_local < ns_radius_min) then
-        ns_radius_local = ns_radius_min
+        spi_source_R(1) = min(spi_source_R(1),pellets(spi_i)%spi_R - 5.*ns_radius_local)
+        spi_source_R(2) = max(spi_source_R(2),pellets(spi_i)%spi_R + 5.*ns_radius_local)
+        spi_source_Z(1) = min(spi_source_Z(1),pellets(spi_i)%spi_Z - 5.*ns_radius_local)
+        spi_source_Z(2) = max(spi_source_Z(2),pellets(spi_i)%spi_Z + 5.*ns_radius_local)
+
+        spi_source_imp = spi_source_imp + pellets(spi_i)%spi_abl * pellets(spi_i)%spi_species
       end if
-
-      spi_source_R(1) = min(spi_source_R(1),pellets(spi_i)%spi_R - 5.*ns_radius_local)
-      spi_source_R(2) = max(spi_source_R(2),pellets(spi_i)%spi_R + 5.*ns_radius_local)
-      spi_source_Z(1) = min(spi_source_Z(1),pellets(spi_i)%spi_Z - 5.*ns_radius_local)
-      spi_source_Z(2) = max(spi_source_Z(2),pellets(spi_i)%spi_Z + 5.*ns_radius_local)
-
-      spi_source_imp = spi_source_imp + pellets(spi_i)%spi_abl * pellets(spi_i)%spi_species
     enddo
   elseif (((t_now - minval(t_ns)) * t_norm + L_tube/(3.d0 * c0_gas)) .gt. 0.0) then
     spi_source_R(1) = minval(ns_R) - 5.* ns_radius
@@ -466,7 +467,7 @@ do while (.not. sim%stop_now)
     !$omp private(i_rng, i,j,k,l,m, t, E, B, psi, U, rz_old, st_old, P_ion, P_rcb, iZ, P_tmp,&
     !$omp i_elm_old, n_rho, T_e, ion_rate, ion_prob, ion_source, ion_energy, kinetic_energy,& 
     !$omp rec_rate, dEion_dt, ion_rec_ran, Z_imp, Z_eff, N_imp, Lrad, rad_sink, V, n_rho_imp,& 
-    !$omp R_g, R_s, R_t, Z_g, Z_s, Z_t, xjac, HH, HH_s, HH_t, HZ, index_lm, n_e, V_ext,     &
+    !$omp R_g, R_s, R_t, Z_g, Z_s, Z_t, xjac, HH, HH_s, HH_t, HZ, index_lm, n_e, n_n, V_ext,     &
     !$omp P, P_s, P_t, P_phi, n_imp_tmp, Z_imp_tmp, grad_n_imp_tmp, grad_n_imp_fluid, psi_norm,&
     !$omp ifail, CX_rate, CX_prob, CX_source, CX_energy, v_1, v_2, v_3, v_4, v_5, D_prof,   &
     !$omp particle_source, velocity_par_source, energy_source, v_temp, K_eV, T_eV, cx_ran)  &
@@ -488,7 +489,7 @@ do while (.not. sim%stop_now)
         i_elm_old = particles(j)%i_elm
 
         call sim%fields%calc_NeTe_imp(t, particles(j)%i_elm, particles(j)%st, particles(j)%x(3),&
-                                      n_rho, n_rho_imp, T_e, grad_n_imp=grad_n_imp_fluid)
+                                      n_rho, n_rho_imp, n_n, T_e, grad_n_imp=grad_n_imp_fluid)
         T_eV = T_e * K_BOLTZ /  EL_CHG ! Change K to eV
 
         call interp_PRZ(aux_node_list,element_list,particles(j)%i_elm,[4,5],2,particles(j)%st(1),&
@@ -542,7 +543,7 @@ do while (.not. sim%stop_now)
           do iZ = 0,sim%groups(1)%ad%n_Z
 
             Lrad = 0.d0
-            if (T_eV > 1.) Lrad     = get_Lz(sim, 1, iZ, n_e, T_e)
+            if (T_eV > 1.) Lrad     = get_Lz(sim, 1, iZ, n_e, T_e, n_n)
             rad_sink = rad_sink + particles(j)%P_imp(iZ) * real(particles(j)%weight,8) * Lrad * timesteps
 
             if (T_eV < 1.) then
