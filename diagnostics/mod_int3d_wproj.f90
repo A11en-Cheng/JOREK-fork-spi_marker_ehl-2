@@ -1044,8 +1044,8 @@ do ife = ife_min, ife_max
                           * bigR * xjac * wst * delta_phi
 
         if (use_marker) then
-            local_radiation_phi(mp) = local_radiation_phi(mp) +  eq_aux_g(mp,2,ms,mt) * bigr * xjac * wst * delta_phi  
-            local_radiation         = local_radiation         +  eq_aux_g(mp,2,ms,mt) * bigr * xjac * wst * delta_phi 
+            local_radiation_phi(mp) = local_radiation_phi(mp) +  (eq_aux_g(mp,2,ms,mt)/(MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * MASS_PROTON * CENTRAL_DENSITY * 1.d20))) * bigr * xjac * wst * delta_phi  
+            local_radiation         = local_radiation         +  (eq_aux_g(mp,2,ms,mt)/(MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * MASS_PROTON * CENTRAL_DENSITY * 1.d20))) * bigr * xjac * wst * delta_phi 
         endif
 #ifdef WITH_TiTe
        !--------------------------------------------------------
