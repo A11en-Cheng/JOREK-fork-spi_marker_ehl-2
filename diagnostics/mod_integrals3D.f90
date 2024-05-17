@@ -175,7 +175,8 @@ real*8  :: source_bg, source_imp, source_bg_drift, source_imp_drift
 real*8  :: source_bg_arr(n_inj_max), source_imp_arr(n_inj_max), source_bg_drift_arr(n_inj_max), source_imp_drift_arr(n_inj_max) 
 #endif
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
-real*8  :: local_radiation, local_radiation_bg, local_E_ion, total_radiation, total_radiation_bg, total_E_ion, local_P_ei, total_P_ei
+! radiation array index: 1 for imp; 2 for bg; 3 for D; 4 for total
+real*8  :: local_radiation(4), local_E_ion, total_radiation(4), total_E_ion, local_P_ei, total_P_ei
 real*8  :: local_P_ion, total_P_ion
 real*8  :: local_radiation_phi(n_plane), total_radiation_phi(n_plane)
 real*8  :: ne_SI, Te_eV, Te_corr_eV, Ti_eV
@@ -347,7 +348,6 @@ local_n_particles     = 0.d0
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 local_radiation       = 0.d0
-local_radiation_bg    = 0.d0
 local_radiation_phi   = 0.d0
 local_E_ion           = 0.d0
 local_P_ei            = 0.d0
@@ -420,9 +420,9 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp          ns_phi, ns_radius, ns_deltaphi, ns_delta_minor_rad, ns_tor_norm, spi_tor_rot, local_E_ion,  &
 !$omp          t_now, A_Dmv, K_Dmv, V_Dmv, P_Dmv, t_ns, L_tube, JET_MGI,ASDEX_MGI, local_P_ion,&
 !$omp          local_radiation, local_radiation_phi, imp_cor, imp_adas, imp_type, local_P_ei,  &
-!$omp          n_adas, nimp_bg, local_radiation_bg,                                            &
+!$omp          n_adas, nimp_bg,                                                                &
 #endif
-#if (defined WITH_Neutrals) && (!defined WITH_Impurities)
+#if (defined WITH_Neutrals)
 !$omp          ksi_ion, use_imp_adas,                                                   &
 #endif
 #if (defined WITH_Impurities)
@@ -494,7 +494,7 @@ omp_tid      = 0
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 !$omp                local_n_particles_inj,  local_n_particles,                               &
 !$omp                local_radiation, local_radiation_phi, local_E_ion, local_P_ei, local_P_ion, &
-!$omp                local_source_volume, local_source_volume_drift, local_radiation_bg,      &
+!$omp                local_source_volume, local_source_volume_drift,                          &
 #endif
 !$omp                D_int, D_ext, P_int, H_int, S_int, H_ext, S_ext, P_ext, C_intern, C_ext, &
 !$omp                P_e_int, P_i_int, P_e_ext, P_i_ext, P_e_tot, P_i_tot,                    &
@@ -774,7 +774,7 @@ do ife = ife_min, ife_max
 !-------------------------------------------
 ! --- Radiation and ionization power
 ! ------------------------------------------
-#if ( (defined WITH_Neutrals) && (! defined WITH_Impurities) )
+#ifdef WITH_Neutrals
         ! --- Get ionization, recombination and radiation coefficients for Deuterium 
 #ifdef WITH_TiTe
         call atomic_coeff_deuterium  (   Te0, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
@@ -817,11 +817,13 @@ do ife = ife_min, ife_max
           local_radiation_phi(mp) = local_radiation_phi(mp) + ( (r0_corr * rn0_corr  * LradDrays_T    &
                                      + r0_corr ** 2 * LradDcont_T) * coef_prad_si                     & 
                                      + ne_SI * frad_bg) * bigR * xjac * wst * delta_phi  
-          local_radiation         = local_radiation + ( (r0_corr * rn0_corr  * LradDrays_T            &
+          local_radiation(3)      = local_radiation(3) + (r0_corr * rn0_corr  * LradDrays_T           &
                                      + r0_corr ** 2 * LradDcont_T) * coef_prad_si                     & 
-                                     + ne_SI * frad_bg) * bigR * xjac * wst * delta_phi 
+                                     * bigR * xjac * wst * delta_phi 
+          local_radiation(2)      = local_radiation(2) + ne_SI * frad_bg                              &
+                                     * bigR * xjac * wst * delta_phi 
           local_P_ion             = local_P_ion + ksiion * r0_corr * rn0_corr * Sion_T * coef_prad_si &
-                                   * bigR * xjac * wst * delta_phi
+                                     * bigR * xjac * wst * delta_phi
         else
           if ( trim(imp_type(1)) == 'Ar') then ! Hard-coded fitting exists for argon
             Arad_bg = 2.4d-31 
@@ -833,8 +835,10 @@ do ife = ife_min, ife_max
             local_radiation_phi(mp) = local_radiation_phi(mp) + (r0_corr * rn0_corr  * LradDrays_T &
                                        + r0_corr ** 2 * LradDcont_T + r0_corr * frad_bg) * coef_prad_si & 
                                        * bigR * xjac * wst * delta_phi  
-            local_radiation         = local_radiation + (r0_corr * rn0_corr  * LradDrays_T &
-                                       + r0_corr ** 2 * LradDcont_T + r0_corr * frad_bg) * coef_prad_si & 
+            local_radiation(3)      = local_radiation(3) + (r0_corr * rn0_corr  * LradDrays_T &
+                                       + r0_corr ** 2 * LradDcont_T) * coef_prad_si           & 
+                                       * bigR * xjac * wst * delta_phi 
+            local_radiation(2)      = local_radiation(2) + (r0_corr * frad_bg) * coef_prad_si   & 
                                        * bigR * xjac * wst * delta_phi 
             local_P_ion             = local_P_ion + ksiion * r0_corr * rn0_corr * Sion_T * coef_prad_si &
                                        * bigR * xjac * wst * delta_phi
@@ -844,7 +848,7 @@ do ife = ife_min, ife_max
           end if
         end if
 
-#endif
+#endif /* WITH_Neutrals */
 
 #ifdef WITH_Impurities
         !-------------------------------------------
@@ -1034,6 +1038,8 @@ do ife = ife_min, ife_max
         E_ion = E_ion * m_i_over_m_imp
 
         frad_bg = 0. 
+#if (! defined WITH_Neutrals)
+        ! if with_neutrals, frad_bg is calculated already
         do i_imp = 1, n_adas     
           if (i_imp == index_main_imp) cycle
           if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. nimp_bg(i_imp) > 0) then
@@ -1045,15 +1051,16 @@ do ife = ife_min, ife_max
           end if
           frad_bg = frad_bg + nimp_bg(i_imp) * Lrad_imp
         end do
+#endif 
 
         local_radiation_phi(mp) = local_radiation_phi(mp) &
                                   + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad + frad_bg)&
                                   * bigR * xjac * wst * delta_phi                                  &
                                   + (aux_rad / (MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * MASS_PROTON * CENTRAL_DENSITY * 1.d20))) * bigR * xjac * wst * delta_phi 
-        local_radiation = local_radiation &
-                          + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad + frad_bg)&
-                          * bigR * xjac * wst * delta_phi 
-        local_radiation_bg = local_radiation_bg &
+        local_radiation(1) = local_radiation(1) &
+                             + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad)&
+                             * bigR * xjac * wst * delta_phi 
+        local_radiation(2) = local_radiation(2) &
                              + ne_SI * frad_bg * bigR * xjac * wst * delta_phi 
         local_E_ion     = local_E_ion + rimp0 * central_density * 1.d20 * E_ion             &
                           * bigR * xjac * wst * delta_phi
@@ -1089,6 +1096,10 @@ do ife = ife_min, ife_max
         local_P_ei = local_P_ei + ne_SI * dTe_i * bigR * xjac * wst * delta_phi 
 #endif /* WITH_TiTe */
 #endif /* WITH_Impurities */
+
+#if (defined WITH_Neutrals) || (defined WITH_Impurities)
+        local_radiation(4) = SUM(local_radiation(1:3))       ! calculate tot_rad
+#endif
 
 #if (! defined WITH_Impurities)
         Z_eff      = 1.d0
@@ -2085,8 +2096,7 @@ if (nonlocal_abl) then
   call MPI_AllReduce(Pe_surface,Pres_e_surface,n_flux,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 endif
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
-call MPI_AllReduce(local_radiation, total_radiation,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
-call MPI_AllReduce(local_radiation_bg, total_radiation_bg,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_radiation, total_radiation,4,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(local_E_ion, total_E_ion,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(local_P_ei, total_P_ei,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(local_P_ion, total_P_ion,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -2152,7 +2162,6 @@ endif
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 total_radiation      = local_radiation
-total_radiation_bg   = local_radiation_bg
 total_E_ion          = local_E_ion
 total_P_ei           = local_P_ei
 total_P_ion          = local_P_ion
@@ -2311,7 +2320,6 @@ area                 = n_period * area / (2.d0 * PI)
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 total_radiation     = n_period * total_radiation
-total_radiation_bg  = n_period * total_radiation_bg
 total_radiation_phi = n_period * total_radiation_phi
 total_E_ion         = n_period * total_E_ion
 total_P_ei          = n_period * total_P_ei
@@ -2558,10 +2566,10 @@ if (my_id .eq. 0) then
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
       case ( 'Rad_tot' )
-        res(iexpr) = total_radiation
+        res(iexpr) = total_radiation(4)
 
       case ( 'Rad_bg_tot' )
-        res(iexpr) = total_radiation_bg
+        res(iexpr) = total_radiation(2)
 #endif
 
       case ( 'P_vn' )
@@ -2672,13 +2680,6 @@ if (my_id .eq. 0) then
       case ( 'LCFS_deltaL' )
         res(iexpr) = ES%LCFS_deltaL
 
-#if (defined WITH_Neutrals) || (defined WITH_Impurities)
-      case ( 'tot_radiated' )
-        res(iexpr) = total_radiation
-#else
-      case ( 'tot_radiated' )
-        res(iexpr) = 0.d0 
-#endif
 
     end select
             
@@ -2770,8 +2771,8 @@ if (my_id .eq. 0) then
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
   write(*,'(A,4es14.6)')   ' Integrals_3D, MGI              : ', total_n_particles_inj, total_n_particles
-  write(*,'(A,1e14.6,A)')  ' Radiation power (incl. backgr. imp) : ', total_radiation/1.d6, ' [MW]'
-  write(*,'(A,1e14.6,A)')  ' Radiation power BACKGROUND     : ', total_radiation_bg/1.d6, ' [MW]'
+  write(*,'(A,1e14.6,A)')  ' Radiation power (incl. backgr. imp) : ', total_radiation(4)/1.d6, ' [MW]'
+  write(*,'(A,1e14.6,A)')  ' Radiation power BACKGROUND     : ', total_radiation(2)/1.d6, ' [MW]'
   write(*,'(A,1e14.6,A)')  ' Radiation power SANITY         : ', sum(total_radiation_phi)/1.d6, ' [MW]'
   if (with_neutrals) then
     write(*,'(A,1e14.6,A)') ' Ionization power              : ', total_P_ion/1.d6, ' [MW]'
@@ -2783,18 +2784,18 @@ if (my_id .eq. 0) then
   ! If not use marker particles, obtain the ionization and radiation energy from fluid integrations
   ! Otherwise, obtain the energy from particle modules
   if (index_now > 1 .and. (.not. use_marker)) then
-    xtime_radiation(index_now) = xtime_radiation(index_now-1) + t_norm * tstep * total_radiation
+    xtime_radiation(index_now) = xtime_radiation(index_now-1) + t_norm * tstep * total_radiation(4)
   else if (index_now > 1) then ! Include contribution from both particles and background fluid
-    xtime_radiation(index_now) = xtime_radiation(index_now) + t_norm * tstep * total_radiation
+    xtime_radiation(index_now) = xtime_radiation(index_now) + t_norm * tstep * total_radiation(4)
   else if (index_now == 1 .and. (.not. use_marker)) then
-    xtime_radiation(index_now) = t_norm * tstep * total_radiation
+    xtime_radiation(index_now) = t_norm * tstep * total_radiation(4)
   else if (index_now == 1) then
-    xtime_radiation(index_now) = xtime_radiation(index_now) + t_norm * tstep * total_radiation
+    xtime_radiation(index_now) = xtime_radiation(index_now) + t_norm * tstep * total_radiation(4)
   end if
   if (index_now > 0 .and. (.not. use_marker)) then
-    xtime_rad_power(index_now) = total_radiation
+    xtime_rad_power(index_now) = total_radiation(4)
   else if (index_now > 0) then ! Include contribution from both particles and background fluid
-    xtime_rad_power(index_now) = xtime_rad_power(index_now) + total_radiation
+    xtime_rad_power(index_now) = xtime_rad_power(index_now) + total_radiation(4)
   end if
 
   if (output_prad_phi) then

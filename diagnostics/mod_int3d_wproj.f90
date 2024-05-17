@@ -2648,13 +2648,6 @@ if (my_id .eq. 0) then
       case ( 'LCFS_deltaL' )
         res(iexpr) = ES%LCFS_deltaL
 
-#if (defined WITH_Neutrals) || (defined WITH_Impurities)
-      case ( 'tot_radiated' )
-        res(iexpr) = total_radiation
-#else
-      case ( 'tot_radiated' )
-        res(iexpr) = 0.d0 
-#endif
 
     end select
             
