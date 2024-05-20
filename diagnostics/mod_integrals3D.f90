@@ -20,11 +20,11 @@ module mod_integrals3D
   use corr_neg
   use pellet_module
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
-  use mod_neutral_source, only: total_neutral_source, total_n_particles, total_n_particles_inj, total_n_particles_inj_all
+  use mod_neutral_source, only: total_neutral_source
   use mod_source_shape, only: source_shape
 #endif
 #ifdef WITH_Impurities
-  use mod_injection_source, only: total_imp_source, total_n_particles, total_n_particles_inj, total_n_particles_inj_all
+  use mod_injection_source, only: total_imp_source
   use mod_source_shape, only: source_shape
 #endif
   use mod_impurity, only: radiation_function, radiation_function_linear
@@ -132,7 +132,7 @@ real*8  :: dTedx, dTedy, dTidx, dTidy, dPedx, dPedy, dPidx, dPidy
 real*8  :: w0, dwdx, dwdy, u0_xpp, u0_ypp
 real*8  :: source_volume, source_pellet, eta_T, eta_T_ohm, Z_eff
 real*8  :: local_pellet_particles, local_plasma_particles, local_pellet_volume
-real*8  :: local_n_particles_inj, local_n_particles, rn0, rn0_corr, neut_particles_tot, rimp0, rimp0_corr
+real*8  :: local_n_particles_inj(2), local_n_particles(2), rn0, rn0_corr, neut_particles_tot, rimp0, rimp0_corr, total_n_particles_inj(2), total_n_particles(2)
 real*8  :: E_tot, E_in, E_out, Zkpar_T, D_prof, ZK_prof, sheath_heatflux
 real*8  :: ZK_e_prof, ZK_i_prof, ZK_e_par_T, ZK_i_par_T
 real*8  :: fact_mu0, fact_flux, fact_part
@@ -1351,10 +1351,10 @@ do ife = ife_min, ife_max
         source_neutral       = max(0.,source_neutral)
 
         ! Neutral injection rate in particles/s
-        local_n_particles_inj = local_n_particles_inj + 0.5d0 * central_density * 1.d20 * source_neutral * bigR *&
-                                 xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)
+        local_n_particles_inj(2) = local_n_particles_inj(2) + 0.5d0 * central_density * 1.d20 * source_neutral * bigR *&
+                                   xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)
         ! Total neutrals in particles
-        local_n_particles     = local_n_particles     +  rn0 * central_density * 1.d20 * bigR * xjac * wst * delta_phi
+        local_n_particles(2)     = local_n_particles(2)     +  rn0 * central_density * 1.d20 * bigR * xjac * wst * delta_phi
         ! Frictional heat source
         fric_disp     =   0.5 * BigR**2 * (u0_x**2.0 + u0_y**2.0) * (r0_corr * rn0 * Sion_T)&
                         + 0.5 * vpar0**2 * BB2 * (r0_corr * rn0 * Sion_T)
@@ -1421,11 +1421,11 @@ do ife = ife_min, ife_max
                                                * bigR * xjac * wst * delta_phi
         endif
 
-        ! Neutral injection rate in particles/s
-        local_n_particles_inj = local_n_particles_inj + 0.5d0 * central_density * 1.d20 * source_imp * m_i_over_m_imp * bigR &
-	                         * xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)
-        ! Total neutrals in particles
-        local_n_particles     = local_n_particles + central_density * 1.d20 * rimp0 * m_i_over_m_imp * bigR * xjac * wst * delta_phi
+        ! Impurity injection rate in particles/s
+        local_n_particles_inj(1) = local_n_particles_inj(1) + 0.5d0 * central_density * 1.d20 * source_imp * m_i_over_m_imp * bigR &
+	                               * xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)
+        ! Total impurities in particles
+        local_n_particles(1)     = local_n_particles(1) + central_density * 1.d20 * rimp0 * m_i_over_m_imp * bigR * xjac * wst * delta_phi
 #endif
         if ( get_psi_n(psi_as_coord, y_g(ms,mt)) <= 1.d0 ) then   !inside LCFS
 #ifdef WITH_Impurities
@@ -2201,13 +2201,13 @@ if (allocated(local_source_volume_drift)) deallocate(local_source_volume_drift)
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 #ifndef NOMPIVERSION
-  call MPI_AllReduce(local_n_particles_inj, total_n_particles_inj,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
-  call MPI_AllReduce(local_n_particles, total_n_particles,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+  call MPI_AllReduce(local_n_particles_inj, total_n_particles_inj,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+  call MPI_AllReduce(local_n_particles, total_n_particles,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 #else /* NOMPIVERSION */
   total_n_particles_inj = local_n_particles_inj
   total_n_particles     = local_n_particles
 #endif /* NOMPIVERSION */
-  neut_particles_tot    = total_n_particles / (central_density * 1.d20)
+  neut_particles_tot    = total_n_particles(2) / (central_density * 1.d20)
 #else
   neut_particles_tot = 0.d0
 #endif
@@ -2770,14 +2770,16 @@ if (my_id .eq. 0) then
                                  Ohm_tot/1.d6,heating_in/1d6+heating_out/1.d6 ,source_in+source_out
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
-  write(*,'(A,4es14.6)')   ' Integrals_3D, MGI              : ', total_n_particles_inj, total_n_particles
+  write(*,'(A,4es14.6)')   ' total inj. rate and particles(imp)  : ', total_n_particles_inj(1), total_n_particles(1)
+  write(*,'(A,4es14.6)')   ' total inj. rate and particles(neut) : ', total_n_particles_inj(2), total_n_particles(2)
   write(*,'(A,1e14.6,A)')  ' Radiation power (incl. backgr. imp) : ', total_radiation(4)/1.d6, ' [MW]'
   write(*,'(A,1e14.6,A)')  ' Radiation power BACKGROUND     : ', total_radiation(2)/1.d6, ' [MW]'
   write(*,'(A,1e14.6,A)')  ' Radiation power SANITY         : ', sum(total_radiation_phi)/1.d6, ' [MW]'
   if (with_neutrals) then
     write(*,'(A,1e14.6,A)') ' Ionization power              : ', total_P_ion/1.d6, ' [MW]'
-  else if (with_impurities) then ! With CE assumption, it's easier to obtain the total ionization energy then get the ionization power by finite difference
-    write(*,'(A,1e14.6,A)') ' Ionization energy              : ', total_E_ion/1.d6, ' [MJ]'
+  endif
+  if (with_impurities) then ! With CE assumption, it's easier to obtain the total ionization energy then get the ionization power by finite difference
+    write(*,'(A,1e14.6,A)') ' Ionization energy             : ', total_E_ion/1.d6, ' [MJ]'
   endif
   if (with_TiTe)  write(*,'(A,1e14.6,A)') ' Electron-ion energy exchange    : ', total_P_ei/1.d6, ' [MW]'
 
