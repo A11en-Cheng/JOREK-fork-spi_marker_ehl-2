@@ -1730,6 +1730,8 @@ do ms=1, n_gauss
                  amat_26 = - BigR**2 * (v_s * r0_t * T   - v_t * r0_s * T)      * theta * tstep  &
                            - BigR**2 * (v_s * r0   * T_t - v_t * r0   * T_s)    * theta * tstep  &
                            - BigR**2 * (v_s * rn0_t * alpha_imp_bis * T - v_t * rn0_s * alpha_imp_bis * T) * theta * tstep  &
+                           ! This is for the projected Z_imp, which do NOT depend on temperature
+                           - BigR**2 * (v_s * rn0   * alpha_imp_t   * T - v_t * rn0   * alpha_imp_s   * T) * theta * tstep  &
                            - BigR**2 * (v_s * rn0 * alpha_imp_bis * T_t - v_t * rn0 * alpha_imp_bis * T_s) * theta * tstep  &
                            - BigR**2 * (v_s * rn0 * alpha_imp_tri * T * T0_t &
                                         - v_t * rn0 * alpha_imp_tri * T * T0_s) * theta * tstep  &
@@ -2321,7 +2323,11 @@ do ms=1, n_gauss
                            + v * (T_s * rn0 * alpha_imp_bis * ps0_t - T_t * rn0 * alpha_imp_bis * ps0_s) * theta * tstep &
                            + v * (T0_s* rn0 * alpha_imp_tri*T*ps0_t - T0_t* rn0 * alpha_imp_tri*T*ps0_s) * theta * tstep &
                            + v * (T * rn0_s * alpha_imp_bis * ps0_t - T * rn0_t * alpha_imp_bis * ps0_s) * theta * tstep &
+                           ! This is for the projected Z_imp, which do NOT depend on temperature 
+                           + v * (T * rn0   * alpha_imp_s   * ps0_t - T * rn0   * alpha_imp_t   * ps0_s) * theta * tstep &
                            + v * F0 / BigR * (T_p * rn0 + T * rn0_p)            * alpha_imp_bis   * xjac * theta * tstep &
+                           ! This is for the projected Z_imp, which do NOT depend on temperature
+                           + v * F0 / BigR * (                     + T * rn0   * alpha_imp_p   )  * xjac * theta * tstep &
                            + v * F0 / BigR *  T0_p * rn0 * T                    * alpha_imp_tri   * xjac * theta * tstep 
 
 
