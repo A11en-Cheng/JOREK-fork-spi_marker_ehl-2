@@ -1666,13 +1666,13 @@ do i=1,n_vertex_max
               rhs_ij(var_Te) =  v * BigR * heat_source_e(ms,mt)                                  * xjac * tstep * factor(var_Te,1 ) & 
 
                               ! quantities from Non-equilibrium impurity model
-                              - v * BigR * (aux_dEion_dt + aux_rad)                              * xjac * tstep & ! TO BE DONE: put proper 'factor'
+                              - v * BigR * (aux_dEion_dt + aux_rad)                              * xjac * tstep * factor(var_Te,16) & ! TO BE DONE: put proper 'factor'
 
                               + v * (r0 + rimp0*alpha_e_bis) * BigR**2  * (Te0_s * u0_t - Te0_t * u0_s) * tstep * factor(var_Te,2 ) &
                               + v * Te0 * BigR**2 * ( r0_s * u0_t -  r0_t * u0_s)                       * tstep * factor(var_Te,2 ) &
                               + v * alpha_e * Te0 * BigR**2 * (rimp0_s * u0_t - rimp0_t * u0_s)         * tstep * factor(var_Te,2 ) &
                               ! This is for the projected Z_imp, which do NOT depend on temperature
-                              + v * rimp0 * Te0 * BigR**2 * (alpha_e_s * u0_t - alpha_e_t * u0_s)         * tstep & ! TO BE DONE: put proper 'factor'
+                              + v * rimp0 * Te0 * BigR**2 * (alpha_e_s * u0_t - alpha_e_t * u0_s)       * tstep * factor(var_Te,2 ) & ! TO BE DONE: put proper 'factor'
                                                                                                  
                               + v * (r0 + rimp0*alpha_e) * Te0 * 2.d0* GAMMA * BigR * u0_y       * xjac * tstep * factor(var_Te,3 ) &
                                                                                                  
@@ -1798,19 +1798,26 @@ do i=1,n_vertex_max
               !###################################################################################################
   
               rhs_ij(var_T) =  v * BigR * heat_source(ms,mt)                                    * xjac * tstep * factor(var_T,1 ) &
-              
+                              ! quantities from Non-equilibrium impurity model
+                             - v * BigR * (aux_dEion_dt + aux_rad)                              * xjac * tstep * factor(var_T,1 ) & ! TO BE DONE: put proper 'factor'
                              + v * (r0 + rimp0*alpha_imp_bis) * BigR**2 * (T0_s  * u0_t - T0_t * u0_s) * tstep * factor(var_T,2 ) &
                              + v * T0 * BigR**2 * ( r0_s * u0_t - r0_t * u0_s)                         * tstep * factor(var_T,2 ) &
                              + v * alpha_imp * T0 * BigR**2 * (rimp0_s * u0_t - rimp0_t * u0_s)        * tstep * factor(var_T,2 )&
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
+                             + v * rimp0 * Te0 * BigR**2 * (alpha_e_s * u0_t - alpha_e_t * u0_s)       * tstep * factor(var_T,1 ) & ! TO BE DONE: put proper 'factor'
                                                                                             
                              + v * (r0 + rimp0*alpha_imp) * T0 * 2.d0* GAMMA * BigR * u0_y      * xjac * tstep * factor(var_T,3 ) &
                             
                              - v * (r0 + rimp0*alpha_imp_bis) * F0 / BigR * Vpar0 * T0_p        * xjac * tstep * factor(var_T,4 ) &
                              - v * T0 * F0 / BigR * Vpar0 * (r0_p + alpha_imp * rimp0_p)        * xjac * tstep * factor(var_T,4 ) &
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - v * Te0 * F0 / BigR * Vpar0 * (       alpha_e_p * rimp0)         * xjac * tstep & ! TO BE DONE: put proper 'factor'
                             
                              - v * (r0 + rn0*alpha_imp_bis) * Vpar0 * (T0_s * ps0_t - T0_t * ps0_s)    * tstep * factor(var_T,4 ) &
                              - v * T0 * Vpar0 * (r0_s * ps0_t - r0_t * ps0_s)                          * tstep * factor(var_T,4 ) &
                              - v * T0 * Vpar0 * alpha_imp * (rimp0_s * ps0_t - rimp0_t * ps0_s)        * tstep * factor(var_T,4 ) &
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - v * Te0 * Vpar0 * rimp0 * (alpha_e_s * ps0_t - alpha_e_t * ps0_s)       * tstep & ! TO BE DONE: put proper 'factor'
                                                                                              
                              - v * (r0+rimp0*alpha_imp) * T0 * GAMMA * (vpar0_s*ps0_t - vpar0_t*ps0_s) * tstep * factor(var_T,3 ) &
                              - v * (r0 + rimp0*alpha_imp) * T0 * GAMMA * F0 / BigR * vpar0_p    * xjac * tstep * factor(var_T,3 ) &
@@ -1849,12 +1856,19 @@ do i=1,n_vertex_max
                             
                              - tgnum_T * 0.25d0 * BigR**3 * T0 * ((r0_x+alpha_imp*rimp0_x) * u0_y - ((r0_y+alpha_imp*rimp0_y)) * u0_x)                           &
                                                 * ( v_x * u0_y - v_y * u0_x)                    * xjac * tstep * tstep * factor(var_T,8 )&
+                         ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - tgnum_T * 0.25d0 * BigR**3 * Te0 * ((    +alpha_e_x*rimp0) * u0_y - (    +alpha_e_y*rimp0) * u0_x) & 
+                                                * ( v_x * u0_y - v_y * u0_x) * xjac * tstep * tstep  & ! TO BE DONE: put proper 'factor'
                              - tgnum_T * 0.25d0 * BigR**3 * (r0+alpha_imp_bis*rimp0) * (T0_x * u0_y - T0_y * u0_x)                           &
                                                 * ( v_x * u0_y - v_y * u0_x)                    * xjac * tstep * tstep * factor(var_T,8 )&
                             
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                        * T0 * ((r0_x+alpha_imp*rimp0_x) * ps0_y - (r0_y+alpha_imp*rimp0_y) * ps0_x + F0 / BigR * (r0_p+alpha_imp*rimp0_p))   &
                                        * ( v_x * ps0_y -  v_y * ps0_x                        )  * xjac * tstep * tstep * factor(var_T,8 )&
+                         ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - tgnum_T * 0.25d0 / BigR * vpar0**2    &  
+                                       * Te0 * ((    +alpha_e_x*rimp0) * ps0_y - (    +alpha_e_y*rimp0) * ps0_x + F0 / BigR * (    +alpha_e_p*rimp0)) &
+                                       * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * tstep * tstep       & ! TO BE DONE: put proper 'factor'
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                        * (r0+alpha_imp_bis*rimp0) * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)                         &
                                        * ( v_x * ps0_y -  v_y * ps0_x                        )  * xjac * tstep * tstep * factor(var_T,8 )&
@@ -2476,7 +2490,7 @@ do i=1,n_vertex_max
                       amat(var_u,var_Te) = amat(var_u,var_Te) &
                                            - BigR**2 * (v_s * rimp0_t * alpha_e_bis * Te - v_t * rimp0_s * alpha_e_bis * Te) * theta * tstep  &
                                            ! This is for the projected Z_imp, which do NOT depend on temperature
-                                           - BigR**2 * (v_s * rimp0 * alpha_e_t   * Te   - v_t * rimp0 * alpha_e_s   * Te)   * theta * tstep  & ! TO BE DONE: put proper 'factor'
+                                           - BigR**2 * (v_s * rimp0 * alpha_e_t   * Te   - v_t * rimp0 * alpha_e_s   * Te)   * theta * tstep  & ! TO BE DONE: put proper 'factor'; There is no factor flag for amats....
                                            - BigR**2 * (v_s * rimp0 * alpha_e_bis * Te_t - v_t * rimp0 * alpha_e_bis * Te_s) * theta * tstep  &
                                            - BigR**2 * (v_s * rimp0 * alpha_e_tri * Te * Te0_t - v_t * rimp0 * alpha_e_tri * Te * Te0_s) * theta * tstep
                     else
