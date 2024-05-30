@@ -1367,21 +1367,6 @@ do ife = ife_min, ife_max
           source_bg        = source_bg  + source_bg_arr(i_inj)
           source_bg_drift  = source_bg_drift + source_bg_drift_arr(i_inj)
         end do
-        ! This is to detect N/A
-        if (source_imp /= source_imp .or. source_bg /= source_bg) then
-          write(*,*) "WARNING: source_imp = ", source_imp
-          write(*,*) "WARNING: source_bg = ", source_bg
-          stop
-        end if
-        if (source_imp_drift /= source_imp_drift .or. source_bg_drift /= source_bg_drift) then
-          write(*,*) "WARNING: source_imp_drift = ", source_imp_drift
-          write(*,*) "WARNING: source_bg_drift = ", source_bg_drift
-          stop
-        end if
-        source_imp       = max(source_imp,0.d0)
-        source_bg        = max(source_bg,0.d0)
-        source_imp_drift = max(source_imp_drift,0.d0)
-        source_bg_drift  = max(source_bg_drift,0.d0)
 
         ! This is to detect N/A
         if (source_imp /= source_imp .or. source_bg /= source_bg) then
