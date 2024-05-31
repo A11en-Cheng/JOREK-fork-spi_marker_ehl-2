@@ -169,6 +169,7 @@ real*8     :: alpha_e, dalpha_e_dT, d2alpha_e_dT2, alpha_e_bis, alpha_e_tri
 real*8     :: alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y, delta_alpha_e
 !   -Coefficients related to Z_imp (! with_TiTe)
 real*8     :: alpha_imp, dalpha_imp_dT, d2alpha_imp_dT2, alpha_imp_bis, alpha_imp_tri
+real*8     :: alpha_imp_s, alpha_imp_t, alpha_imp_p, alpha_imp_x, alpha_imp_y, delta_alpha_imp
 !   -Radiation from injected impurities
 real*8     :: Lrad, dLrad_dT                                  ! Radiation rate and its derivative wrt. temperature
 real*8     :: Te_corr_eV, dTe_corr_eV_dT                      ! Temperature used in radiation rate
@@ -1778,6 +1779,11 @@ do i=1,n_vertex_max
                            - tgnum_Te * 0.25d0 / BigR * vpar0**2                                                    &
                                    * Te0 * ((r0_x+alpha_e*rimp0_x) * ps0_y - (r0_y+alpha_e*rimp0_y) * ps0_x  + F0 / BigR * (r0_p+alpha_e*rimp0_p))                        &
                                    * (                                   + F0 / BigR * v_p) * xjac * tstep * tstep * factor(var_Te,8 ) &
+                           ! This is for the projected Z_imp, which do NOT depend on temperature
+                           - tgnum_Te * 0.25d0 / BigR * vpar0**2 &
+                                      * Te0 * ((    +alpha_e_x*rimp0) * ps0_y - (    +alpha_e_y*rimp0) * ps0_x &
+                                               + F0 / BigR * (    +alpha_e_p*rimp0))                        &
+                                            * (                                 + F0 / BigR * v_p) * xjac * tstep * tstep   &
                            - tgnum_Te * 0.25d0 / BigR * vpar0**2                                                    &
                                    * (r0+alpha_e_bis*rimp0) * (Te0_x * ps0_y - Te0_y * ps0_x + F0 / BigR * Te0_p)                       &
                                    * (                                   + F0 / BigR * v_p) * xjac * tstep * tstep * factor(var_Te,8 )
@@ -1921,6 +1927,11 @@ do i=1,n_vertex_max
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                      * T0 * ((r0_x+alpha_imp*rimp0_x) * ps0_y - (r0_y+alpha_imp*rimp0_y) * ps0_x  + F0 / BigR * (r0_p+alpha_imp*rimp0_p))     &
                                      * (                                   + F0 / BigR * v_p)   * xjac * tstep * tstep * factor(var_T,8 )&
+                             ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - tgnum_T * 0.25d0 / BigR * vpar0**2 &
+                                       * T0 * ((    +alpha_imp_x*rimp0) * ps0_y - (    +alpha_imp_y*rimp0) * ps0_x &
+                                               + F0 / BigR * (    +alpha_imp_p*rimp0))                        &
+                                       * (                            + F0 / BigR * v_p) * xjac * tstep * tstep        &
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                      * (r0+alpha_imp_bis*rimp0) * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)                           &
                                      * (                                   + F0 / BigR * v_p)   * xjac * tstep * tstep * factor(var_T,8 )
@@ -2506,6 +2517,7 @@ do i=1,n_vertex_max
                               - BigR**2 * (v_s * rhoimp * alpha_i * Ti0_t - v_t * rhoimp * alpha_i * Ti0_s)                  * theta * tstep &
                               - BigR**2 * (v_s * rhoimp_t * alpha_e * Te0     - v_t * rhoimp_s * alpha_e * Te0)              * theta * tstep &
                               - BigR**2 * (v_s * rhoimp * alpha_e_bis * Te0_t - v_t * rhoimp * alpha_e_bis * Te0_s)          * theta * tstep &
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
                               - BigR**2 * (v_s * rhoimp * alpha_e_t * Te0     - v_t * rhoimp * alpha_e_s * Te0)              * theta * tstep
                   endif
 
@@ -5283,8 +5295,16 @@ subroutine construct_imp_charge_states()
   alpha_e_s     = m_i_over_m_imp*Z_imp_s
   alpha_e_t     = m_i_over_m_imp*Z_imp_t
 
+  alpha_imp_x   = 0.5*m_i_over_m_imp*Z_imp_x
+  alpha_imp_y   = 0.5*m_i_over_m_imp*Z_imp_y
+  alpha_imp_p   = 0.5*m_i_over_m_imp*Z_imp_p
+  alpha_imp_s   = 0.5*m_i_over_m_imp*Z_imp_s
+  alpha_imp_t   = 0.5*m_i_over_m_imp*Z_imp_t
+
   delta_alpha_e = 0.d0
+  delta_alpha_imp = 0.d0
   if (use_marker) delta_alpha_e = m_i_over_m_imp * delta_Z_imp
+  if (use_marker) delta_alpha_imp = 0.5*m_i_over_m_imp * delta_Z_imp
 
   ne_JOREK    = r0_corr + alpha_e * rimp0_corr                             ! Electron density in JOREK unit
   ne_JOREK    = corr_neg_dens(ne_JOREK,(/1.d-1,1.d-1/),1.d-3)           
