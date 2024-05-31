@@ -1795,6 +1795,8 @@ do ms=1, n_gauss
              amat_26 = - BigR**2 * (v_s * r0_t * T   - v_t * r0_s * T)      * theta * tstep  &
                        - BigR**2 * (v_s * r0   * T_t - v_t * r0   * T_s)    * theta * tstep  &
                        - BigR**2 * (v_s * rn0_t * alpha_imp_bis * T - v_t * rn0_s * alpha_imp_bis * T) * theta * tstep  &
+                       ! This is for the projected Z_imp, which do NOT depend on temperature
+                       - BigR**2 * (v_s * rn0   * alpha_imp_t   * T - v_t * rn0   * alpha_imp_s   * T) * theta * tstep  &
                        - BigR**2 * (v_s * rn0 * alpha_imp_bis * T_t - v_t * rn0 * alpha_imp_bis * T_s) * theta * tstep  &
                        - BigR**2 * (v_s * rn0 * alpha_imp_tri * T * T0_t &
                                     - v_t * rn0 * alpha_imp_tri * T * T0_s) * theta * tstep  &
@@ -1809,7 +1811,7 @@ do ms=1, n_gauss
                        + v * tauIC * BigR**4 * ( (u0_xy * (T_xx*r0 + 2.d0*T_x*r0_x + T*r0_xx                       &
                                                          - T_yy*r0 - 2.d0*T_y*r0_y - T*r0_yy))                     &
                                                - (T_xy * r0 + T_x*r0_y + T_y*r0_x + T*r0_xy) * (u0_xx - u0_yy)  )  &
-                                             * xjac * theta * tstep				 
+                                             * xjac * theta * tstep 
 
              amat_27 = &
                        ! New terms coming from -(\partial_t \rho + \nabla \cdot (\rho \mathbf{v})) \mathbf{v} in RHS of momentum equation
@@ -1825,7 +1827,7 @@ do ms=1, n_gauss
              amat_28 = - BigR**2 * (v_s * rhon_t * alpha_imp * T0     - v_t * rhon_s * alpha_imp * T0  )   * theta * tstep &
                            ! This is for the projected Z_imp, which do NOT depend on temperature
                            - BigR**2 * (v_s * rhon * alpha_imp_t * T0     - v_t * rhon * alpha_imp_s * T0)     * theta * tstep &
-                           - BigR**2 * (v_s * rhon * alpha_imp_bis * T0_t - v_t * rhon * alpha_imp_bis * T0_s) * theta * tstep		
+                           - BigR**2 * (v_s * rhon * alpha_imp_bis * T0_t - v_t * rhon * alpha_imp_bis * T0_s) * theta * tstep
 
 !###################################################################################################
 !#  equation 3   (current definition)                                                              #
@@ -2624,9 +2626,13 @@ do ms=1, n_gauss
                        + v * (T_s * rn0 * alpha_imp_bis * ps0_t - T_t * rn0 * alpha_imp_bis * ps0_s) * theta * tstep &
                        + v * (T0_s* rn0 * alpha_imp_tri*T*ps0_t - T0_t* rn0 * alpha_imp_tri*T*ps0_s) * theta * tstep &
                        + v * (T * rn0_s * alpha_imp_bis * ps0_t - T * rn0_t * alpha_imp_bis * ps0_s) * theta * tstep &
+                       ! This is for the projected Z_imp, which do NOT depend on temperature 
+                       + v * (T * rn0   * alpha_imp_s   * ps0_t - T * rn0   * alpha_imp_t   * ps0_s) * theta * tstep &
 
                        + v * F0 / BigR * T * r0_p                                             * xjac * theta * tstep &
                        + v * F0 / BigR * T * rn0_p * alpha_imp_bis                            * xjac * theta * tstep &
+                       ! This is for the projected Z_imp, which do NOT depend on temperature
+                       + v * F0 / BigR * (                     + T * rn0   * alpha_imp_p   )  * xjac * theta * tstep &
                        + v * F0 / BigR *  T0_p * rn0 * T                    * alpha_imp_tri   * xjac * theta * tstep
 
              amat_76_n = + v * F0 / BigR * T_p * r0                                           * xjac * theta * tstep &
