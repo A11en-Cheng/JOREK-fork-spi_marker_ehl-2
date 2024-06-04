@@ -2499,14 +2499,14 @@ do i=1,n_vertex_max
                       amat(var_u,var_Te) = amat(var_u,var_Te) &
                                            - BigR**2 * (v_s * rimp0_t * alpha_e_bis * Te - v_t * rimp0_s * alpha_e_bis * Te) * theta * tstep  &
                                            ! This is for the projected Z_imp, which do NOT depend on temperature
-                                           - BigR**2 * (v_s * rimp0 * alpha_e_t   * Te   - v_t * rimp0 * alpha_e_s   * Te)   * theta * tstep  & .
+                                           - BigR**2 * (v_s * rimp0 * alpha_e_t   * Te   - v_t * rimp0 * alpha_e_s   * Te)   * theta * tstep  & 
                                            - BigR**2 * (v_s * rimp0 * alpha_e_bis * Te_t - v_t * rimp0 * alpha_e_bis * Te_s) * theta * tstep  &
                                            - BigR**2 * (v_s * rimp0 * alpha_e_tri * Te * Te0_t - v_t * rimp0 * alpha_e_tri * Te * Te0_s) * theta * tstep
                     else
                       amat(var_u,var_T)  = amat(var_u,var_T) &
                                            - BigR**2 * (v_s * rimp0_t * alpha_imp_bis * T - v_t * rimp0_s * alpha_imp_bis * T) * theta * tstep  &
                                            ! This is for the projected Z_imp, which do NOT depend on temperature
-                                           - BigR**2 * (v_s * rimp0 * alpha_imp_t   * T   - v_t * rimp0 * alpha_imp_s   * T)   * theta * tstep  & .
+                                           - BigR**2 * (v_s * rimp0 * alpha_imp_t   * T   - v_t * rimp0 * alpha_imp_s   * T)   * theta * tstep  & 
                                            - BigR**2 * (v_s * rimp0 * alpha_imp_bis * T_t - v_t * rimp0 * alpha_imp_bis * T_s) * theta * tstep  &
                                            - BigR**2 * (v_s * rimp0 * alpha_imp_tri * T * T0_t - v_t * rimp0 * alpha_imp_tri * T * T0_s) * theta * tstep
                     endif
