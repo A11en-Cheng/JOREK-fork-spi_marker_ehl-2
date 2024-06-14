@@ -132,7 +132,7 @@ real*8  :: dTedx, dTedy, dTidx, dTidy, dPedx, dPedy, dPidx, dPidy
 real*8  :: w0, dwdx, dwdy, u0_xpp, u0_ypp
 real*8  :: source_volume, source_pellet, eta_T, eta_T_ohm, Z_eff
 real*8  :: local_pellet_particles, local_plasma_particles, local_pellet_volume
-real*8  :: local_n_particles_inj(2), local_n_particles(2), rn0, rn0_corr, neut_particles_tot, rimp0, rimp0_corr, total_n_particles_inj(2), total_n_particles(2)
+real*8  :: local_n_particles_inj(2), local_n_particles(2), rn0, rn0_corr, neut_particles_tot, imp_particles_tot, rimp0, rimp0_corr, total_n_particles_inj(2), total_n_particles(2)
 real*8  :: E_tot, E_in, E_out, Zkpar_T, D_prof, ZK_prof, sheath_heatflux
 real*8  :: ZK_e_prof, ZK_i_prof, ZK_e_par_T, ZK_i_par_T
 real*8  :: fact_mu0, fact_flux, fact_part
@@ -2208,8 +2208,10 @@ if (allocated(local_source_volume_drift)) deallocate(local_source_volume_drift)
   total_n_particles     = local_n_particles
 #endif /* NOMPIVERSION */
   neut_particles_tot    = total_n_particles(2) / (central_density * 1.d20)
+  imp_particles_tot     = total_n_particles(1) / (central_density * 1.d20)
 #else
   neut_particles_tot = 0.d0
+  imp_particles_tot  = 0.d0
 #endif
 
 ! Final fill-in for the non-local array, all in JOREK unit
@@ -2306,6 +2308,7 @@ density_tot          = n_period * density_tot * fact_part
 density_in           = n_period * density_in  * fact_part
 density_out          = n_period * density_out * fact_part
 neut_particles_tot   = n_period * neut_particles_tot * fact_part
+imp_particles_tot    = n_period * imp_particles_tot  * fact_part
 helicity_tot         = n_period * helicity_tot
 thermal_work_tot     = n_period * thermal_work_tot    * fact_flux 
 thermal_work_e_tot   = n_period * thermal_work_e_tot  * fact_flux 
@@ -2506,6 +2509,9 @@ if (my_id .eq. 0) then
 
       case ( 'NPart_tot' ) 
         res(iexpr) = neut_particles_tot  
+
+      case ( 'ImPart_tot' ) 
+        res(iexpr) = imp_particles_tot  
 
       case ( 'Helicity_tot' )
         res(iexpr) = helicity_tot 
@@ -2878,6 +2884,7 @@ if (my_id .eq. 0) then
     beta_t_t(index_now)              = beta_t
     beta_p_t(index_now)              = beta_p
     npart_tot_t(index_now)           = neut_particles_tot 
+    impart_tot_t(index_now)          = imp_particles_tot 
     density_tot_t(index_now)         = density_tot
     density_in_t(index_now)          = density_in
     density_out_t(index_now)         = density_out

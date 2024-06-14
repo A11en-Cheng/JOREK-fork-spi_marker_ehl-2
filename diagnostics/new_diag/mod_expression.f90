@@ -282,6 +282,7 @@ module mod_expression
     call add(exprs_all_int, 'Part_in     ', 'Number of ions  (inside  LCFS)                        ')
     call add(exprs_all_int, 'Part_out    ', 'Number of ions  (outside LCFS)                        ')
     call add(exprs_all_int, 'NPart_tot   ', 'Total number of neutral particles                     ')
+    call add(exprs_all_int, 'ImPart_tot  ', 'Total number of impurity particles                    ')
     call add(exprs_all_int, 'Helicity_tot', 'Total magnetic helicity                               ')
     call add(exprs_all_int, 'Mag_work_tot', 'Total magnetic work = -int v dot(JxB) dV              ')
     call add(exprs_all_int, 'Thm_work_tot', 'Total thermal work  = int vpar dot grad p dV          ')

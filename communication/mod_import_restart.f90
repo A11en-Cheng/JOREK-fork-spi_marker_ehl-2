@@ -1671,6 +1671,11 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     npart_tot_t = 0.d0
     call HDF5_array1D_reading(file_id,npart_tot_t,'npart_tot_t')
 
+    if (allocated(impart_tot_t)) call tr_deallocate(impart_tot_t,"impart_tot_t",CAT_UNKNOWN)
+    call tr_allocate(impart_tot_t,1,index_start+nstep,"impart_tot_t",CAT_UNKNOWN)
+    impart_tot_t = 0.d0
+    call HDF5_array1D_reading(file_id,impart_tot_t,'impart_tot_t')
+
     if (allocated(density_tot_t)) call tr_deallocate(density_tot_t,"density_tot_t",CAT_UNKNOWN)
     call tr_allocate(density_tot_t,1,index_start+nstep,"density_tot_t",CAT_UNKNOWN)
     density_tot_t = 0.d0
