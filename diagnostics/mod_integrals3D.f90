@@ -774,7 +774,7 @@ do ife = ife_min, ife_max
 !-------------------------------------------
 ! --- Radiation and ionization power
 ! ------------------------------------------
-#ifdef WITH_Neutrals
+#if ( (defined WITH_Neutrals) && (! defined WITH_Impurities) )
         ! --- Get ionization, recombination and radiation coefficients for Deuterium 
 #ifdef WITH_TiTe
         call atomic_coeff_deuterium  (   Te0, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
@@ -848,7 +848,7 @@ do ife = ife_min, ife_max
           end if
         end if
 
-#endif /* WITH_Neutrals */
+#endif /* WITH_Neutrals and w/o imp. */
 
 #ifdef WITH_Impurities
         !-------------------------------------------
@@ -1038,8 +1038,6 @@ do ife = ife_min, ife_max
         E_ion = E_ion * m_i_over_m_imp
 
         frad_bg = 0. 
-#if (! defined WITH_Neutrals)
-        ! if with_neutrals, frad_bg is calculated already
         do i_imp = 1, n_adas     
           if (i_imp == index_main_imp) cycle
           if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. nimp_bg(i_imp) > 0) then
@@ -1051,7 +1049,6 @@ do ife = ife_min, ife_max
           end if
           frad_bg = frad_bg + nimp_bg(i_imp) * Lrad_imp
         end do
-#endif 
 
         local_radiation_phi(mp) = local_radiation_phi(mp) &
                                   + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad + frad_bg)&
@@ -1066,6 +1063,33 @@ do ife = ife_min, ife_max
                           * bigR * xjac * wst * delta_phi
         local_E_ion     = local_E_ion + (r0 - rimp0) * central_density * 1.d20 * E_ion_bg   &
                           * bigR * xjac * wst * delta_phi
+
+#if (defined WITH_Neutrals)
+        ! --- Get ionization, recombination and radiation coefficients for Deuterium 
+#ifdef WITH_TiTe
+        call atomic_coeff_deuterium  (   Te0, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
+                                            LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT, ne_JOREK, rn0, .true. ) 
+#else
+        call atomic_coeff_deuterium(0.5d0*T0, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
+                                            LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT, ne_JOREK, rn0, .true. ) 
+#endif
+     
+        ! Get coefficient:  Prad,SI = coef_prad_si * Prad,jorek
+        coef_prad_si = 1./((GAMMA-1)*MU_ZERO*(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**0.5) 
+      
+        ksiion = central_density * 1.d20 * ksi_ion   ! Normalisation of the ionization energy cost for Deuterium
+
+        local_radiation_phi(mp) = local_radiation_phi(mp) + (ne_JOREK * rn0_corr  * LradDrays_T      &
+                                   + ne_JOREK ** 2 * LradDcont_T) * coef_prad_si                     & 
+                                   * bigR * xjac * wst * delta_phi  
+        local_radiation(3)      = local_radiation(3) + (ne_JOREK * rn0_corr  * LradDrays_T           &
+                                   + ne_JOREK ** 2 * LradDcont_T) * coef_prad_si                     & 
+                                   * bigR * xjac * wst * delta_phi 
+        local_P_ion             = local_P_ion + ksiion * ne_JOREK * rn0_corr * Sion_T * coef_prad_si &
+                                   * bigR * xjac * wst * delta_phi
+
+#endif /* WITH_Neutrals and w. imp. */
+
 #ifdef WITH_TiTe
        !--------------------------------------------------------
        ! --- Ion-electron energy transfer
