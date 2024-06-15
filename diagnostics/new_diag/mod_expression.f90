@@ -241,7 +241,7 @@ module mod_expression
     call add(exprs_all, 'radiation   ', 'Radiation terms for bolometry diagnostic              ')
     call add(exprs_all, 'radiation_bg', 'Radiation terms from background impurities for bolometry diagnostic ')
 #endif
-#if (defined WITH_Neutrals) && (!defined WITH_Impurities)
+#if (defined WITH_Neutrals)
     call add(exprs_all, 'brem        ', 'Brem terms for bolometry diagnostic                   ')
     call add(exprs_all, 'line_rad    ', 'D neutral line radiation                              ')
     call add(exprs_all, 'bg_imp_rad  ', 'Background impurity radiation                          ')
@@ -637,7 +637,7 @@ module mod_expression
     real*8  :: ne_SI, ne_JOREK                              ! Electron density used in radiation rate
     real*8  :: Lrad_imp, r_imp_bg, i_imp, frad_bg
 #endif
-#if (defined WITH_Neutrals) && (!defined WITH_Impurities)
+#if (defined WITH_Neutrals)
     real*8  :: Arad_bg, Brad_bg, Crad_bg
 #endif
     !   -Effective charge of all species
@@ -1686,6 +1686,10 @@ module mod_expression
           Z_eff         = Z_eff / ne_JOREK
           if (Z_eff < 1.) Z_eff = 1.
           if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
+
+          ! use the correct ne to obtain the coefficients
+          call atomic_coeff_deuterium(Te0_corr, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
+                                      LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT, ne_JOREK, rn0, .true. ) 
   
 #endif
           if ( .not. with_impurities ) then 
@@ -2173,6 +2177,13 @@ module mod_expression
 
               case ( 'radiation_bg' )
                 res = (r0_corr + beta_imp*rimp0_corr) * frad_bg * fact_rad
+#if (defined WITH_Neutrals)
+              case ( 'brem' )
+                res = (r0_corr + beta_imp*rimp0_corr)**2 * LradDcont_T * fact_rad
+
+              case ('line_rad')
+                res = (r0_corr + beta_imp*rimp0_corr) * max(rn0,0.d0) * LradDrays_T * fact_rad
+#endif
 #endif
 
               case default
