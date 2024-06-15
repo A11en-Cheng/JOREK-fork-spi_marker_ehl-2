@@ -1485,6 +1485,7 @@ enddo  ! n_elements
 
      frad_bg = 0.
      do i_imp =1, n_adas
+       if (i_imp == index_main_imp) cycle
        r_imp_bg = nimp_bg(i_imp) / (1.d20 * central_density)  ! Background impurity density in JU     
        if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. r_imp_bg > 0) then
          Lrad_imp = 0.0
