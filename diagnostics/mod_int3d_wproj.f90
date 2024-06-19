@@ -175,7 +175,7 @@ real*8  :: source_bg_arr(n_inj_max), source_imp_arr(n_inj_max), source_bg_drift_
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 real*8  :: local_radiation, local_radiation_bg, local_E_ion, total_radiation, total_radiation_bg, total_E_ion, local_P_ei, total_P_ei
 real*8  :: local_P_ion, total_P_ion
-real*8  :: local_radiation_phi(n_plane), total_radiation_phi(n_plane)
+real*8  :: local_radiation_phi(n_plane), total_radiation_phi(n_plane), rad_TPF_phi(n_plane)
 real*8  :: ne_SI, Te_eV, Te_corr_eV, Ti_eV
 
 ! SPI-related variables
@@ -2782,11 +2782,18 @@ if (my_id .eq. 0) then
   end if
 
   if (use_marker) then          !output radiation at each plane  TODO: SI units
+    do i_phi = 1, n_plane
+      rad_TPF_phi(i_phi) = total_radiation_phi(i_phi)/(sum(total_radiation_phi)/n_plane)
+    end do
     open(20,file="total_radiation_phi.dat",action="write",position="append")
     write(20,*) '# time', t_now
     do i_phi = 1, n_plane
-      write(20,'(1e14.6)') total_radiation_phi(i_phi)
+      write(20,'(2e14.6)') total_radiation_phi(i_phi)/1.d6, rad_TPF_phi(i_phi)
     end do
+    close (20)
+
+    open(20,file="total_radiation_vs_rad_TPF.dat",action="write",position="append")
+    write(20,'(i14,3e14.6)') index_now, xt, maxval(rad_TPF_phi), total_radiation
     close (20)
   end if
 
