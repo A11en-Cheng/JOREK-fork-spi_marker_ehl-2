@@ -2247,7 +2247,8 @@ module exec_commands
  
     call int3d_wproj(0, node_list, element_list, bnd_node_list, bnd_elm_list, aux_node_list, expr_list, res, units)        
 
-   
+    if(allocated(aux_node_list)) deallocate(aux_node_list)
+    if(allocated(res)) deallocate(res)
   end subroutine rad_TPF_marker
  
 
