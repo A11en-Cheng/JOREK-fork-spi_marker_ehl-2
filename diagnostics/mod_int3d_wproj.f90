@@ -175,7 +175,7 @@ real*8  :: source_bg_arr(n_inj_max), source_imp_arr(n_inj_max), source_bg_drift_
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 real*8  :: local_radiation, local_radiation_bg, local_E_ion, total_radiation, total_radiation_bg, total_E_ion, local_P_ei, total_P_ei
 real*8  :: local_P_ion, total_P_ion
-real*8  :: local_radiation_phi(n_plane), total_radiation_phi(n_plane), rad_TPF_phi(n_plane), nimp_TPF_phi(n_plane)
+real*8  :: local_radiation_phi(n_plane), total_radiation_phi(n_plane), rad_TPF_phi(n_plane)
 real*8  :: local_nimp_phi(n_plane), total_nimp_phi(n_plane), nimp_TPF_phi(n_plane)
 real*8  :: ne_SI, Te_eV, Te_corr_eV, Ti_eV
 
