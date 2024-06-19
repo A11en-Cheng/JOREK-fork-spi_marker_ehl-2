@@ -32,13 +32,13 @@ do i=1,4 ! Loop over sides of element 1
     n2 = elm2%vertex(mod([j-1,j],4)+1)
     ! If match cross or straight (i.e. 1->2/2->1 or 1->1/2->2)
     ! Four different cases
-    if      (n1(1) .eq. n2(2)) then
+    if            (node_same_pos(node_list, n1(1), n2(2))) then
       neighbours = node_same_pos(node_list, n1(2), n2(1))
-    else if (n1(2) .eq. n2(1)) then
+    else if       (node_same_pos(node_list, n1(2), n2(1))) then
       neighbours = node_same_pos(node_list, n1(1), n2(2))
-    else if (n1(1) .eq. n2(1)) then
+    else if       (node_same_pos(node_list, n1(1), n2(1))) then
       neighbours = node_same_pos(node_list, n1(2), n2(2))
-    else if (n1(2) .eq. n2(2)) then
+    else if       (node_same_pos(node_list, n1(2), n2(2))) then
       neighbours = node_same_pos(node_list, n1(1), n2(1))
     end if
     if (neighbours) then
@@ -198,7 +198,13 @@ end subroutine coord_in_neighbour
 
 
 subroutine update_neighbours(node_list, element_list, force_rtree_initialize)
-use mod_element_rtree, only: rtree_initialized, populate_element_rtree, nearby_elements
+#ifdef USE_NO_TREE  
+use mod_no_tree
+#elif USE_QUADTREE
+use mod_quadtree
+#else
+use mod_element_rtree, only: rtree_initialized, populate_element_rtree, nearby_elements  
+#endif
 implicit none
 
 type (type_node_list), intent(in)       :: node_list
@@ -206,12 +212,27 @@ type (type_element_list), intent(inout) :: element_list
 logical, intent(in), optional           :: force_rtree_initialize !< default false
 
 type (type_element)      :: elm_i, elm_j
-integer                  :: inb_i, inb_j, i, j, k
+integer                  :: inb_i, inb_j, i, j, k, iv1, iv2
 integer                  :: i_elm, j_elm, i_node1, i_node2
 real*8                   :: s_i, t_i, R_i, Rs_i, Rt_i, Rst_i, Rss_i, Rtt_i, Z_i, Zs_i, Zt_i, Zst_i,Zss_i,Ztt_i
 real*8                   :: s_j, t_j, R_j, Rs_j, Rt_j, Rst_j, Rss_j, Rtt_j, Z_j, Zs_j, Zt_j, Zst_j,Zss_j,Ztt_j
 integer, dimension(:), allocatable :: i_nearby
+real*8 :: t0, t1, t2
 
+call cpu_time(t0)
+
+#ifdef USE_NO_TREE
+call no_tree_init(node_list, element_list)
+#elif USE_QUADTREE
+if (present(force_rtree_initialize)) then
+  if (force_rtree_initialize) then
+    call quadtree_free(quadtree)
+    call quadtree_init(node_list, element_list)
+  endif
+else if (quadtree%depth .eq. 0) then
+call quadtree_init(node_list, element_list)
+end if
+#else 
 ! Be careful here. If the grid changes the information will be incorrect and you
 ! need to manually call populate_element_rtree
 if (present(force_rtree_initialize)) then
@@ -219,19 +240,44 @@ if (present(force_rtree_initialize)) then
 else if (.not. rtree_initialized) then
   call populate_element_rtree(node_list, element_list)
 end if
+#endif
 
-!$omp parallel default(none) private(i,k,j,i_node1,i_node2,inb_i,inb_j,i_nearby) shared(element_list,node_list)
+call cpu_time(t1)
 
+!$omp parallel default(none) private(i,k,j,i_node1,i_node2,inb_i,inb_j,i_nearby, iv1, iv2) shared(element_list,node_list)
 !$omp do
 do i=1, element_list%n_elements
   element_list%element(i)%neighbours(:) = 0
+#ifdef USE_NO_TREE
+  call nearby_elements_no_tree(node_list, element_list, i, i_nearby)
+#elif USE_QUADTREE
+  call nearby_elements_quadtree(node_list, element_list, i, i_nearby)
+#else
   call nearby_elements(node_list, element_list, i, i_nearby)
+#endif
   do k=1,size(i_nearby,1)
     j = i_nearby(k)
     if (i .eq. j) cycle
 
     if  (neighbours(node_list, element_list%element(i), element_list%element(j),inb_i,inb_j)) then
       element_list%element(i)%neighbours(inb_i) = j
+    endif
+  enddo
+
+! check if all neighbours have been found
+  do j=1,4
+    if (element_list%element(i)%neighbours(j) .le. 0) then
+      iv1 = element_list%element(i)%vertex(j)
+      iv2 = element_list%element(i)%vertex(mod(j,4)+1)
+      if ((node_list%node(iv1)%boundary .ne. 0) .and. (node_list%node(iv2)%boundary .ne.0) ) then
+        ;     ! this is a boundary, should not have a neighbour
+      elseif ((sqrt( (node_list%node(iv1)%x(1,1,1) - node_list%node(iv2)%x(1,1,1))**2 &
+                    +(node_list%node(iv1)%x(1,1,2) - node_list%node(iv2)%x(1,1,2))**2) .lt. 1d-8) ) then
+        ;     ! these two corners of the element are coinciding, thus no neighbour
+      else
+        write(*,*) 'ERROR neighbours : ',i,j,element_list%element(i)%neighbours(j)
+        write(*,*) 'boundary check ',iv1,iv2,node_list%node(iv1)%boundary,node_list%node(iv2)%boundary
+      endif
     endif
   enddo
 enddo
@@ -259,5 +305,9 @@ do i=1, element_list%n_elements
 enddo
 !$omp end do
 !$omp end parallel
+call cpu_time(t2)
+
+write(*,'(A,e12.4)') 'neighbours cpu_time, init tree      : ',t1-t0 
+write(*,'(A,e12.4)') 'neighbours cpu_time, init neighbours: ',t2-t1 
 end subroutine update_neighbours
 end module mod_neighbours

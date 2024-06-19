@@ -47,6 +47,7 @@ program jorek2_postproc
   call set_setting('nsub_vtk',        '4',     ierr, 'number of element subdivisions for vtk plots       ')
   call set_setting('vtk_phi_value',   '0',     ierr, 'phi value at which the 2D vtk is computed          ')
   call set_setting('only_itor',      '-1',     ierr, 'select a single toroidal harmonic for calculations ')
+  call set_setting('exclude_n0',      'false', ierr, 'when true, excludes the axisymmetric part(n = 0)   ') 
   
   ! --- Print getting started information
   call specific_help('getting_started')

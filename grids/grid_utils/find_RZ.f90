@@ -4,7 +4,13 @@ subroutine find_RZ(node_list,element_list,R_find,Z_find,R_out,Z_out,ielm_out,s_o
 !< Return the first result.
 !-------------------------------------------------------------------------
 use data_structure
-use mod_element_rtree, only: elements_containing_point
+#ifdef USE_NO_TREE
+use mod_no_tree
+#elif USE_QUADTREE
+use mod_quadtree
+#else
+use mod_element_rtree, only: elements_containing_point  
+#endif
 implicit none
 
 type (type_node_list), intent(in)    :: node_list
@@ -18,7 +24,13 @@ integer :: k
 integer, dimension(:), allocatable :: i_elms
 
 ielm_out = 0
+#ifdef USE_NO_TREE
+call elements_containing_point_no_tree(R_find, Z_find, i_elms)
+#elif USE_QUADTREE
+call elements_containing_point_quadtree(R_find, Z_find, i_elms)
+#else
 call elements_containing_point(R_find, Z_find, i_elms)
+#endif
 
 ! then loop through all
 do k=1,size(i_elms)
