@@ -16,7 +16,13 @@ subroutine initial_grid(node_list, element_list, bnd_node_list, bnd_elm_list, my
   use data_structure
   use mpi_mod
   use mod_boundary, only: boundary_from_grid
+#ifdef USE_NO_TREE
+  use mod_no_tree
+#elif USE_QUADTREE
+  use mod_quadtree
+#else
   use mod_element_rtree, only: populate_element_rtree
+#endif
   use mod_exchange_indices
   
   implicit none
@@ -72,8 +78,14 @@ subroutine initial_grid(node_list, element_list, bnd_node_list, bnd_elm_list, my
     
     ! --- Determine boundary information from the grid
     call boundary_from_grid(node_list, element_list, bnd_node_list, bnd_elm_list, .false.)
+    
+#ifdef USE_NO_TREE
+    call no_tree_init(node_list,element_list)
+#elif USE_QUADTREE
+    call quadtree_init(node_list, element_list)
+#else
     call populate_element_rtree(node_list, element_list)
-
+#endif
     call tr_debug_write("JMAIN:Def_grid elt_list",element_list%n_elements)
     call tr_debug_write("JMAIN:Def_grid node_list",node_list%n_nodes)
     call tr_debug_write("JMAIN:Def_grid bnd_elt_list",bnd_elm_list%n_bnd_elements)

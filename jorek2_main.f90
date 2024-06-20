@@ -41,7 +41,13 @@ program JOREK2
   use mod_global_matrix_structure
   use mod_import_restart
   use mod_export_restart
+#ifdef USE_NO_TREE
+  use mod_no_tree
+#elif USE_QUADTREE
+  use mod_quadtree
+#else
   use mod_element_rtree, only: populate_element_rtree
+#endif
   use mod_interp
   use basis_at_gaussian, only: initialise_basis
   use mod_expression, only: exprs_all_int, init_expr
@@ -340,8 +346,15 @@ mpi_required = 0
     call broadcast_phys(my_id)  
     if(freeboundary) call broadcast_vacuum(my_id, resistive_wall)
   end if
+
+#ifdef USE_NO_TREE
+  call no_tree_init(node_list,element_list)
+#elif USE_QUADTREE
+  call quadtree_init(node_list, element_list)
+#else
   call populate_element_rtree(node_list, element_list)
-  
+#endif
+
   !***********************************************************************
   !*                  define grid / equilibrium                          *
   !***********************************************************************
@@ -478,7 +491,13 @@ mpi_required = 0
   call broadcast_nodes(my_id, node_list)                      ! nodes
 
   ! Let every mpi proc calculate this
+#ifdef USE_NO_TREE
+  call no_tree_init(node_list, element_list)
+#elif USE_QUADTREE
+  call quadtree_init(node_list, element_list)
+#else
   call populate_element_rtree(node_list, element_list)
+#endif
 
   call broadcast_phys(my_id)                                  ! physics parameters
 
