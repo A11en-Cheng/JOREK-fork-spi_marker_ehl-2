@@ -41,7 +41,7 @@ module mod_integrals3D
   contains
 
 
-subroutine int3d_new(my_id, node_list, element_list, bnd_node_list, bnd_elm_list, expr_list, res, units, aux_node_list, exclude_n0)
+subroutine int3d_new(my_id, node_list, element_list, bnd_node_list, bnd_elm_list, expr_list, res, units, exclude_n0, aux_node_list)
 
 !$ use omp_lib
  
@@ -2397,6 +2397,9 @@ q02 = qval(2)
 q95 = qval(3)
 q99 = qval(4) 
 
+if(allocated(surface_list%psi_values)) deallocate(surface_list%psi_values)
+if(allocated(qval))deallocate(qval)
+if(allocated(radav))deallocate(radav)
 
 if (my_id .eq. 0) then 
 

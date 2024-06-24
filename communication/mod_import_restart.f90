@@ -2355,8 +2355,9 @@ subroutine import_hdf5_restart_aux(aux_node_list, filename, format_rst, error)
   write(*,*) '****************************************'
 
   ! -> Deallocate temporary arrays 
-  call tr_deallocate(t_x,"t_x",CAT_UNKNOWN)
-  call tr_deallocate(t_values,"t_values",CAT_UNKNOWN)
+  call tr_deallocate(t_x,"aux_node_list%x",CAT_UNKNOWN)
+  call tr_deallocate(t_values,"aux_node_list%values",CAT_UNKNOWN)
+  call tr_deallocate(mode_tmp,"mode_tmp",CAT_UNKNOWN)
 
 #else
   write (6,*) " ERROR: trying to import with hdf5 but USE_HDF5 was not set at compile-time"

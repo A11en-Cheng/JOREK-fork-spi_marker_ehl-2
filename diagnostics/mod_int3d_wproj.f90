@@ -175,7 +175,8 @@ real*8  :: source_bg_arr(n_inj_max), source_imp_arr(n_inj_max), source_bg_drift_
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 real*8  :: local_radiation, local_radiation_bg, local_E_ion, total_radiation, total_radiation_bg, total_E_ion, local_P_ei, total_P_ei
 real*8  :: local_P_ion, total_P_ion
-real*8  :: local_radiation_phi(n_plane), total_radiation_phi(n_plane)
+real*8  :: local_radiation_phi(n_plane), total_radiation_phi(n_plane), rad_TPF_phi(n_plane)
+real*8  :: local_nimp_phi(n_plane), total_nimp_phi(n_plane), nimp_TPF_phi(n_plane)
 real*8  :: ne_SI, Te_eV, Te_corr_eV, Ti_eV
 
 ! SPI-related variables
@@ -343,6 +344,7 @@ local_n_particles     = 0.d0
 local_radiation       = 0.d0
 local_radiation_bg    = 0.d0
 local_radiation_phi   = 0.d0
+local_nimp_phi        = 0.d0
 local_E_ion           = 0.d0
 local_P_ei            = 0.d0
 local_P_ion           = 0.d0
@@ -414,7 +416,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp          ns_phi, ns_radius, ns_deltaphi, ns_delta_minor_rad, ns_tor_norm, spi_tor_rot, local_E_ion,  &
 !$omp          t_now, A_Dmv, K_Dmv, V_Dmv, P_Dmv, t_ns, L_tube, JET_MGI,ASDEX_MGI, local_P_ion,&
 !$omp          local_radiation, local_radiation_phi, imp_cor, imp_adas, imp_type, local_P_ei,  &
-!$omp          n_adas, nimp_bg, local_radiation_bg,                                            &
+!$omp          n_adas, nimp_bg, local_radiation_bg, local_nimp_phi,                            &
 #endif
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
 !$omp          ksi_ion, use_imp_adas,                                                   &
@@ -488,6 +490,7 @@ omp_tid      = 0
 !$omp                local_n_particles_inj,  local_n_particles,                               &
 !$omp                local_radiation, local_radiation_phi, local_E_ion, local_P_ei, local_P_ion, &
 !$omp                local_source_volume, local_source_volume_drift, local_radiation_bg,      &
+!$omp                local_nimp_phi,                                                          &
 #endif
 !$omp                D_int, D_ext, P_int, H_int, S_int, H_ext, S_ext, P_ext, C_intern, C_ext, &
 !$omp                P_e_int, P_i_int, P_e_ext, P_i_ext, P_e_tot, P_i_tot,                    &
@@ -1044,6 +1047,7 @@ do ife = ife_min, ife_max
                           * bigR * xjac * wst * delta_phi
 
         if (use_marker) then
+            local_nimp_phi(mp) = local_nimp_phi(mp) +  (rimp0_corr*m_i_over_m_imp*central_density) * bigr * xjac * wst * delta_phi  
             local_radiation_phi(mp) = local_radiation_phi(mp) +  (eq_aux_g(mp,2,ms,mt)/(MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * MASS_PROTON * CENTRAL_DENSITY * 1.d20))) * bigr * xjac * wst * delta_phi  
             local_radiation         = local_radiation         +  (eq_aux_g(mp,2,ms,mt)/(MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * MASS_PROTON * CENTRAL_DENSITY * 1.d20))) * bigr * xjac * wst * delta_phi 
         endif
@@ -2073,6 +2077,8 @@ call MPI_AllReduce(local_P_ei, total_P_ei,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COM
 call MPI_AllReduce(local_P_ion, total_P_ion,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(local_radiation_phi, total_radiation_phi,n_plane,&
                    MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_nimp_phi, total_nimp_phi,n_plane,&
+                   MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 #endif /* (defined WITH_Neutrals) || (defined WITH_Impurities) */
 #else /* NOMPIVERSION */
 density_in           = D_int
@@ -2137,6 +2143,7 @@ total_E_ion          = local_E_ion
 total_P_ei           = local_P_ei
 total_P_ion          = local_P_ion
 total_radiation_phi  = local_radiation_phi
+total_nimp_phi       = local_nimp_phi
 #endif /* (defined WITH_Neutrals) || (defined WITH_Impurities) */
 #endif /* NOMPIVERSION */
 
@@ -2292,6 +2299,7 @@ area                 = n_period * area / (2.d0 * PI)
 total_radiation     = n_period * total_radiation
 total_radiation_bg  = n_period * total_radiation_bg
 total_radiation_phi = n_period * total_radiation_phi
+total_nimp_phi      = n_period * total_nimp_phi
 total_E_ion         = n_period * total_E_ion
 total_P_ei          = n_period * total_P_ei
 total_P_ion         = n_period * total_P_ion
@@ -2358,6 +2366,9 @@ q02 = qval(2)
 q95 = qval(3)
 q99 = qval(4) 
 
+if(allocated(surface_list%psi_values)) deallocate(surface_list%psi_values)
+if(allocated(qval))deallocate(qval)
+if(allocated(radav))deallocate(radav)
 
 if (my_id .eq. 0) then 
 
@@ -2782,11 +2793,19 @@ if (my_id .eq. 0) then
   end if
 
   if (use_marker) then          !output radiation at each plane  TODO: SI units
+    do i_phi = 1, n_plane
+      rad_TPF_phi(i_phi) = total_radiation_phi(i_phi)/(sum(total_radiation_phi)/n_plane)
+      nimp_TPF_phi(i_phi) = total_nimp_phi(i_phi)/(sum(total_nimp_phi)/n_plane)
+    end do
     open(20,file="total_radiation_phi.dat",action="write",position="append")
     write(20,*) '# time', t_now
     do i_phi = 1, n_plane
-      write(20,'(1e14.6)') total_radiation_phi(i_phi)
+      write(20,'(4e14.6)') total_radiation_phi(i_phi)/1.d6, rad_TPF_phi(i_phi), total_nimp_phi(i_phi), nimp_TPF_phi(i_phi)
     end do
+    close (20)
+
+    open(20,file="total_radiation_vs_rad_TPF.dat",action="write",position="append")
+    write(20,'(i14,4e14.6)') index_now, xt, maxval(rad_TPF_phi), total_radiation, maxval(nimp_TPF_phi) 
     close (20)
   end if
 
