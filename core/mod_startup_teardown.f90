@@ -12,6 +12,7 @@ subroutine initialise(my_id, n_cpu, skip_help)
   use basis_at_gaussian
   use mod_openadas, only : read_adf11
   use mod_impurity, only : init_imp_adas
+  use mod_plasma_functions, only: initialise_reference_parameters
 
 #if ((defined WITH_Neutrals) && (!defined WITH_Impurities))
   use mod_neutral_source
@@ -95,6 +96,8 @@ subroutine initialise(my_id, n_cpu, skip_help)
   call init_imp_adas(my_id)
 #endif
 
+  ! --- Initialize derived reference parameters
+  call initialise_reference_parameters()
   
   ! --- Define the basis functions at the Gaussian points
   call initialise_basis()
