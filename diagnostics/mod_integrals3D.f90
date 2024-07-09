@@ -988,14 +988,14 @@ do ife = ife_min, ife_max
           Z_eff      = Z_eff / n_imp
 
           ! This is the total derivative of n_imp*Z_imp, need to separate the two
-          Z_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,4,ms,mt) - y_s(mp,ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
-          Z_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,4,ms,mt) + x_s(mp,ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
+          Z_imp_x    = (   y_t(mp,ms,mt) * eq_aux_s(mp,4,ms,mt) - y_s(mp,ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
+          Z_imp_y    = ( - x_t(mp,ms,mt) * eq_aux_s(mp,4,ms,mt) + x_s(mp,ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
           Z_imp_p    = eq_aux_p(mp,4,ms,mt)
           Z_imp_s    = eq_aux_s(mp,4,ms,mt)
           Z_imp_t    = eq_aux_t(mp,4,ms,mt)
 
-          n_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,5,ms,mt) - y_s(mp,ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
-          n_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,5,ms,mt) + x_s(mp,ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
+          n_imp_x    = (   y_t(mp,ms,mt) * eq_aux_s(mp,5,ms,mt) - y_s(mp,ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
+          n_imp_y    = ( - x_t(mp,ms,mt) * eq_aux_s(mp,5,ms,mt) + x_s(mp,ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
           n_imp_p    = eq_aux_p(mp,5,ms,mt)
           n_imp_s    = eq_aux_s(mp,5,ms,mt)
           n_imp_t    = eq_aux_t(mp,5,ms,mt)
