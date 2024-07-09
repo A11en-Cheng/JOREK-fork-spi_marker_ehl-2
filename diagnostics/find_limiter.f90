@@ -49,6 +49,13 @@ if ( my_id == 0 ) then
   write(*,*) '*********************************'
 end if
 
+#if STELLARATOR_MODEL
+! Psi cannot be used to define the limiter in stellarator cases
+psi_lim = 1.d0
+R_lim   = 0.d0
+Z_lim   = 0.d0
+ifail   = 1
+#else
 if (.not. ES%initialized) then    
   call find_axis(99, node_list, element_list, psi_axis, R_axis, Z_axis, i_elm_axis, s_axis, &
   t_axis, ifail_axis)
@@ -306,6 +313,7 @@ else
     ifail   = 1
   endif
 endif
+#endif
 
 if ( my_id == 0 ) then
   121 format(1x,a,' =',f15.7)

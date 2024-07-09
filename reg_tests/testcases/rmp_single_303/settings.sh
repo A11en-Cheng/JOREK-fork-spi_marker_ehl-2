@@ -11,14 +11,14 @@ extra_remote_files="RMP_psi_cos_JET_N3.txt RMP_psi_sin_JET_N3.txt RMP_start_time
 # --- Compile the code for the test case
 function compile_jorek () {
   if [ "$initialrun" == "yes" ]; then
-    ./util/config.sh model=$jorekmodel n_tor=1 n_plane=1 n_period=12                 || exit 1
-    make $compilopt $debugoptions jorek_model${jorekmodel}                           || exit 1
-    mv jorek_model${jorekmodel} jorek_model${jorekmodel}_1                           || exit 1
-    make cleanall                                                                    || exit 1
+    ./util/config.sh model=$jorekmodel n_tor=1 n_coord_tor=1 l_pol_domm=0 n_plane=1 n_period=12 n_coord_period=1 || exit 1
+    make $compilopt $debugoptions jorek_model${jorekmodel}                                                       || exit 1
+    mv jorek_model${jorekmodel} jorek_model${jorekmodel}_1                                                       || exit 1
+    make cleanall                                                                                                || exit 1
   fi
-  ./util/config.sh model=$jorekmodel n_tor=3 n_plane=4 n_period=3                    || exit 1
-  make $compilopt $debugoptions jorek_model${jorekmodel}                             || exit 1
-  mv jorek_model${jorekmodel} jorek_model${jorekmodel}_3                             || exit 1
+  ./util/config.sh model=$jorekmodel n_tor=3 n_coord_tor=1 l_pol_domm=0 n_plane=4 n_period=3 n_coord_period=1 || exit 1
+  make $compilopt $debugoptions jorek_model${jorekmodel}                                                      || exit 1
+  mv jorek_model${jorekmodel} jorek_model${jorekmodel}_3                                                      || exit 1
 }
 
 

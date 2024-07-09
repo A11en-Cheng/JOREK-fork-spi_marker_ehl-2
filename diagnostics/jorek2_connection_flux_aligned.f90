@@ -1,24 +1,26 @@
 program jorek2_connection_flux_aligned
-  !-----------------------------------------------------------------------
-  ! This routine is a modified version of jorek2_poincare. Field lines are traced around the simulated domain in order
-  ! to determine the distance travelled before reaching the simulation boundary, or an arbitrary psi_n flux surface
-  ! within the plasma.
-  !
-  ! Currently the diagnostic calculates the connection length and strike points on the set end boundary.
-  ! 
-  ! STEPS:
-  ! 1.  Read input parameters from connect.nml and distribute start points among MPI tasks.
-  ! 2.  Loop over start points
-  !   3. Trace field lines around torus for a pre-set number of turns using a pre-set number of steps.
-  !      4. Loop over max turns and steps per turn
-  !        5. Perform step.
-  !        6. Check if element boundary is crossed.
-  !        7. If end boundary is crossed - signal to break and start new field line
-  !      8. Record turn based data for poincares. 
-  ! 9.  Write out poincare 
-  ! 10. Write connection length
-  ! 11. Write strike points
-  !-----------------------------------------------------------------------
+ !> This routine is a modified version of jorek2_poincare, which works for tokamak and stellarator 
+ !! models. 
+ !!
+ !! Field lines are traced around the simulated domain in order to determine the distance travelled 
+ !! before reaching the simulation boundary, or a radial coordinate for an approximate flux surface 
+ !! within the plasma.
+ !!
+ !! Currently the diagnostic calculates the connection length and strike points on the prescribed radial
+ !! end boundary.
+ !! 
+ !! STEPS:
+ !! 1.  Read input parameters from connect.nml and distribute start points among MPI tasks.
+ !! 2.  Loop over start points
+ !!   3. Trace field lines around torus for a pre-set number of turns using a pre-set number of steps.
+ !!      4. Loop over max turns and steps per turn
+ !!        5. Perform step.
+ !!        6. Check if element boundary is crossed.
+ !!        7. If end boundary is crossed - signal to break and start new field line
+ !!      8. Record turn based data for poincares. 
+ !! 9.  Write out poincare 
+ !! 10. Write connection length
+ !! 11. Write strike points
   use data_structure
   use phys_module
   use basis_at_gaussian
@@ -30,6 +32,7 @@ program jorek2_connection_flux_aligned
   use mod_neighbours
   use mod_interp
   use equil_info
+  use mod_chi
   
   implicit none
 
@@ -38,7 +41,8 @@ program jorek2_connection_flux_aligned
   type (type_bnd_node_list)              :: bnd_node_list 
   
   ! --- Poincare data
-  real*8,allocatable  :: rp(:), zp(:), R_all(:), Z_all(:), psin_all(:), C_all(:)                        ! arrays for position variables, and connection length for all lines
+  real*8,allocatable  :: rp(:), zp(:), R_all(:), Z_all(:), rcoord_all(:), C_all(:)                      ! arrays for position variables, and connection length for all lines
+  real*8,allocatable  :: rcoord_min_all(:), rcoord_max_all(:)                                           ! array of minimum and maximum radial location reached by field line
   real*8,allocatable  :: R_strike(:),  Z_strike(:), P_strike(:)                                         ! position of strike points
   real*8,allocatable  :: C_strike(:),  B_strike(:)                                                      ! connection length, boundary type at strike points
   real*8,allocatable  :: T0_strike(:), T_strike(:)                                                      ! temperature at start and end of fieldline
@@ -47,9 +51,9 @@ program jorek2_connection_flux_aligned
   real*8,allocatable  :: in_domain_strike(:)                                                            ! Determine if field line is inside the domain
   real*8,allocatable  :: R_turn(:,:), Z_turn(:,:), C_turn(:,:), C_turn_tmp(:,:)                         ! position, and connection length of field line after each turn
   real*8,allocatable  :: T_turn(:,:), PSI_turn(:,:), ZN_turn(:,:)                                       ! physical parameters of field line after each turn
-  
+
   ! --- Extra data
-  integer   :: ntheta, npsin
+  integer   :: ntheta, n_rcoord
   integer   :: my_id, ikeep, n_cpu, ierr, nsend, nrecv, ikeep0, i_line0
   integer   :: thetas_per_cpu, local_theta_start, local_theta_end
   integer   :: nnos, i_var, i_strike, i_strike0
@@ -57,20 +61,21 @@ program jorek2_connection_flux_aligned
   integer   :: i_elm, i_elm_start, ifail, i_phi, n_phi, i_turn, n_turns, i_elm_out, i_elm_prev, i_steps, n_turn_max(2)
   integer   :: v_s0_t0, v_s1_t0, v_s1_t1, v_s0_t1                                                        ! vertex indices for local element vertices
   integer   :: e_splus, e_sminus, e_tplus, e_tminus                                                      ! edge indices for local element neighbours
-  real*8    :: delta_theta, delta_psin
+  real*8    :: delta_theta, delta_rcoord
   real*8    :: R_start, Z_start, phi_start
   real*8    :: R_line, Z_line, s_line, t_line, p_line
+  real*8    :: rcoord_min, rcoord_max
   real*8    :: s_mid, t_mid, p_mid
   real*8    :: s_ini, t_ini
   real*8    :: s_out, t_out
-  real*8    :: R, R_s, R_t, R_st, R_ss, R_tt, R_in, R_keep, Rmid, Rmid_s, Rmid_t
-  real*8    :: Z, Z_s, Z_t, Z_st, Z_ss, Z_tt, Z_in, Z_keep, Zmid, Zmid_s, Zmid_t
-  real*8    :: P, P_s, P_t, P_st, P_ss, P_tt
+  real*8    :: R, R_s, R_t, R_p, R_in, R_keep, Rmid, Rmid_s, Rmid_t
+  real*8    :: Z, Z_s, Z_t, Z_p, Z_in, Z_keep, Zmid, Zmid_s, Zmid_t
+  real*8    :: P, P_s, P_t, P_st, P_ss, P_tt, dummy
   real*8    :: tol, psi_s, psi_t
-  real*8    :: psin_range_min, psin_range_max
+  real*8    :: rcoord_range_min, rcoord_range_max
   real*8    :: Rmin, Rmax
   real*8    :: Zmin, Zmax
-  real*8    :: psin_strike_bnd
+  real*8    :: rcoord_strike_bnd
   real*8    :: delta_phi, delta_phi_local, delta_phi_step, total_phi
   real*8    :: delta_s, small_delta_s
   real*8    :: delta_t, small_delta_t
@@ -87,18 +92,18 @@ program jorek2_connection_flux_aligned
   logical, parameter  :: Rtheta_plot = .true.
   integer   :: n_points_max
   real*8    :: R_tmp,Z_tmp
-  real*8    :: psi_tmp,psin_tmp, P0_s,P0_t,P0_st,P0_ss,P0_tt
+  real*8    :: rcoord_tmp, P0_s,P0_t,P0_st,P0_ss,P0_tt
   integer   :: ielm_tmp
 
   ! Data for find starting point routine
-  real*8  :: theta_start, psin_start, previous_r_lower, previous_r_upper                                    
+  real*8  :: theta_start, rcoord_start, previous_r_lower, previous_r_upper                                    
 
   ! -------------------------------------------------------------------------------------------------
   ! --- First part: Initialisation
   ! -------------------------------------------------------------------------------------------------
-  namelist /connect_params/ n_turns, n_phi, ntheta, npsin, phi_start, tol, psin_range_min, psin_range_max, psin_strike_bnd
+  namelist /connect_params/ n_turns, n_phi, ntheta, n_rcoord, phi_start, tol, rcoord_range_min, rcoord_range_max, rcoord_strike_bnd
 
-#define DEBUG
+#define DEGUB_Connection
 
   ! --- MPI initilisation
   call MPI_INIT(IERR)
@@ -113,11 +118,10 @@ program jorek2_connection_flux_aligned
   endif
   
   ! --- Initilise data
+  call det_modes()
   call initialise_basis                                     ! define the basis functions at the Gaussian points
+  call init_chi_basis
   call initialise_parameters(my_id, "__NO_FILENAME__")
-  do i_tor=1, n_tor
-    mode(i_tor) = + int(i_tor / 2) * n_period
-  enddo
   
   call broadcast_phys(my_id)                                ! physics parameters
   call import_restart(node_list, element_list, 'jorek_restart', rst_format, ierr)
@@ -126,8 +130,7 @@ program jorek2_connection_flux_aligned
   ! --- Broadcast accross MPIs
 !  call broadcast_elements(my_id, element_list)              ! elements
 !  call broadcast_nodes(my_id, node_list)                    ! nodes
-  call populate_element_rtree(node_list, element_list)       ! populate tree for all mpi tasks
-
+  call populate_element_rtree(node_list, element_list)       ! popc
   ! --- Define element neighbours
   allocate(element_neighbours(4,element_list%n_elements))
   element_neighbours = 0
@@ -160,36 +163,36 @@ program jorek2_connection_flux_aligned
   tol         = 1.d-6                       ! tolerance when stepping from element to element
   phi_start   = PI/4.                       ! starting toroidal angle
   ntheta      = 500                         ! number of poloidal starting points on each flux surface
-  npsin       = 25                          ! number of radial starting points on each flux surface
-  psin_range_min = 0.d0                     ! Minimum psin value
-  psin_range_max = 0.995                    ! Maximym psin value - should be smaller than psin_strike_bnd
-  psin_strike_bnd = 1.0                     ! Boundary location outside of which field lines are no longer traced and strike points are recorded
+  n_rcoord       = 25                       ! number of radial starting points on each flux surface
+  rcoord_range_min = 0.d0                   ! Minimum rcoord value
+  rcoord_range_max = 0.995                  ! Maximym rcoord value - should be smaller than rcoord_strike_bnd
+  rcoord_strike_bnd = 1.0                   ! Boundary location outside of which field lines are no longer traced and strike points are recorded
   open(42, file='connect.nml', action='read', status='old', iostat=ierr)
   if ( ierr == 0 ) then
     if (my_id .eq. 0 ) write(*,*) 'Reading parameters from connect.nml namelist.'
     read(42,connect_params)
     close(42)
   end if
-  n_lines = 2 * ntheta * npsin              ! number of starting points to allocate
-  if (psin_range_max .gt. 0.999) then
-    write(*, *) 'Maximum psi normalised cannot be greater than 0.999. The input value is: ', psin_range_max
+  n_lines = 2 * ntheta * n_rcoord              ! number of starting points to allocate
+  if (rcoord_range_max .gt. 0.999) then
+    write(*, *) 'Maximum normalised radial coordinate cannot be greater than 0.999. The input value is: ', rcoord_range_max
     stop
   end if
 
   ! --- Allocate data
   allocate(R_strike(n_lines),Z_strike(n_lines),P_strike(n_lines),C_strike(n_lines),B_strike(n_lines), in_domain_strike(n_lines))
   allocate(T0_strike(n_lines),T_strike(n_lines),ZN0_strike(n_lines),ZN_strike(n_lines),PS0_strike(n_lines))
-  allocate(R_all(n_lines),Z_all(n_lines),psin_all(n_lines),C_all(n_lines))
+  allocate(R_all(n_lines),Z_all(n_lines),rcoord_all(n_lines),C_all(n_lines),rcoord_min_all(n_lines),rcoord_max_all(n_lines))
   allocate(R_turn(n_turns+1,2),Z_turn(n_turns+1,2),C_turn(n_turns+1,2),C_turn_tmp(n_turns+1,2))
   allocate(T_turn(n_turns+1,2),PSI_turn(n_turns+1,2),ZN_turn(n_turns+1,2))
   n_points_max = 10000000
-  allocate(RZkeep(2,n_points_max),RhoThetakeep(2,n_points_max))
+  allocate(RZkeep(5,n_points_max),RhoThetakeep(5,n_points_max))
 
   ! --- Initialise allocated data
-  R_all     = 0.d0; Z_all     = 0.d0; psin_all=0.d0; C_all = 0.d0;  
+  R_all     = 0.d0; Z_all     = 0.d0; rcoord_all=0.d0;   C_all = 0.d0; rcoord_min_all = 0.d0; rcoord_max_all = 0.d0
   R_strike  = 0.d0; Z_strike  = 0.d0; P_strike  = 0.d0;  C_strike   = 0.d0; in_domain_strike = 0.d0
   T0_strike = 0.d0; T_strike  = 0.d0; ZN0_strike = 0.d0; ZN_strike  = 0.d0; PS0_strike = 0.d0
-  R_turn    = 0.d0; Z_turn    = 0.d0; C_turn  = 0.d0;  C_turn_tmp = 0.d0
+  R_turn    = 0.d0; Z_turn    = 0.d0; C_turn  = 0.d0;    C_turn_tmp = 0.d0
   
   ! --- Get domain limits
   Rmin = 1.d20; Rmax = -1.d20; Zmin = 1.d20; Zmax=-1.d20
@@ -229,7 +232,7 @@ program jorek2_connection_flux_aligned
   
   ! --- Some info print outs
   delta_theta = 2.d0 * PI / ntheta
-  delta_psin = (psin_range_max - psin_range_min) / npsin
+  delta_rcoord = (rcoord_range_max - rcoord_range_min) / n_rcoord
   write(*,*) ' Local MPI poloidal angles (mpi_id, theta_start, theta_end) : ', my_id, local_theta_start * delta_theta, local_theta_end * delta_theta
   
   ! --- Initialise counters
@@ -254,17 +257,13 @@ program jorek2_connection_flux_aligned
     previous_r_upper = 0.05
 
     ! Loop over radial locations
-    do j=1, npsin
+    do j=1, n_rcoord
       ! Get starting R, Z, phi - phi is set arbitrarily
-      psin_start = psin_range_min + j * delta_psin
-      call find_starting_element(i_elm_start, psin_start, ES%psi_axis, psi_bnd, theta_start, ES%R_axis, ES%Z_axis, ES%Z_xpoint, s_ini, t_ini, previous_r_lower, previous_r_upper, R_start, Z_start)
+      rcoord_start = rcoord_range_min + j * delta_rcoord
+      call find_starting_element(i_elm_start, rcoord_start, ES%psi_axis, psi_bnd, theta_start, ES%R_axis, ES%Z_axis, ES%Z_xpoint, s_ini, t_ini, previous_r_lower, previous_r_upper, R_start, Z_start)
 
-      ! ----------------------
-      ! --- We have a new line
-      ! ----------------------
+      ! Increment line count and Initialise temporary data (for the line)
       i_line = i_line + 1
-    
-      ! --- Initialise temporary data (for the line)
       R_turn     = 0.d0
       Z_turn     = 0.d0
       C_turn_tmp = 0.d0
@@ -285,16 +284,17 @@ program jorek2_connection_flux_aligned
         ! --- Record the first point
         R_all(i_line) = R_start
         Z_all(i_line) = Z_start
-        call var_value(i_elm, i_var_psi, s_line, t_line, phi_start, psin_all(i_line))
-        psin_all(i_line) = (psin_all(i_line) - ES%psi_axis) / (psi_bnd - ES%psi_axis)  
+        call get_rcoord(i_elm,s_line,t_line,ES%psi_axis,psi_bnd,rcoord_all(i_line))
 
         R_turn(1,(i_dir+1)/2+1) = R_start
         Z_turn(1,(i_dir+1)/2+1) = Z_start
         C_turn(1,(i_dir+1)/2+1) = 0.d0
-    
+        rcoord_min = rcoord_all(i_line)
+        rcoord_max = rcoord_all(i_line)
+
         ! --- Get variables at start
         call var_value(i_elm, i_var_T, s_line,t_line,phi_start, T_turn  (1,(i_dir+1)/2+1) )
-        PSI_turn(1,(i_dir+1)/2+1) = psin_all(i_line)
+        PSI_turn(1,(i_dir+1)/2+1) = rcoord_all(i_line)
         call var_value(i_elm, i_var_n, s_line,t_line,phi_start, ZN_turn (1,(i_dir+1)/2+1) )
         
         ! --- Set and store starting location
@@ -404,7 +404,7 @@ program jorek2_connection_flux_aligned
                 p_line = p_line + delta_phi_step
           
                 dl2 = (Rmid_s**2 + Zmid_s**2)*delta_s**2 + (Rmid_t**2 + Zmid_t**2)*delta_t**2 + Rmid**2 * delta_phi_step**2
-#ifdef DEBUG
+#ifdef DEGUB_Connection
                 if (dl2 .ne. dl2) then
                   write(*, *) 'NaN detected in dl2!', Rmid_s, Zmid_s, delta_s, Rmid_t, Zmid_t, delta_t, Rmid, delta_phi_step
                   stop
@@ -413,11 +413,12 @@ program jorek2_connection_flux_aligned
 
                 small_delta = 1.d0
     
-                call interp_RZ(node_list,element_list,i_elm,s_line,t_line,R_in,R_s,R_t,R_st,R_ss,R_tt,Z_in,Z_s,Z_t,Z_st,Z_ss,Z_tt)
+                call interp_RZP(node_list,element_list,i_elm,s_line,t_line,p_line,R_in,R_s,R_t,R_p,dummy,dummy,dummy,dummy,dummy,dummy, &
+                                                                                  Z_in,Z_s,Z_t,Z_p,dummy,dummy,dummy,dummy,dummy,dummy)
     
               endif
 
-              ! --- Reset the toroial step
+              ! --- Reset the toroidal step
               delta_phi_local = delta_phi_local + small_delta * delta_phi_step
     
               ! --- Record total lengths
@@ -426,30 +427,21 @@ program jorek2_connection_flux_aligned
 
               ! --- Exit if we stepped out of domain
               if (i_elm .eq. 0) exit
-              
-              call interp(node_list,element_list,i_elm,1,1,s_line,t_line,psi_tmp,P0_s,P0_t,P0_st,P0_ss,P0_tt)
-              psin_tmp = (psi_tmp - ES%psi_axis) / (psi_bnd - ES%psi_axis)
-              if (psin_tmp .gt. psin_strike_bnd) exit
+              call get_rcoord(i_elm,s_line,t_line,ES%psi_axis,psi_bnd,rcoord_tmp)
+              rcoord_min = min(rcoord_min, rcoord_tmp)
+              rcoord_max = max(rcoord_max, rcoord_tmp)
+              if (rcoord_tmp .gt. rcoord_strike_bnd) exit
             enddo  ! end of loop over steps within one element
     
             ! --- Exit if we stepped out of domain
-            if ((i_elm .eq. 0) .or. (psin_tmp .gt. psin_strike_bnd)) exit
+            if ((i_elm .eq. 0) .or. (rcoord_tmp .gt. rcoord_strike_bnd)) exit
           enddo    ! end of a 2Pi turn (or before if end of open field line)
     
           ! --- Exit if we stepped out of domain
           if ((i_elm .eq. 0)) exit
-    
-          ! --- Record Poincare point
-          call interp_RZ(node_list,element_list,i_elm,s_line,t_line,R_in,R_s,R_t,R_st,R_ss,R_tt,Z_in,Z_s,Z_t,Z_st,Z_ss,Z_tt)
-          R_turn(i_turn+1,(i_dir+1)/2+1) = R_in
-          Z_turn(i_turn+1,(i_dir+1)/2+1) = Z_in
-          C_turn_tmp(i_turn+1,(i_dir+1)/2+1) = total_length
-          call var_value(i_elm, i_var_T, s_line,t_line,p_line, T_turn  (i_turn+1,(i_dir+1)/2+1) )
-          call var_value(i_elm, i_var_psi, s_line,t_line,p_line, PSI_turn(i_turn+1,(i_dir+1)/2+1) )
-          call var_value(i_elm, i_var_n, s_line,t_line,p_line, ZN_turn (i_turn+1,(i_dir+1)/2+1) )
           
-          ! Finish line if it has struck the psin based boundary
-          if (psin_tmp .gt. psin_strike_bnd) then
+          ! Finish line if it has struck the rcoord based boundary
+          if (rcoord_tmp .gt. rcoord_strike_bnd) then
             R_strike(i_strike) = R_in
             Z_strike(i_strike) = Z_in
             P_strike(i_strike) = p_line
@@ -458,10 +450,20 @@ program jorek2_connection_flux_aligned
             call var_value(i_elm,i_var_n,s_line,t_line,p_line,ZN_strike(i_strike))
             exit
           endif
+
+          ! --- Record Poincare point
+          call interp_RZP(node_list,element_list,i_elm,s_line,t_line,p_line,R_in,R_s,R_t,R_p,dummy,dummy,dummy,dummy,dummy,dummy, &
+                                                                            Z_in,Z_s,Z_t,Z_p,dummy,dummy,dummy,dummy,dummy,dummy)
+          R_turn(i_turn+1,(i_dir+1)/2+1) = R_in
+          Z_turn(i_turn+1,(i_dir+1)/2+1) = Z_in
+          C_turn_tmp(i_turn+1,(i_dir+1)/2+1) = total_length
+          call var_value(i_elm, i_var_T, s_line,t_line,p_line, T_turn  (i_turn+1,(i_dir+1)/2+1) )
+          call var_value(i_elm, i_var_psi, s_line,t_line,p_line, PSI_turn(i_turn+1,(i_dir+1)/2+1) )
+          call var_value(i_elm, i_var_n, s_line,t_line,p_line, ZN_turn (i_turn+1,(i_dir+1)/2+1) )
         enddo  ! end of loop over toroidal turns
     
         ! --- Field line still in domain, after n_turn turns
-        if ((i_elm .ne. 0) .and. (psin_tmp .lt. psin_strike_bnd)) then
+        if ((i_elm .ne. 0) .and. (rcoord_tmp .lt. rcoord_strike_bnd)) then
           R_strike(i_strike) = R_in
           Z_strike(i_strike) = Z_in
           P_strike(i_strike) = p_line
@@ -470,12 +472,15 @@ program jorek2_connection_flux_aligned
           call var_value(i_elm,i_var_T,s_line,t_line,p_line,T_strike(i_strike))
           call var_value(i_elm,i_var_n,s_line,t_line,p_line,ZN_strike(i_strike))
         endif
-    
-        ! --- Record connection length
+        
+        ! Record connection length and min/max radial extent reached by field line
+        rcoord_max_all(i_line) = max(rcoord_max_all(i_line), rcoord_max)
         if (i_dir .eq. -1) then  
+          rcoord_min_all(i_line) = min(rcoord_all(i_line), rcoord_min)
           C_all(i_line)   = total_length
           partial(1)      = total_length
         else
+          rcoord_min_all(i_line) = min(rcoord_all(i_line), rcoord_min)
           C_all(i_line)   = C_all(i_line)+total_length!min(C_all(i_line),total_length)
           partial(2)      = total_length
         endif
@@ -515,11 +520,17 @@ program jorek2_connection_flux_aligned
               
               if (ikeep .le. n_points_max) then
                 call find_RZ(node_list,element_list,R_turn(i_turn,i_dir),Z_turn(i_turn,i_dir),R_tmp,Z_tmp,ielm_tmp,s_tmp,t_tmp,ifail)
-                call interp(node_list,element_list,ielm_tmp,1,1,s_tmp,t_tmp,psi_tmp,P0_s,P0_t,P0_st,P0_ss,P0_tt)
-                RhoThetakeep(1,ikeep)      = (psi_tmp-ES%psi_axis)/(psi_bnd-ES%psi_axis)!small_r
+                call get_rcoord(i_elm,s_tmp,t_tmp,ES%psi_axis,psi_bnd,rcoord_tmp)
+                RhoThetakeep(1,ikeep)      = rcoord_tmp               !small_r
                 RhoThetakeep(2,ikeep)      = theta_pol / (2.d0*PI)
+                RhoThetakeep(3,ikeep)      = C_all(i_line)
+                RhoThetakeep(4,ikeep)      = rcoord_min_all(i_line)
+                RhoThetakeep(5,ikeep)      = rcoord_max_all(i_line)
                 RZkeep(1,ikeep)            = R_turn(i_turn,i_dir)
                 RZkeep(2,ikeep)            = Z_turn(i_turn,i_dir)
+                RZkeep(3,ikeep)            = C_all(i_line)
+                RZkeep(4,ikeep)            = rcoord_min_all(i_line)
+                RZkeep(5,ikeep)            = rcoord_max_all(i_line)
               else
                 write(*,*) 'Warning! Exceeded maximum number of points',n_points_max
               endif
@@ -557,17 +568,18 @@ program jorek2_connection_flux_aligned
   
   ! --- Open file and write headers
   open(21,file='poinc_R-Z.dat',status='replace')
-  write(21,*) '#  R                 Z'
+  write(21,*) '#  R       Z       Connection Length    min_rho     max_rho'
+  write(21,*) '# For tokamaks     : rho=sqrt(psi_n)'
+  write(21,*) '# For stellarators : rho=sqrt(phi_n)'
   open(22,file='poinc_rho-theta.dat',status='replace')
-  write(22,*) '# rho=sqrt(psi_n)'
-  write(22,*) '# psi_n=(psi - ES%psi_axis)/(psi_bnd - ES%psi_axis)'
-  write(22,*) '#'
-  write(22,*) '#  rho               theta'
+  write(22,*) '#  rho               theta         Connection Length    min_rho     max_rho'
+  write(22,*) '# For tokamaks     : rho=sqrt(psi_n)'
+  write(22,*) '# For stellarators : rho=sqrt(phi_n)'
   
   ! --- Write points for local MPI (id=0)
   if (my_id .eq. 0) then
-    write(21,'(2e18.8)') (RZkeep(1,i),RZkeep(2,i), i=1,ikeep0 )
-    write(22,'(2e18.8)') (RhoThetakeep(1,i),RhoThetakeep(2,i), i=1,ikeep0 )
+    write(21,'(5e18.8)') (RZkeep(1,i),RZkeep(2,i),RZkeep(3,i),RZkeep(4,i),RZkeep(5,i), i=1,ikeep0 )
+    write(22,'(5e18.8)') (RhoThetakeep(1,i),RhoThetakeep(2,i),RhoThetakeep(3,i),RhoThetakeep(4,i),RhoThetakeep(5,i), i=1,ikeep0 )
     write(21,*)
     write(21,*)
     write(22,*)
@@ -580,11 +592,11 @@ program jorek2_connection_flux_aligned
     do j=1,n_cpu-1
       call mpi_recv(ikeep,1, MPI_INTEGER, j, j, MPI_COMM_WORLD, status, ierr)
       if (ikeep .gt. 0) then
-        nrecv = 2*ikeep
+        nrecv = 5*ikeep
         call mpi_recv(RZkeep,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
         call mpi_recv(RhoThetakeep,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
-        write(21,'(2e18.8)') (RZkeep(1,i),RZkeep(2,i), i=1,ikeep0 )
-        write(22,'(2e18.8)') (RhoThetakeep(1,i),RhoThetakeep(2,i), i=1,ikeep0 )
+        write(21,'(5e18.8)') (RZkeep(1,i),RZkeep(2,i),RZkeep(3,i),RZkeep(4,i),RZkeep(5,i), i=1,ikeep0 )
+        write(22,'(5e18.8)') (RhoThetakeep(1,i),RhoThetakeep(2,i),RhoThetakeep(3,i),RhoThetakeep(4,i),RhoThetakeep(5,i), i=1,ikeep0 )
         write(21,*)
         write(21,*)
         write(22,*)
@@ -595,11 +607,12 @@ program jorek2_connection_flux_aligned
     ! --- If this is not mpi_0, we send data to the main MPI 0
     call mpi_send(ikeep, 1, MPI_INTEGER, 0, my_id, MPI_COMM_WORLD, ierr)
     if (ikeep .gt. 0) then
-      nsend = 2*ikeep
+      nsend = 5*ikeep
       call mpi_send(RZkeep, nsend,MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
       call mpi_send(RhoThetakeep, nsend,MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
     endif
   endif
+  deallocate(RZkeep,RhoThetakeep)
 
   ! -------------------------------------------------------------------------------------------------
   ! --- Fourth part: write connection lengths to file
@@ -614,8 +627,12 @@ program jorek2_connection_flux_aligned
 
   ! --- Write points for local MPI (id=0)
   if (my_id .eq. 0) then
-    write(23,*) "# R    Z    Psi_N    Connection_length"
-    write(23,'(4e16.8)') ( (/ R_all(i), Z_all(i), psin_all(i), C_all(i) /),i=1,i_line0)
+#if STELLARATOR_MODEL
+    write(23,*) "# R    Z    sqrt{Phi_N}    Connection_length   min_sqrt{Phi_N}   max_sqrt{Phi_N}"
+#else
+    write(23,*) "# R    Z    sqrt{Psi_N}    Connection_length   min_sqrt{Psi_N}   max_sqrt{Psi_N}"
+#endif
+    write(23,'(6e16.8)') ( (/ R_all(i), Z_all(i), rcoord_all(i), C_all(i), rcoord_min_all(i), rcoord_max_all(i) /),i=1,i_line0)
   endif
   
   ! --- Write points for all other MPIs
@@ -627,9 +644,11 @@ program jorek2_connection_flux_aligned
         nrecv = i_line
         call mpi_recv(R_all,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
         call mpi_recv(Z_all,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
-        call mpi_recv(psin_all,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
+        call mpi_recv(rcoord_all,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
         call mpi_recv(C_all,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
-        write(23,'(4e16.8)') ( (/R_all(i), Z_all(i), psin_all(i), C_all(i) /),i=1,i_line)
+        call mpi_recv(rcoord_min_all,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
+        call mpi_recv(rcoord_max_all,nrecv, MPI_DOUBLE_PRECISION, j, j, MPI_COMM_WORLD, status, ierr)
+        write(23,'(6e16.8)') ( (/R_all(i), Z_all(i), rcoord_all(i), C_all(i), rcoord_min_all(i), rcoord_max_all(i) /),i=1,i_line)
       endif
       write(*, *) 'Received MPI task: ', j
     enddo
@@ -640,13 +659,13 @@ program jorek2_connection_flux_aligned
       nsend = i_line
       call mpi_send(R_all, nsend, MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
       call mpi_send(Z_all, nsend, MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
-      call mpi_send(psin_all, nsend, MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
+      call mpi_send(rcoord_all, nsend, MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
       call mpi_send(C_all, nsend, MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
+      call mpi_send(rcoord_min_all, nsend, MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
+      call mpi_send(rcoord_max_all, nsend, MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
     endif
   endif
   close(23)
-
-  deallocate(RZkeep,RhoThetakeep)
 
   ! -------------------------------------------------------------------------------------------------
   ! -------------------------------------------------------------------------------------------------
@@ -664,7 +683,11 @@ program jorek2_connection_flux_aligned
   
   ! --- Write points for local MPI (id=0)
   if (my_id .eq. 0) then
-    write(23,*) "# R    Z    phi    Psi_N    T    Connection_length    in_domain"
+#if STELLARATOR_MODEL
+    write(23,*) "# R    Z    phi    sqrt{Phi_N}    T    Connection_length    in_domain"
+#else
+    write(23,*) "# R    Z    phi    sqrt{Psi_N}    T    Connection_length    in_domain"
+#endif
     write(23,'(7f22.8)') ( (/ R_strike(i), Z_strike(i), P_strike(i), Ps0_strike(i), T0_strike(i), C_strike(i), in_domain_strike(i) /),i=1,i_strike0)
   endif
   
@@ -710,7 +733,7 @@ end program jorek2_connection_flux_aligned
 ! ----- BEGIN SUBROUTINES --------
 ! --------------------------------
 subroutine find_starting_element(i_elm, &
-                                 psin_start, psi_axis, psi_bnd, theta_start, &
+                                 rcoord_start, psi_axis, psi_bnd, theta_start, &
                                  R_axis, Z_axis, Z_xpoint, &
                                  s_ini, t_ini, &
                                  previous_r_lower, previous_r_upper, &
@@ -728,7 +751,7 @@ subroutine find_starting_element(i_elm, &
 
   ! Input parameters
   integer, intent(inout) :: i_elm                                                                      ! Output element index
-  real*8, intent(in)     :: psin_start, psi_axis, psi_bnd, theta_start                                 ! Required starting psi normalised and poloidal coordinate
+  real*8, intent(in)     :: rcoord_start, psi_axis, psi_bnd, theta_start                               ! Required starting psi normalised and poloidal coordinate
   real*8, intent(in)     :: R_axis, Z_axis                                                             ! Plasma axis
   real*8, intent(in)     :: Z_xpoint(2)                                                                ! xpoint Z location
   real*8, intent(inout)  :: s_ini, t_ini                                                               ! Starting s, t values for line
@@ -738,9 +761,9 @@ subroutine find_starting_element(i_elm, &
   ! local variables
   real*8                 :: r_lower, r_upper, r_tmp                                                    ! Upper and lower bounds for search
   real*8                 :: BigR_tmp, BigR_upper, BigR_lower, Z_upper, Z_lower, Z_tmp                  ! R-Z Coordinates of upper and lower bound
-  real*8                 :: psin_diff, delta_psi_bnd                                                   ! delta psi between upper and lower boundaries and normalising constant for psi
-  real*8                 :: psin_upper, psin_lower, psi_tmp, P0_s,P0_t,P0_st,P0_ss,P0_tt               ! psin_upper, psin_lower and dummy variables for interpolation
-  logical                :: psin_lower_gt_psin_start, psin_upper_lt_psin_start                         ! truth statements for upper and lower bounds
+  real*8                 :: rcoord_diff                                                                ! delta psi between upper and lower boundaries and normalising constant for psi
+  real*8                 :: rcoord_upper, rcoord_lower, rcoord_tmp, P0_s,P0_t,P0_st,P0_ss,P0_tt        ! rcoord_upper, rcoord_lower and dummy variables for interpolation
+  logical                :: rcoord_lower_gt_rcoord_start, rcoord_upper_lt_rcoord_start                 ! truth statements for upper and lower bounds
   logical                :: z_beyond_xpoint                                                            ! logical to test if current bounds are in xpoint region
   integer                :: ifail=0                                                                    ! flag for algorithm failure
   real*8                 :: iter_tol=1.d-8                                                             ! Tolerance for bisection
@@ -748,7 +771,6 @@ subroutine find_starting_element(i_elm, &
   integer                :: sub_iter=0                                                                 ! Number of sub-iterations in algorithm
   integer                :: max_iterations=100                                                         ! maximum iterations in hunting and bisection algorithms
   
-  delta_psi_bnd = psi_bnd - psi_axis
   if (previous_r_lower .ge. previous_r_upper) then
     write(*, *) 'Inconsistent starting values for finding new element: ', previous_r_lower, previous_r_upper
     stop
@@ -763,8 +785,7 @@ subroutine find_starting_element(i_elm, &
     write(*, *) 'Lower find_RZ failed'
     stop
   endif
-  call interp(node_list,element_list,i_elm,1,1,s_ini,t_ini,psin_lower,P0_s,P0_t,P0_st,P0_ss,P0_tt)
-  psin_lower = (psin_lower - psi_axis) / delta_psi_bnd
+  call get_rcoord(i_elm,s_ini,t_ini,psi_axis,psi_bnd,rcoord_lower)
   
   r_upper = previous_r_upper
   BigR_tmp = R_axis + r_upper * cos(theta_start)
@@ -774,20 +795,19 @@ subroutine find_starting_element(i_elm, &
     write(*, *) 'Upper find_RZ failed'
     stop
   endif
-  call interp(node_list,element_list,i_elm,1,1,s_ini,t_ini,psin_upper,P0_s,P0_t,P0_st,P0_ss,P0_tt)
-  psin_upper = (psin_upper - psi_axis) / delta_psi_bnd
+  call get_rcoord(i_elm,s_ini,t_ini,psi_axis,psi_bnd,rcoord_upper)
   
   ! Peform hunting algorithm
   ! Check boundaries are consistent
-  if ((psin_lower .gt. psin_upper) .or. (r_lower .gt. r_upper)) then
-    write(*,*)  "ERROR: Inconsistent input boundaries for hunting algorithm: ", psin_lower, psin_upper, r_lower, r_upper 
+  if ((rcoord_lower .gt. rcoord_upper) .or. (r_lower .gt. r_upper)) then
+    write(*,*)  "ERROR: Inconsistent input boundaries for hunting algorithm: ", rcoord_lower, rcoord_upper, r_lower, r_upper 
     stop
   endif
 
   num_iter = 0
-  psin_lower_gt_psin_start = (psin_lower .gt. psin_start)
-  psin_upper_lt_psin_start = (psin_upper .lt. psin_start)
-  do while ((psin_lower_gt_psin_start .or. psin_upper_lt_psin_start)) 
+  rcoord_lower_gt_rcoord_start = (rcoord_lower .gt. rcoord_start)
+  rcoord_upper_lt_rcoord_start = (rcoord_upper .lt. rcoord_start)
+  do while ((rcoord_lower_gt_rcoord_start .or. rcoord_upper_lt_rcoord_start)) 
     num_iter = num_iter + 1
     if (num_iter .gt. max_iterations) then
       write(*, *) "ERROR: Maximum iterations exceeded in Hunting algorithm"
@@ -795,10 +815,10 @@ subroutine find_starting_element(i_elm, &
     endif
     
     ! Find new boundaries
-    if (psin_lower_gt_psin_start) then
+    if (rcoord_lower_gt_rcoord_start) then
       r_tmp = r_lower
       r_lower = max(0.0, r_lower - 2 * abs(r_upper - r_lower))
-      psin_upper = psin_lower
+      rcoord_upper = rcoord_lower
       r_upper = r_tmp
       BigR_tmp = R_axis + r_lower * cos(theta_start)
       Z_tmp = Z_axis + r_lower * sin(theta_start)
@@ -809,12 +829,11 @@ subroutine find_starting_element(i_elm, &
         write(*, *) 'Lower find_RZ failed'
         stop
       endif
-      call interp(node_list,element_list,i_elm,1,1,s_ini,t_ini,psin_lower,P0_s,P0_t,P0_st,P0_ss,P0_tt)
-      psin_lower = (psin_lower - psi_axis) / delta_psi_bnd
-    else if (psin_upper_lt_psin_start) then
+      call get_rcoord(i_elm,s_ini,t_ini,psi_axis,psi_bnd,rcoord_lower)
+    else if (rcoord_upper_lt_rcoord_start) then
       r_tmp = r_upper
       r_upper = r_upper + 2 * abs(r_upper - r_lower)
-      psin_lower = psin_upper
+      rcoord_lower = rcoord_upper
       r_lower = r_tmp
       BigR_tmp = R_axis + r_upper * cos(theta_start)
       Z_tmp = Z_axis + r_upper * sin(theta_start)
@@ -841,20 +860,19 @@ subroutine find_starting_element(i_elm, &
           .or.( (xcase .eq. 2) .and. (Z_upper .gt. Z_xpoint(2)) ) &
           .or.( (xcase .eq. 3) .and. ((Z_upper .lt. Z_xpoint(1)) .or. (Z_upper .gt. Z_xpoint(2))))))
       enddo
-      call interp(node_list,element_list,i_elm,1,1,s_ini,t_ini,psin_upper,P0_s,P0_t,P0_st,P0_ss,P0_tt)
-      psin_upper = (psin_upper - psi_axis) / delta_psi_bnd
+      call get_rcoord(i_elm,s_ini,t_ini,psi_axis,psi_bnd,rcoord_upper)
     endif
 
-    psin_lower_gt_psin_start = (psin_lower .gt. psin_start)
-    psin_upper_lt_psin_start = (psin_upper .lt. psin_start)
+    rcoord_lower_gt_rcoord_start = (rcoord_lower .gt. rcoord_start)
+    rcoord_upper_lt_rcoord_start = (rcoord_upper .lt. rcoord_start)
   enddo
   previous_r_lower = r_lower
   previous_r_upper = r_upper
 
   ! Perform bisection
   num_iter = 0
-  psin_diff = psin_upper - psin_lower
-  do while ((psin_diff .gt. iter_tol) .and. num_iter .lt. max_iterations) 
+  rcoord_diff = rcoord_upper - rcoord_lower
+  do while ((rcoord_diff .gt. iter_tol) .and. num_iter .lt. max_iterations) 
     num_iter = num_iter + 1
     if (num_iter .gt. max_iterations) then
       write(*, *) "ERROR: Maximum iterations exceeded in Bisection algorithm"
@@ -865,19 +883,43 @@ subroutine find_starting_element(i_elm, &
     BigR_tmp = R_axis + r_tmp * cos(theta_start)
     Z_tmp = Z_axis + r_tmp * sin(theta_start)
     call find_RZ(node_list, element_list, BigR_tmp, Z_tmp, R_start, Z_start, i_elm, s_ini, t_ini, ifail)
-    call interp(node_list,element_list,i_elm,1,1,s_ini,t_ini,psi_tmp,P0_s,P0_t,P0_st,P0_ss,P0_tt)
-    psi_tmp = (psi_tmp - psi_axis) / delta_psi_bnd
+    call get_rcoord(i_elm, s_ini,t_ini,psi_axis,psi_bnd,rcoord_tmp)
     
     ! Set new boundaries
-    if (psin_start .lt. psi_tmp) then
-      r_upper = r_tmp; psin_upper = psi_tmp;
+    if (rcoord_start .lt. rcoord_tmp) then
+      r_upper = r_tmp; rcoord_upper = rcoord_tmp;
     else
-      r_lower = r_tmp; psin_lower = psi_tmp;
+      r_lower = r_tmp; rcoord_lower = rcoord_tmp;
     endif
 
-    psin_diff = psin_upper - psin_lower;
+    rcoord_diff = rcoord_upper - rcoord_lower;
   enddo
 end
+
+subroutine get_rcoord(i_elem,s_in,t_in,psi_axis,psi_bnd,rcoord_out)
+  use mod_parameters
+  use elements_nodes_neighbours
+  use phys_module
+  use mod_interp
+  
+  implicit none
+  
+  integer, intent(in)   :: i_elem
+  real*8, intent(in)    :: s_in, t_in,psi_axis,psi_bnd
+  real*8, intent(inout) :: rcoord_out
+
+  real*8                :: dummy
+  
+#if STELLARATOR_MODEL
+  call interp_gvec(node_list,element_list,i_elem,4,1,1,s_in,t_in,rcoord_out,dummy,dummy,dummy,dummy,dummy)
+  rcoord_out = (rcoord_out - psi_axis) / (psi_bnd - psi_axis)
+#else
+  call interp(node_list,element_list,i_elem,1,1,s_in,t_in,rcoord_out,dummy,dummy,dummy,dummy,dummy)
+  rcoord_out = sqrt((rcoord_out - psi_axis) / (psi_bnd - psi_axis))
+#endif
+
+  return
+end subroutine ! get_rcoord
 
 subroutine find_new_element(s_bnd, i_elm, i_elm_prev, &
                             R_strike, Z_strike, P_strike, C_strike, T_strike, ZN_strike, B_strike, &
@@ -912,8 +954,8 @@ subroutine find_new_element(s_bnd, i_elm, i_elm_prev, &
   real*8, intent(out)     :: dl2                                                                      ! Change in distance from step
 
   ! Local variables
-  real*8                  :: R_in, R_out, R_s, R_t, R_st, R_ss, R_tt                                  ! Variables for interpolation of R
-  real*8                  :: Z_in, Z_out, Z_s, Z_t, Z_st, Z_ss, Z_tt                                  ! Variables for interpolation of Z
+  real*8                  :: R_in, R_out, R_s, R_t, R_p, dummy                                        ! Variables for interpolation of R
+  real*8                  :: Z_in, Z_out, Z_s, Z_t, Z_p                                               ! Variables for interpolation of Z
   integer                 :: i_elm_tmp                                                                ! Temporary element to check neighbour element orientation is consistent
   integer                 :: inode1, inode2                                                           ! Nodes corresponding to boundary edge
   integer                 :: i_var_n=5, i_var_T=6;                                                    ! Indices of number density and temperature
@@ -928,7 +970,8 @@ subroutine find_new_element(s_bnd, i_elm, i_elm_prev, &
   dl2 = (R_mid_s**2 + Z_mid_s**2)*delta_s**2 + (R_mid_t**2 + Z_mid_t**2)*delta_t**2 + R_mid**2 * delta_phi_step**2
   dl2 = dl2 * small_delta**2
 
-  call interp_RZ(node_list,element_list,i_elm,s_line,t_line,R_in,R_s,R_t,R_st,R_ss,R_tt,Z_in,Z_s,Z_t,Z_st,Z_ss,Z_tt)
+  call interp_RZP(node_list,element_list,i_elm,s_line,t_line,p_line,R_in,R_s,R_t,R_p,dummy,dummy,dummy,dummy,dummy,dummy, &
+                                                                    Z_in,Z_s,Z_t,Z_p,dummy,dummy,dummy,dummy,dummy,dummy)
 
   i_elm_prev = i_elm
   i_elm = element_neighbours(element_to_neighbour_idx,i_elm_prev)
@@ -945,7 +988,8 @@ subroutine find_new_element(s_bnd, i_elm, i_elm_prev, &
     endif
 
     ! Check if R and Z from both elements are close
-    call interp_RZ(node_list,element_list,i_elm,s_line,t_line,R_out,R_s,R_t,R_st,R_ss,R_tt,Z_out,Z_s,Z_t,Z_st,Z_ss,Z_tt)
+    call interp_RZP(node_list,element_list,i_elm,s_line,t_line,p_line,R_out,R_s,R_t,R_p,dummy,dummy,dummy,dummy,dummy,dummy, &
+                                                                Z_out,Z_s,Z_t,Z_p,dummy,dummy,dummy,dummy,dummy,dummy)
     if ( (abs(R_in - R_out) .gt. 1.d-8) .or. (abs(Z_in - Z_out) .gt. 1.d-8)) &
       write(*,'(A,2i6,4f12.4)') ' error in element change ',i_elm_prev,i_elm,R_in,R_out,Z_in,Z_out
 
@@ -975,23 +1019,31 @@ subroutine step(i_elm,s_in,t_in,p_in,delta_p,delta_s,delta_t,R,Z,R_s,R_t,Z_s,Z_t
   use elements_nodes_neighbours
   use phys_module
   use mod_interp
+  use mod_chi
   
   implicit none
   
   integer :: i_var_psi, i_elm, i_tor, i_harm
   
   real*8 :: s_in, t_in, p_in, delta_p, delta_s, delta_t
-  real*8 :: R_out, Z_out, Rs_out, Rt_out, Zs_out, Zt_out
-  real*8 :: R,R_s,R_t,R_st,R_ss,R_tt,Z,Z_s,Z_t,Z_st,Z_ss,Z_tt
+  real*8 :: R,R_s,R_t,R_p,Z,Z_s,Z_t,Z_p,dummy
   real*8 :: Pcos,Pcos_s,Pcos_t,Pcos_st,Pcos_ss,Pcos_tt, Psin,Psin_s,Psin_t,Psin_st,Psin_ss,Psin_tt
-  real*8 :: P0,P0_s,P0_t,P0_st,P0_ss,P0_tt, psi_s, psi_t, Zjac
+  real*8 :: P0,P0_s,P0_t,P0_st,P0_ss,P0_tt, psi_s, psi_t, psi_R, psi_z, psi_p, st_psi_p, Zjac
+  real*8 :: AR0_Z, AR0_p, AR0_s, AR0_t, AZ0_R, AZ0_p, AZ0_s, AZ0_t, A30_R, A30_Z, BR0, BZ0, Bp0, Fprof
+  
+  real*8, dimension(0:n_order-1,0:n_order-1,0:n_order-1) :: chi
   
   i_var_psi = 1
   
-  call interp_RZ(node_list,element_list,i_elm,s_in,t_in,R,R_s,R_t,Z,Z_s,Z_t)
+  call interp_RZP(node_list,element_list,i_elm,s_in,t_in,p_in,R,R_s,R_t,R_p,dummy,dummy,dummy,dummy,dummy,dummy, &
+                                                              Z,Z_s,Z_t,Z_p,dummy,dummy,dummy,dummy,dummy,dummy)
+  chi  = get_chi(R,Z,p_in,node_list,element_list,i_elm,s_in,t_in,max_ord=1)
   
   Zjac = (R_s * Z_t - R_t * Z_s)
-#ifdef DEBUG
+#ifdef DEGUB_Connection
+  if (Zjac .ne. Zjac) then
+    write(*,*) 'Nan in Zjac', s_in, t_in, p_in, R_s, R_t, Z_s, Z_t
+  endif
   if (Zjac .eq. 0.0) then
     write(*, *) 'Jacobian is zero!', i_elm, s_in, t_in, R, R_s, R_t, Z, Z_s, Z_t
     stop
@@ -1002,21 +1054,82 @@ subroutine step(i_elm,s_in,t_in,p_in,delta_p,delta_s,delta_t,R,Z,R_s,R_t,Z_s,Z_t
   
   psi_s = P0_s 
   psi_t = P0_t 
+  st_psi_p = 0.d0
   
+#ifdef fullmhd
+  call interp(node_list,element_list,i_elm,var_AR,1,s_in,t_in,P0,P0_s,P0_t,P0_st,P0_ss,P0_tt)
+  AR0_s = P0_s 
+  AR0_t = P0_t 
+
+  call interp(node_list,element_list,i_elm,var_AZ,1,s_in,t_in,P0,P0_s,P0_t,P0_st,P0_ss,P0_tt)
+  AZ0_s = P0_s 
+  AZ0_t = P0_t 
+
+  AR0_p = 0.d0
+  AZ0_p = 0.d0
+
+  call interp(node_list,element_list,i_elm,710,1,s_in,t_in,P0,P0_s,P0_t,P0_st,P0_ss,P0_tt)
+  Fprof = P0
+#endif
+
   do i_tor = 1, (n_tor-1)/2
     i_harm = 2*i_tor
   
     call interp(node_list,element_list,i_elm,i_var_psi,i_harm,s_in,t_in,Pcos,Pcos_s,Pcos_t,Pcos_st,Pcos_ss,Pcos_tt)
     psi_s = psi_s + Pcos_s * cos(mode(i_harm)*p_in)
     psi_t = psi_t + Pcos_t * cos(mode(i_harm)*p_in)
+    st_psi_p = st_psi_p - Pcos*mode(i_harm)*sin(mode(i_harm)*p_in)
   
     call interp(node_list,element_list,i_elm,i_var_psi,i_harm+1,s_in,t_in,Psin,Psin_s,Psin_t,Psin_st,Psin_ss,Psin_tt)
     psi_s = psi_s + Psin_s * sin(mode(i_harm+1)*p_in)
     psi_t = psi_t + Psin_t * sin(mode(i_harm+1)*p_in)
+    st_psi_p = st_psi_p + Psin*mode(i_harm+1)*cos(mode(i_harm+1)*p_in)
+
+#ifdef fullmhd
+    call interp(node_list,element_list,i_elm,var_AR,i_harm,s_in,t_in,Pcos,Pcos_s,Pcos_t,Pcos_st,Pcos_ss,Pcos_tt)
+    AR0_s = AR0_s + Pcos_s * cos(mode(i_harm)*p_in)
+    AR0_t = AR0_t + Pcos_t * cos(mode(i_harm)*p_in)
+    AR0_p = AR0_p - Pcos   * sin(mode(i_harm)*p_in) * mode(i_harm)
+    call interp(node_list,element_list,i_elm,var_AR,i_harm+1,s_in,t_in,Psin,Psin_s,Psin_t,Psin_st,Psin_ss,Psin_tt)
+    AR0_s = AR0_s + Psin_s * sin(mode(i_harm+1)*p_in)
+    AR0_t = AR0_t + Psin_t * sin(mode(i_harm+1)*p_in)
+    AR0_p = AR0_p + Psin   * cos(mode(i_harm+1)*p_in) * mode(i_harm+1)
+    
+    call interp(node_list,element_list,i_elm,var_AZ,i_harm,s_in,t_in,Pcos,Pcos_s,Pcos_t,Pcos_st,Pcos_ss,Pcos_tt)
+    AZ0_s = AZ0_s + Pcos_s * cos(mode(i_harm)*p_in)
+    AZ0_t = AZ0_t + Pcos_t * cos(mode(i_harm)*p_in)
+    AZ0_p = AZ0_p - Pcos   * sin(mode(i_harm)*p_in) * mode(i_harm)
+    call interp(node_list,element_list,i_elm,var_AZ,i_harm+1,s_in,t_in,Psin,Psin_s,Psin_t,Psin_st,Psin_ss,Psin_tt)
+    AZ0_s = AZ0_s + Psin_s * sin(mode(i_harm+1)*p_in)
+    AZ0_t = AZ0_t + Psin_t * sin(mode(i_harm+1)*p_in)
+    AZ0_p = AZ0_p + Psin   * cos(mode(i_harm+1)*p_in) * mode(i_harm+1)
+#endif
+
   enddo
+
+#ifdef fullmhd
+  AR0_Z = ( - R_t * AR0_s  + R_s * AR0_t ) / Zjac
+  AZ0_R = (   Z_t * AZ0_s  - Z_s * AZ0_t ) / Zjac
+  A30_R = (   Z_t * psi_s  - Z_s * psi_t ) / Zjac
+  A30_Z = ( - R_t * psi_s  + R_s * psi_t ) / Zjac
   
-  delta_s =   psi_t * R / (Zjac * F0) * delta_p
-  delta_t = - psi_s * R / (Zjac * F0) * delta_p
+  BR0 = ( A30_Z - AZ0_p )/ R
+  BZ0 = ( AR0_p - A30_R )/ R
+  Bp0 = ( AZ0_R - AR0_Z )       +   Fprof / R
+#else
+  psi_R = ( Z_t*psi_s - Z_s*psi_t)/Zjac
+  psi_z = (-R_t*psi_s + R_s*psi_t)/Zjac
+  psi_p = st_psi_p - R_p*psi_R - Z_p*psi_z
+  BR0 = chi(1,0,0)   + (psi_z*chi(0,0,1) - psi_p*chi(0,1,0))/(F0*R) ! comment out these lines to use the
+  BZ0 = chi(0,1,0)   - (psi_R*chi(0,0,1) - psi_p*chi(1,0,0))/(F0*R) !   GVEC magnetic field instead of
+  Bp0 = chi(0,0,1)/R + (psi_R*chi(0,1,0) - psi_z*chi(1,0,0))/F0     !   the reduced MHD magnetic field
+#endif
+
+  ! dR/Rdphi = B_R / B_phi ; dz/Rdphi = B_z / B_phi
+  ! ds/dphi = s_phi + s_R dR/dphi + s_z dz/dphi = (-z_t R_p + R_t z_p + z_t dR/dphi - R_t dz/dphi)/Zjac
+  ! dt/dphi = t_phi + t_R dR/dphi + t_z dz/dphi = ( z_s R_p - R_s z_p - z_s dR/dphi + R_s dz/dphi)/Zjac
+  delta_s = (-Z_t*R_p + R_t*Z_p + R*(Z_t*BR0 - R_t*BZ0)/Bp0)*delta_p/Zjac
+  delta_t = ( Z_s*R_p - R_s*Z_p - R*(Z_s*BR0 - R_s*BZ0)/Bp0)*delta_p/Zjac
   
   return
 end

@@ -10,9 +10,9 @@ extra_remote_files="starwall-response.dat"
 
 # --- Compile the code for the test case
 function compile_jorek () {
-  ./util/config.sh model=$jorekmodel n_tor=3 n_plane=4 n_period=1                    || exit 1
-  make $compilopt $debugoptions jorek_model${jorekmodel}                             || exit 1
-  mv jorek_model${jorekmodel} jorek_model${jorekmodel}_1                             || exit 1
+  ./util/config.sh model=$jorekmodel n_tor=3 n_coord_tor=1 l_pol_domm=0 n_plane=4 n_period=1 n_coord_period=1 || exit 1
+  make $compilopt $debugoptions jorek_model${jorekmodel}                                                      || exit 1
+  mv jorek_model${jorekmodel} jorek_model${jorekmodel}_1                                                      || exit 1
 }
 
 

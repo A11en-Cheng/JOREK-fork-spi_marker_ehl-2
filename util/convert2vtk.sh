@@ -58,6 +58,7 @@ function usage () {
   echo "  -fluxes                     Include energy and density fluxes [default: off] (2D VTK ONLY)"
   echo "  -neo                        Include neoclassical and more terms [default: off] (2D VTK ONLY)"
   echo "  -Bfield                     Include vector of magnetic field [default: off] (2D VTK ONLY)"
+  echo "  -vacfield                   Include vector of vacuum magnetic field [default: off] (2D VTK ONLY)"
   echo "  -Vfield                     Include vector of velocity field [default: off] (2D VTK ONLY)"
   echo "  -[no]psiN                   Include normalized poloidal flux or not [default: on] (2D VTK ONLY)"
   echo "  -bootstrap                  Include bootstrap current decomposition [default: off] (2D VTK ONLY)"
@@ -203,6 +204,7 @@ si_units=""
 include_fluxes=""         # include energy and density fluxes (or not)
 include_neo=""            # include neoclassical and more terms (or not)
 include_magnetic_field="" # include vector of magnetic field (or not)
+include_vacuum_field=""   # include vector of vacuum magnetic field (or not)
 include_velocity_field="" # include vector of velocity field (or not)
 include_electric_field="" # include vector of electric field (or not)
 include_Jpol=""           # include vector of poloidal currents (or not)
@@ -277,6 +279,10 @@ while [ $# -gt 1 ]; do
     writenml="yes"
   elif [ "$1" == "-Bfield" ] || [ "$1" == "-magnetic_field" ]; then
     include_magnetic_field=".true."
+    shift 1
+    writenml="yes"
+  elif [ "$1" == "-vacfield" ] || [ "$1" == "-vacuum_field" ]; then
+    include_vacuum_field=".true."
     shift 1
     writenml="yes"
   elif [ "$1" == "-Vfield" ] || [ "$1" == "-velocity_field" ]; then
@@ -531,6 +537,9 @@ if [ "$writenml" == "yes" ]; then
   fi
   if [ ! -z "$include_magnetic_field" ]; then
     echo "  include_magnetic_field = $include_magnetic_field" >> $vtk_nml
+  fi
+  if [ ! -z "$include_vacuum_field" ]; then
+    echo "  include_vacuum_field = $include_vacuum_field" >> $vtk_nml
   fi
   if [ ! -z "$include_velocity_field" ]; then
     echo "  include_velocity_field = $include_velocity_field" >> $vtk_nml

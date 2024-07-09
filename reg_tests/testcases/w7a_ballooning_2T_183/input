@@ -1,0 +1,67 @@
+&in1
+
+ restart = .t.
+ regrid  = .f.
+ refinement=.false.
+ tstep   = 1.
+ nstep   = 30
+
+ nout = 10
+
+! rst_hdf5 = 1    ! = 0 ; restart from binary files
+!                 ! = 1 ; restart from HDF5 files
+
+ freeboundary = .f.
+ keep_current_prof = .t.
+ init_current_prof = .t.
+ time_evol_scheme = "implicit Euler"
+ fix_axis_nodes = .t.
+ bc_natural_open = .f.
+ eta_T_dependent = .t.
+ visco_T_dependent = .f.
+ zkpar_T_dependent = .f.
+
+ F0    = 4.72593206453746
+ Te_0   = 0.0062845
+ Te_1   = 0.62845d-6
+
+ n_flux   = 20
+ n_tht    = 24
+
+ eta   = 1.d-9
+ visco = 1.d-9
+
+ eta_num = 1.d-15
+ visco_num = 2.5d-15
+
+ D_par  = 0.d0
+ D_perp = 0.d-7
+
+ ZK_par  = 0.d0
+ ZK_perp = 0.d-7
+ ZK_e_par  = 1.d-8
+ ZK_e_perp = 1.d-8
+ ZK_i_par  = 1.d-8
+ ZK_i_perp = 1.d-8
+
+ domm_file = "dc_W7A_unst_10kPa"
+
+ heatsource     = 0.d0
+ heatsource_i     = 5.d-8
+ heatsource_e     = 5.d-8
+ particlesource = 1.d-7
+
+ rho_0 = 1.
+ rho_1 = 1.
+ rho_coef(1)  =  0.0
+ rho_coef(2)  =  0.0
+ rho_coef(3)  =  0.0
+ rho_coef(4)  =  1.d0
+ rho_coef(5)  =  5.d0
+
+ iter_precon = 22
+ gmres_m = 20
+ gmres_4 = 1.d0
+ gmres_max_iter = 400
+ gmres_tol = 1.d-8
+/

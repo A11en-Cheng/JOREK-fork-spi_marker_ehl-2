@@ -40,11 +40,13 @@ subroutine preset_parameters
   T_max_eta     = 1.d99
   eta_ohmic     = 0.d0
   T_max_eta_ohm = 1.d99
+  
+  TiTe_ratio    = 0.5d0
 
   visco = 1.d-5
   T_max_visco   = 1.d99
   visco_par = 1.d-5
-  visco_par_par = 0.d0
+  visco_par_par = 0.0
   visco_heating     = 0.d0
   visco_par_heating = 0.d0
   visco_old_setup   = .false.
@@ -59,7 +61,8 @@ subroutine preset_parameters
   regrid_from_rz = .false.
   rst_format   = 0             ! use 'old' format for restart import
   write_ps     = .true.           ! write postscript file at the end of the run 
-  
+  gvec_grid_import = .false.
+
   freeboundary_equil = .false. ! use free or fixed boundary equilibrium
   freeboundary       = .false. ! use free or fixed boundary?
   resistive_wall     = .false. ! use a resistive or ideal wall?    (freeboundary only)
@@ -105,6 +108,8 @@ subroutine preset_parameters
   n_flux       = 11
   n_tht        = 16
   n_tht_equidistant = .false.
+  m_pol_bc     = 1
+  i_plane_rtree = 1
   
   n_open       = 5
   n_outer      = 0
@@ -157,6 +162,8 @@ subroutine preset_parameters
   R_geo     = 10.d0
   Z_geo     = 0.d0
   amin      = 1.d0
+
+  R_domm        = -10.d0
 
   F0        = 10.d0
   GAMMA     = 5.d0 / 3.d0
@@ -513,6 +520,7 @@ subroutine preset_parameters
   Ti_coef     = 0.d0;  Ti_coef(1)  = -1.d0
   rho_coef    = 0.d0;  rho_coef(1) =  0.d0
   FF_coef     = 0.d0;  FF_coef(1)  = -1.d0
+  dcoef       = 0.d0
 
   rhon_0 =  0.d0
   rhon_1 =  0.d0
@@ -569,6 +577,7 @@ subroutine preset_parameters
   wall_file          = 'none'
   rot_file           = 'none'
   visco_file         = 'none'
+  domm_file          = 'none'
   normalized_velocity_profile = .true.
 
   n_Fprofile_internal = 300 ! model710 only: size of internal numerical F-profile
@@ -621,6 +630,8 @@ subroutine preset_parameters
   tgnum_A3           = 0.d0
 
   keep_current_prof  = .true.               ! Keep the current_source term
+  init_current_prof  = .false.
+  current_prof_initialized = .false.
   
   use_mumps          = .false.              ! Use MUMPS solver
   use_pastix         = .true.               ! Use PASTIX solver

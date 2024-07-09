@@ -409,6 +409,16 @@ module postproc_help
         write(*,*) 'Examples:'
         write(*,*) '  expressions_int Wmag Ohmic'
         write(*,*) '  int3d'
+      case ( 'energy3d' ) 
+        write(*,*) 'Usage:'
+        write(*,*) '  energy3d'
+        write(*,*) ''
+        write(*,*) '"energy3d" calculates energies distributed among mode families. ' 
+        write(*,*) 'This routine is intended for use with stellarator models. '
+        write(*,*) 'The results are output to file the file energies3D_...'
+        write(*,*) ''
+        write(*,*) 'Examples:'
+        write(*,*) '  energy3d'
      case ( 'zeroD_quantities' ) 
         write(*,*) 'Usage:'
         write(*,*) '  zeroD_quantities'

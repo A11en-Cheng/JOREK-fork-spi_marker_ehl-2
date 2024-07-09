@@ -2,7 +2,8 @@
 module mod_interp
 use data_structure
 use mod_basisfunctions
-use mod_parameters, only: n_period, n_tor, n_degrees
+use mod_parameters, only: n_period, n_coord_period, n_tor, n_coord_tor, n_degrees
+use phys_module, only: mode, mode_coord
 implicit none
 private
 public :: interp         !< interp a specific harmonic in finite elements
@@ -10,8 +11,10 @@ public :: interp_delta   !< interp a specific harmonic in finite elements, of th
 public :: interp_0       !< interp variable only, no derivatives at a specific position in domain
 public :: interp_00      !< interp variable only, no derivatives at a specific position in domain (n=0 only)
 public :: interp_0_delta !< interp variable only, no derivatives at a specific position in domain, of the deltas
-public :: interp_RZ      !< Interpolate space only
-public :: interp_PRZ     !< interp variable + pos at values or deltas
+public :: interp_RZ !< Interpolate space only
+public :: interp_PRZ !< interp variable + pos at values or deltas
+public :: interp_RZP !< interpolate RZ for a given (s,t,phi) for a 3D configuration 
+public :: interp_gvec !< interpolate equilibrium parameters imported from GVEC
 public :: sincosperiod_moivre, mode_moivre !< public for regtesting, used by interp_PRZ
 public :: interp_PRZ_combined !< same as interp, but for any variable, including R and Z
 
@@ -30,6 +33,10 @@ end interface interp_RZ
 interface interp_PRZ
   module procedure interp_PRZ_0, interp_PRZ_1, interp_PRZ_2, interp_PRZ_00
 end interface interp_PRZ
+
+interface interp_RZP
+  module procedure interp_RZP_0, interp_RZP_2
+end interface interp_RZP
 
 contains
 
@@ -904,6 +911,198 @@ endif
 end subroutine interp_PRZ_combined
 
 
+! Interpolate the R, Z, phi location as a function of s, t, p
+subroutine interp_RZP_0(node_list,element_list,i_elm,s,t,phi,R,Z)
+  type (type_node_list),    intent(in)  :: node_list
+  type (type_element_list), intent(in)  :: element_list
+  integer,                  intent(in)  :: i_elm
+  real*8,                   intent(in)  :: s,t,phi
+  real*8,                   intent(out) :: R, Z
+  
+  ! --- Local variables
+  real*8  :: G(4,n_degrees)
+  real*8  :: HZ_coord(n_coord_tor)
+  real*8  :: xx1, xx2, ss
+  integer :: kv, iv, kf, i_tor
+  
+  ! Get toroidal and poloidal basis functions for s, t, phi
+  call basisfunctions(s,t,G)
+  HZ_coord(1)   = 1.d0
+  do i_tor=1,(n_coord_tor-1)/2
+    HZ_coord(2*i_tor)      =  cos(mode_coord(2*i_tor)  *phi)
+    HZ_coord(2*i_tor+1)    = -sin(mode_coord(2*i_tor+1)*phi)
+  enddo
 
+  R = 0.d0; Z = 0.d0
+  do kv = 1,n_vertex_max  ! 4 vertices
+    iv = element_list%element(i_elm)%vertex(kv)  ! the node number
+    do kf = 1, n_degrees       ! 4 basis functions
+      do i_tor=1, n_coord_tor
+        xx1 = node_list%node(iv)%x(i_tor,kf,1)
+        xx2 = node_list%node(iv)%x(i_tor,kf,2)
+        ss  = element_list%element(i_elm)%size(kv,kf)
+
+        R    = R    + xx1 * ss * G(kv,kf) * HZ_coord(i_tor) 
+        Z    = Z    + xx2 * ss * G(kv,kf) * HZ_coord(i_tor)
+      end do
+    end do
+  end do
+end subroutine interp_RZP_0
+
+!> Calculates the interpolation within one element (i_elm) for a given position (s,t) in local coordinates
+subroutine interp_RZP_2(node_list,element_list,i_elm,s,t,phi,   &
+                        R,R_s,R_t,R_p,R_st,R_ss,R_tt,R_sp, R_tp, R_pp,   &
+                        Z,Z_s,Z_t,Z_p,Z_st,Z_ss,Z_tt,Z_sp,Z_tp,Z_pp)
+type (type_node_list),    intent(in)  :: node_list
+type (type_element_list), intent(in)  :: element_list
+integer,                  intent(in)  :: i_elm
+real*8,                   intent(in)  :: s,t,phi
+real*8,                   intent(out) :: R, R_s, R_t, R_p, R_st, R_ss, R_tt, R_sp, R_tp, R_pp
+real*8,                   intent(out) :: Z, Z_s, Z_t, Z_p, Z_st, Z_ss, Z_tt, Z_sp, Z_tp, Z_pp
+
+! --- Local variables
+real*8  :: G(4,n_degrees), G_s(4,n_degrees), G_t(4,n_degrees), G_st(4,n_degrees), G_ss(4,n_degrees), G_tt(4,n_degrees)
+real*8  :: HZ_coord(n_coord_tor), HZ_coord_p(n_coord_tor), HZ_coord_pp(n_coord_tor)
+real*8  :: xx1, xx2, ss
+integer :: kv, iv, kf, i_tor
+
+! Get toroidal and poloidal basis functions in (s, t, phi)
+call basisfunctions(s,t,G,G_s,G_t,G_st,G_ss,G_tt)
+HZ_coord(1)      = 1.d0
+HZ_coord_p(1)    = 0.d0
+HZ_coord_pp(1)   = 0.d0
+do i_tor=1,(n_coord_tor-1)/2
+  HZ_coord(2*i_tor)        = + cos(mode_coord(2*i_tor)  *phi)
+  HZ_coord_p(2*i_tor)      = - float(mode_coord(2*i_tor))      * sin(mode_coord(2*i_tor)  *phi)
+  HZ_coord_pp(2*i_tor)     = - float(mode_coord(2*i_tor))**2   * cos(mode_coord(2*i_tor)  *phi)
+  HZ_coord(2*i_tor+1)      = - sin(mode_coord(2*i_tor+1)*phi)
+  HZ_coord_p(2*i_tor+1)    = - float(mode_coord(2*i_tor+1))    * cos(mode_coord(2*i_tor+1)*phi)
+  HZ_coord_pp(2*i_tor+1)   = + float(mode_coord(2*i_tor+1))**2 * sin(mode_coord(2*i_tor+1)*phi)
+enddo
+
+R = 0.d0; R_s = 0.d0; R_t = 0.d0; R_p = 0.d0; R_st = 0.d0; R_ss = 0.d0; R_tt = 0.d0; R_sp = 0.0; R_tp=0.0; R_pp = 0.0;
+Z = 0.d0; Z_s = 0.d0; Z_t = 0.d0; Z_p = 0.d0; Z_st = 0.d0; Z_ss = 0.d0; Z_tt = 0.d0; Z_sp = 0.0; Z_tp=0.0; Z_pp = 0.0;
+
+do kv = 1,n_vertex_max  ! 4 vertices
+  iv = element_list%element(i_elm)%vertex(kv)  ! the node number
+  do kf = 1, n_degrees       ! 4 basis functions
+    do i_tor=1, n_coord_tor
+      xx1 = node_list%node(iv)%x(i_tor,kf,1)
+      xx2 = node_list%node(iv)%x(i_tor,kf,2)
+      ss  = element_list%element(i_elm)%size(kv,kf)
+      
+      R    = R    + xx1 * ss * G(kv,kf)    * HZ_coord(i_tor)
+      R_s  = R_s  + xx1 * ss * G_s(kv,kf)  * HZ_coord(i_tor)
+      R_t  = R_t  + xx1 * ss * G_t(kv,kf)  * HZ_coord(i_tor)
+      R_p  = R_p  + xx1 * ss * G(kv,kf)    * HZ_coord_p(i_tor)
+      R_st = R_st + xx1 * ss * G_st(kv,kf) * HZ_coord(i_tor)
+      R_ss = R_ss + xx1 * ss * G_ss(kv,kf) * HZ_coord(i_tor)
+      R_tt = R_tt + xx1 * ss * G_tt(kv,kf) * HZ_coord(i_tor)
+      R_sp = R_sp + xx1 * ss * G_s(kv,kf)  * HZ_coord_p(i_tor)
+      R_tp = R_tp + xx1 * ss * G_t(kv,kf)  * HZ_coord_p(i_tor)
+      R_pp = R_pp + xx1 * ss * G(kv,kf)    * HZ_coord_pp(i_tor)
+
+      Z    = Z    + xx2 * ss * G(kv,kf)    * HZ_coord(i_tor)
+      Z_s  = Z_s  + xx2 * ss * G_s(kv,kf)  * HZ_coord(i_tor)
+      Z_t  = Z_t  + xx2 * ss * G_t(kv,kf)  * HZ_coord(i_tor)
+      Z_p  = Z_p  + xx2 * ss * G(kv,kf)    * HZ_coord_p(i_tor)
+      Z_st = Z_st + xx2 * ss * G_st(kv,kf) * HZ_coord(i_tor)
+      Z_ss = Z_ss + xx2 * ss * G_ss(kv,kf) * HZ_coord(i_tor)
+      Z_tt = Z_tt + xx2 * ss * G_tt(kv,kf) * HZ_coord(i_tor)
+      Z_sp = Z_sp + xx2 * ss * G_s(kv,kf)  * HZ_coord_p(i_tor)
+      Z_tp = Z_tp + xx2 * ss * G_t(kv,kf)  * HZ_coord_p(i_tor)
+      Z_pp = Z_pp + xx2 * ss * G(kv,kf)    * HZ_coord_pp(i_tor)
+    end do
+  end do
+end do
+end subroutine interp_RZP_2
+
+!> subroutine calculates the interpolation of GVEC equilibrium conditions within one element (i_elm) for a given (s, t).
+!! The interpolated variable is controlled by the value of i_var: 
+!!   1: magnetic field
+!!   2: plasma current
+!!   3: pressure
+!!   4: radial coordinate (in GVEC, this is the square root of the normalised toroidal flux)
+subroutine interp_gvec(node_list, element_list, i_elm, i_var, i_dim, i_harm, s, t, P, P_s, P_t, P_st, P_ss, P_tt)
+type (type_node_list),    intent(in)  :: node_list
+type (type_element_list), intent(in)  :: element_list
+integer,                  intent(in)  :: i_elm
+integer,                  intent(in)  :: i_var         ! i_var: 1: B, 2: J, 3: p
+integer,                  intent(in)  :: i_dim         ! i_dim: 1: R, 2: Z, 3:, phi
+integer,                  intent(in)  :: i_harm
+real*8,                   intent(in)  :: s
+real*8,                   intent(in)  :: t
+real*8,                   intent(out) :: P, P_s, P_t, P_st, P_ss, P_tt
+
+! --- Local variables
+real*8 :: G(4,n_degrees), G_s(4,n_degrees), G_t(4,n_degrees), G_st(4,n_degrees), G_ss(4,n_degrees), G_tt(4,n_degrees)
+integer :: kv, iv, kf 
+
+#ifndef STELLARATOR_MODEL
+  write(*,*) 'This function should not be called for tokamak models!'
+  stop
+#else
+call basisfunctions(s,t,G, G_s, G_t, G_st, G_ss, G_tt)
+
+P = 0.d0; P_s = 0.d0; P_t = 0.d0; P_st = 0.d0; P_ss = 0.d0; P_tt = 0.d0
+
+do kv = 1,n_vertex_max  ! 4 vertices
+  iv = element_list%element(i_elm)%vertex(kv)  ! the node number
+  do kf = 1, n_degrees       ! 4 basis functions
+#if JOREK_MODEL == 180
+    if (i_var == 1) then
+      P    = P    + node_list%node(iv)%b_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G(kv,kf)
+      P_s  = P_s  + node_list%node(iv)%b_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_s(kv,kf)
+      P_t  = P_t  + node_list%node(iv)%b_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_t(kv,kf)
+      P_st = P_st + node_list%node(iv)%b_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_st(kv,kf)
+      P_ss = P_ss + node_list%node(iv)%b_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_ss(kv,kf)
+      P_tt = P_tt + node_list%node(iv)%b_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_tt(kv,kf)
+    else if (i_var == 2) then
+      P    = P    + node_list%node(iv)%j_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G(kv,kf)
+      P_s  = P_s  + node_list%node(iv)%j_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_s(kv,kf)
+      P_t  = P_t  + node_list%node(iv)%j_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_t(kv,kf)
+      P_st = P_st + node_list%node(iv)%j_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_st(kv,kf)
+      P_ss = P_ss + node_list%node(iv)%j_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_ss(kv,kf)
+      P_tt = P_tt + node_list%node(iv)%j_field(i_harm,kf,i_dim) * element_list%element(i_elm)%size(kv,kf) * G_tt(kv,kf)
+    else if (i_var == 3) then                
+      ! The equilibrium is a scalar, axisymmetric profile, so i_dim and i_harm have no influence on the results
+      P    = P    + node_list%node(iv)%pressure(kf) * element_list%element(i_elm)%size(kv,kf) * G(kv,kf)
+      P_s  = P_s  + node_list%node(iv)%pressure(kf) * element_list%element(i_elm)%size(kv,kf) * G_s(kv,kf)
+      P_t  = P_t  + node_list%node(iv)%pressure(kf) * element_list%element(i_elm)%size(kv,kf) * G_t(kv,kf)
+      P_st = P_st + node_list%node(iv)%pressure(kf) * element_list%element(i_elm)%size(kv,kf) * G_st(kv,kf)
+      P_ss = P_ss + node_list%node(iv)%pressure(kf) * element_list%element(i_elm)%size(kv,kf) * G_ss(kv,kf)
+      P_tt = P_tt + node_list%node(iv)%pressure(kf) * element_list%element(i_elm)%size(kv,kf) * G_tt(kv,kf)
+#else
+    if (i_var .lt. 4) then
+      write(*,*) 'Equilibrium fields can only be interpolated with stellarator initialisation models'
+      stop
+#endif
+    else if (i_var == 4) then 
+      ! The equilibrium is a scalar, axisymmetric profile, so i_dim and i_harm have no influence on the results
+      P    = P    + node_list%node(iv)%r_tor_eq(kf) * element_list%element(i_elm)%size(kv,kf) * G(kv,kf)
+      P_s  = P_s  + node_list%node(iv)%r_tor_eq(kf) * element_list%element(i_elm)%size(kv,kf) * G_s(kv,kf)
+      P_t  = P_t  + node_list%node(iv)%r_tor_eq(kf) * element_list%element(i_elm)%size(kv,kf) * G_t(kv,kf)
+      P_st = P_st + node_list%node(iv)%r_tor_eq(kf) * element_list%element(i_elm)%size(kv,kf) * G_st(kv,kf)
+      P_ss = P_ss + node_list%node(iv)%r_tor_eq(kf) * element_list%element(i_elm)%size(kv,kf) * G_ss(kv,kf)
+      P_tt = P_tt + node_list%node(iv)%r_tor_eq(kf) * element_list%element(i_elm)%size(kv,kf) * G_tt(kv,kf)
+    else if (i_var == 5) then    
+#ifndef USE_DOMM    
+      ! The equilibrium is a scalar, axisymmetric profile, so i_dim and i_harm have no influence on the results
+      P    = P    + node_list%node(iv)%chi_correction(i_harm,kf) * element_list%element(i_elm)%size(kv,kf) * G(kv,kf)
+      P_s  = P_s  + node_list%node(iv)%chi_correction(i_harm,kf) * element_list%element(i_elm)%size(kv,kf) * G_s(kv,kf)
+      P_t  = P_t  + node_list%node(iv)%chi_correction(i_harm,kf) * element_list%element(i_elm)%size(kv,kf) * G_t(kv,kf)
+      P_st = P_st + node_list%node(iv)%chi_correction(i_harm,kf) * element_list%element(i_elm)%size(kv,kf) * G_st(kv,kf)
+      P_ss = P_ss + node_list%node(iv)%chi_correction(i_harm,kf) * element_list%element(i_elm)%size(kv,kf) * G_ss(kv,kf)
+      P_tt = P_tt + node_list%node(iv)%chi_correction(i_harm,kf) * element_list%element(i_elm)%size(kv,kf) * G_tt(kv,kf)
+#else
+      write(*,*) "Vacuum field can only be interpolated if Dommaschk potentials are not used"
+      stop
+#endif
+    endif
+  end do
+end do
+#endif
+
+end subroutine interp_gvec
 
 end module mod_interp

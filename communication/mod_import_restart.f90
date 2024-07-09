@@ -140,7 +140,7 @@ subroutine import_binary_restart(node_list, element_list, filename, format_rst, 
   read(21) n_tor_tmp
 
   allocate(mode_tmp(n_tor_tmp), values_tmp(n_tor_tmp,n_degrees,n_var), deltas_tmp(n_tor_tmp,n_degrees,n_var))
-  
+
   if (format_rst == 1) then
     read(21) mode_tmp
     write(*,*) ' NEW format (1) : ',mode_tmp
@@ -215,10 +215,23 @@ subroutine import_binary_restart(node_list, element_list, filename, format_rst, 
         endif
       enddo
     enddo
-
   enddo
 
+#if STELLARATOR_MODEL
+  do i = 1, element_list%n_elements
+    read(21) element_list%element(i)%vertex             
+    read(21) element_list%element(i)%neighbours
+    read(21) element_list%element(i)%size
+    read(21) element_list%element(i)%father
+    read(21) element_list%element(i)%n_sons
+    read(21) element_list%element(i)%n_gen
+    read(21) element_list%element(i)%sons
+    read(21) element_list%element(i)%contain_node
+    read(21) element_list%element(i)%nref
+  enddo
+#else
   read(21) element_list%element(1:element_list%n_elements)
+#endif
   read(21) tstep,eta_rst,visco_rst,visco_par_rst
   read(21) index_start
   read(21) t_start
@@ -466,6 +479,22 @@ subroutine import_binary_restart(node_list, element_list, filename, format_rst, 
     if (allocated(mag_ener_src_tot)) call tr_deallocate(mag_ener_src_tot,"mag_ener_src_tot",CAT_UNKNOWN)
     call tr_allocate(mag_ener_src_tot,1,index_start+nstep,"mag_ener_src_tot",CAT_UNKNOWN)
     mag_ener_src_tot = 0.d0
+    
+    if (allocated(Px_t)) call tr_deallocate(Px_t,"Px_t",CAT_UNKNOWN)
+    call tr_allocate(Px_t,1,index_start+nstep,"Px_t",CAT_UNKNOWN)
+    Px_t = 0.d0
+    
+    if (allocated(Py_t)) call tr_deallocate(Py_t,"Py_t",CAT_UNKNOWN)
+    call tr_allocate(Py_t,1,index_start+nstep,"Py_t",CAT_UNKNOWN)
+    Py_t = 0.d0
+    
+    if (allocated(dPx_dt)) call tr_deallocate(dPx_dt,"dPx_dt",CAT_UNKNOWN)
+    call tr_allocate(dPx_dt,1,index_start+nstep,"dPx_dt",CAT_UNKNOWN)
+    dPx_dt = 0.d0
+    
+    if (allocated(dPy_dt)) call tr_deallocate(dPy_dt,"dPy_dt",CAT_UNKNOWN)
+    call tr_allocate(dPy_dt,1,index_start+nstep,"dPy_dt",CAT_UNKNOWN)
+    dPy_dt = 0.d0
 
 #ifdef JECCD
     if (allocated(energies2)) call tr_deallocate(energies2,"energies2",CAT_UNKNOWN)
@@ -933,11 +962,19 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
 #ifdef USE_HDF5
   integer(HID_T)     :: file_id, datatype, dataset
   integer            :: ind, n_spi_check, n_inj_check
+  character          :: t_current_prof_initialized
   
   real(RKIND), allocatable :: t_x(:,:,:,:)
   real(RKIND), allocatable :: t_values(:,:,:,:)
   real(RKIND), allocatable :: t_deltas(:,:,:,:)
   real(RKIND), allocatable :: t_aux_values(:,:,:,:)
+
+  real(RKIND), allocatable :: t_pressure(:,:)
+  real(RKIND), allocatable :: t_r_tor_eq(:,:)
+  real(RKIND), allocatable :: t_j_field(:,:,:,:)
+  real(RKIND), allocatable :: t_b_field(:,:,:,:)
+  real(RKIND), allocatable :: t_chi_correction(:,:,:)
+  real(RKIND), allocatable :: t_j_source(:,:,:)
 
   real(RKIND), allocatable :: t_psi_eq(:,:)
   real(RKIND), allocatable :: t_Fprof_eq(:,:)
@@ -1126,7 +1163,16 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   if(aux_values_read) then
     call tr_allocate(t_aux_values,1,aux_node_list%n_nodes,1,n_tor_tmp,1,n_degrees_tmp,1,n_var_tmp, "aux_node_list%values",CAT_UNKNOWN)
   endif
-  
+   
+#if STELLARATOR_MODEL
+  call tr_allocate(t_r_tor_eq,1,node_list%n_nodes,1,n_degrees_tmp,                              "node_list%r_tor_eq",CAT_UNKNOWN)
+  call tr_allocate(t_pressure,1,node_list%n_nodes,1,n_degrees_tmp,                              "node_list%pressure",CAT_UNKNOWN)
+  call tr_allocate(t_j_field,1,node_list%n_nodes,1,n_coord_tor_tmp,1,n_degrees_tmp,1,n_dim+1,  "node_list%j_field",CAT_UNKNOWN)
+  call tr_allocate(t_b_field,1,node_list%n_nodes,1,n_coord_tor_tmp,1,n_degrees_tmp,1,n_dim+1,    "node_list%b_field",     CAT_UNKNOWN)
+  call tr_allocate(t_chi_correction,1,node_list%n_nodes,1,     n_coord_tor_tmp,1,n_degrees_tmp,            "node_list%chi_correction",CAT_UNKNOWN)
+  call tr_allocate(t_j_source,1,node_list%n_nodes,1,     n_tor_tmp,1,n_degrees_tmp,            "node_list%j_source",CAT_UNKNOWN)
+#endif 
+
 #ifdef fullmhd
   call tr_allocate(t_psi_eq,  1,node_list%n_nodes,1,n_degrees_tmp, "node_list%psi_eq",  CAT_UNKNOWN)
   call tr_allocate(t_Fprof_eq,1,node_list%n_nodes,1,n_degrees_tmp, "node_list%Fprof_eq",CAT_UNKNOWN)
@@ -1161,10 +1207,26 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     call HDF5_array3D_reading(file_id,t_x(:,1,:,:),        'x')
   endif
   call HDF5_array4D_reading(file_id,t_values,   'values')
-  call HDF5_array4D_reading(file_id,t_deltas,   'deltas')
+  if (jorek_model_tmp .eq. 180) then
+    t_deltas = 0.d0 ! There are no meaningful deltas in the stellarator initialization "model" 180
+  else
+    call HDF5_array4D_reading(file_id,t_deltas,   'deltas')
+  end if
   if(aux_values_read) then
      call HDF5_array4D_reading(file_id,t_aux_values,   'aux_values')
   endif
+#if STELLARATOR_MODEL
+  call HDF5_array2D_reading(file_id,t_r_tor_eq, 'r_tor_eq')
+#if JOREK_MODEL == 180
+  call HDF5_array2D_reading(file_id,t_pressure, 'pressure')
+  call HDF5_array4D_reading(file_id,t_j_field,  'j_field')
+  call HDF5_array4D_reading(file_id,t_b_field,   'b_field')
+#endif
+#ifndef USE_DOMM
+  call HDF5_array3D_reading(file_id,t_chi_correction, 'chi_correction')
+#endif
+  call HDF5_array3D_reading(file_id,t_j_source, 'j_source')
+#endif
 
 #ifdef fullmhd
   call HDF5_array2D_reading(file_id,t_psi_eq,   'psi_eq')
@@ -1245,7 +1307,35 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
       end do
      end do
     endif
-     
+ 
+#if STELLARATOR_MODEL    
+    node_list%node(i)%r_tor_eq = t_r_tor_eq(i,:)
+#if JOREK_MODEL == 180
+    node_list%node(i)%pressure = t_pressure(i,:)
+    node_list%node(i)%b_field  = t_b_field(i,:,:,:)
+    node_list%node(i)%j_field  = t_j_field(i,:,:,:)
+#endif
+#ifndef USE_DOMM
+    node_list%node(i)%chi_correction  = t_chi_correction(i,:,:)
+#endif
+    node_list%node(i)%j_source = 0.d0 
+    do m=1,n_tor_tmp,2
+      do k=1, n_tor,2
+        do j=1,n_degrees_tmp 
+          if (mode_tmp(m) .eq. mode(k)) then
+            if ((m .eq. 1) .and. (k.eq.1)) then
+              node_list%node(i)%j_source(k,j)             = t_j_source(i,m,j)
+            else
+              node_list%node(i)%j_source(k-1,j)           = t_j_source(i,m-1,j)
+              node_list%node(i)%j_source(k,j)               = t_j_source(i,m,j)
+            end if
+          end if
+        enddo
+      end do
+    end do
+#endif
+
+
     ! --- Split "total" temperature into electron and ion temperature
     if ( import_3xx_4xx ) then
       do j=1,n_degrees_tmp
@@ -1311,6 +1401,12 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   call HDF5_real_reading(file_id,visco_par_rst,'visco_par')
   call HDF5_integer_reading(file_id,index_start,'index_now')
   call HDF5_real_reading(file_id,t_start,'t_now')
+  call HDF5_char_reading(file_id,t_current_prof_initialized,'current_prof_initialized')
+  if (t_current_prof_initialized .eq. 'T') then
+    current_prof_initialized = .true.
+  else
+    current_prof_initialized = .false.
+  end if
   
   if (index_start .ge. 1) then
 
@@ -1675,6 +1771,26 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     call tr_allocate(density_tot_t,1,index_start+nstep,"density_tot_t",CAT_UNKNOWN)
     density_tot_t = 0.d0
     call HDF5_array1D_reading(file_id,density_tot_t,'density_tot_t')
+    
+    if (allocated(Px_t)) call tr_deallocate(Px_t,"Px_t",CAT_UNKNOWN)
+    call tr_allocate(Px_t,1,index_start+nstep,"Px_t",CAT_UNKNOWN)
+    Px_t = 0.d0
+    call HDF5_array1D_reading(file_id,Px_t,'Px_t')
+    
+    if (allocated(Py_t)) call tr_deallocate(Py_t,"Py_t",CAT_UNKNOWN)
+    call tr_allocate(Py_t,1,index_start+nstep,"Py_t",CAT_UNKNOWN)
+    Py_t = 0.d0
+    call HDF5_array1D_reading(file_id,Py_t,'Py_t')
+    
+    if (allocated(dPx_dt)) call tr_deallocate(dPx_dt,"dPx_dt",CAT_UNKNOWN)
+    call tr_allocate(dPx_dt,1,index_start+nstep,"dPx_dt",CAT_UNKNOWN)
+    dPx_dt = 0.d0
+    call HDF5_array1D_reading(file_id,dPx_dt,'dPx_dt')
+    
+    if (allocated(dPy_dt)) call tr_deallocate(dPy_dt,"dPy_dt",CAT_UNKNOWN)
+    call tr_allocate(dPy_dt,1,index_start+nstep,"dPy_dt",CAT_UNKNOWN)
+    dPy_dt = 0.d0
+    call HDF5_array1D_reading(file_id,dPy_dt,'dPy_dt')
 
 #ifdef JECCD                   
     if (allocated(t_energies2))   call tr_deallocate(t_energies2,"t_energies2",CAT_UNKNOWN)
@@ -2132,6 +2248,16 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   if(aux_values_read) then
     call tr_deallocate(t_aux_values,"t_aux_values",CAT_UNKNOWN)
   endif
+
+#if STELLARATOR_MODEL
+  call tr_deallocate(t_pressure,"t_pressure",CAT_UNKNOWN)
+  call tr_deallocate(t_r_tor_eq,"t_r_tor_eq",CAT_UNKNOWN)
+  call tr_deallocate(t_j_field,"t_j_field",CAT_UNKNOWN)
+  call tr_deallocate(t_b_field,"t_b_field",CAT_UNKNOWN)
+  call tr_deallocate(t_chi_correction,"t_chi_correction",CAT_UNKNOWN)
+  call tr_deallocate(t_j_source,"t_j_source",CAT_UNKNOWN)
+#endif
+
   call tr_deallocate(t_energies,"t_energies",CAT_UNKNOWN)
 
 #ifdef JECCD                   

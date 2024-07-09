@@ -52,7 +52,10 @@ subroutine find_RZ_single(node_list,element_list,i_elm,R_find,Z_find,R_out,Z_out
 !< i_elm
 !-------------------------------------------------------------------------
 use data_structure
-use mod_interp, only: interp_RZ
+use mod_interp, only: interp_RZP
+use constants, only: pi
+use mod_parameters, only: n_period, n_plane
+use phys_module, only: i_plane_rtree
 implicit none
 
 type (type_node_list), intent(in)    :: node_list
@@ -66,12 +69,13 @@ integer, intent(out)   :: ifail
 integer :: i, ntrial, istart
 real*8  :: RRg1,dRRg1_dr,dRRg1_ds
 real*8  :: ZZg1,dZZg1_dr,dZZg1_ds
-real*8  :: tolx, tolf, errx, errf, temp, dis
-real*8  :: x(2), FVEC(2), FJAC(2,2), p(2)
+real*8  :: tolx, tolf, errx, errf, temp, dis, dummy
+real*8  :: x(2), FVEC(2), FJAC(2,2), p(2), phi
 
 ntrial = 20
 tolx = 1.d-8
 tolf = 1.d-15
+phi = 2.d0*pi*float(i_plane_rtree - 1)/float(n_period*n_plane)
 
 ielm_out = i_elm ! Since we only test a single element
 
@@ -97,9 +101,8 @@ do istart = 1,5
   ifail = 999
 
   do i=1,ntrial
-
-    call interp_RZ(node_list,element_list,i_elm,x(1),x(2),RRg1,dRRg1_dr,dRRg1_ds, &
-                                                    ZZg1,dZZg1_dr,dZZg1_ds)
+    call interp_RZP(node_list,element_list,i_elm,x(1),x(2),phi,RRg1,dRRg1_dr,dRRg1_ds,dummy,dummy,dummy,dummy,dummy,dummy,dummy, &
+                                                               ZZg1,dZZg1_dr,dZZg1_ds,dummy,dummy,dummy,dummy,dummy,dummy,dummy)
 
     FVEC(1)   = RRg1 - R_find
     FVEC(2)   = ZZg1 - Z_find

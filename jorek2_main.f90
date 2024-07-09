@@ -59,6 +59,11 @@ program JOREK2
   use mod_initial_grid
   use mod_flux_grid
 
+  use mod_chi
+#ifdef SEMIANALYTICAL
+  use mod_equations
+#endif
+
 ! these write additional live data (global data) used when an ECCD current is applied)
 #ifdef JECCD
   use live_data2,          only: init_live_data2, write_live_data2, finalize_live_data2
@@ -257,6 +262,9 @@ mpi_required = 0
   ! --- Define the basis functions at the Gaussian points
   call initialise_basis()
   
+  ! --- Initialize basis functions for the Dommaschk potentials
+  if (domm) call init_chi_basis()
+
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
   ! --- Read ADAS data and generate coronal equilibrium if needed
   call init_imp_adas(my_id)
@@ -358,7 +366,9 @@ mpi_required = 0
   !***********************************************************************
   !*                  define grid / equilibrium                          *
   !***********************************************************************
-  
+#if JOREK_MODEL == 180
+  call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list)
+#else
   if_not_restart: if (.not. restart) then
     call tr_resetfile()
 
@@ -452,11 +462,23 @@ mpi_required = 0
       write(*,'(A,12e16.8)') ' initial energies : ', W_mag, W_kin
 
     end if ! (my_id == 0)
-    
   end if if_not_restart
+#endif
   
   ! --- Print some grid information
   if ( my_id == 0 ) call log_grid_info(.false., node_list, element_list)
+  
+#if STELLARATOR_MODEL
+  if (my_id .eq. 0 .and. init_current_prof .and. .not. current_prof_initialized) then
+    do inode=1,node_list%n_nodes
+      node_list%node(inode)%j_source = node_list%node(inode)%values(:,:,var_zj)
+    end do
+    current_prof_initialized = .true.
+  else if (my_id .eq. 0 .and. init_current_prof .and. current_prof_initialized) then
+    write(*,*) "WARNING: init_current_prof was set to true, but this parameter will be ignored,"
+    write(*,*) "  as the current source has already been initialized"
+  end if
+#endif
   
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
   
@@ -574,6 +596,11 @@ mpi_required = 0
     call MPI_Barrier(a_mat%comm,ierr)
 
   endif ! (nstep >0)
+  
+#if STELLARATOR_MODEL
+  ! Add chi representation to element data structure using imported node representation
+  call compute_chi_on_gauss_points(my_id, element_list,node_list, mhd_sim%local_elms, mhd_sim%n_local_elms)
+#endif
 
   ! --- Do Catalyst insitu pipelines before the first timestep
 #ifdef USE_CATALYST
@@ -615,6 +642,10 @@ mpi_required = 0
   if (.not. associated(aux_node_list)) allocate(aux_node_list) ! information of particle moments is stored in aux_list
 
   index_now = index_start  ! index_now: Index of current timestep
+
+#if defined(SEMIANALYTICAL)
+  call init_eq_struct()
+#endif
 
   jstep_loop: do jstep = 1, 10 ! Go through the different values of the tstep_n and nstep_n arrays
   istep_loop: do istep = 1, nstep_n(jstep)
@@ -834,7 +865,9 @@ mpi_required = 0
        write(*,*)
     endif   !--- my_id=0
 
+#ifndef USE_DOMM
     call int3d_new(my_id, mhd_sim%node_list, mhd_sim%element_list, bnd_node_list, bnd_elm_list, exprs_all_int, res, 1)
+#endif
 
     if (my_id .eq. 0 ) then
       ! --- Output energies and growth_rates to text files during the code run

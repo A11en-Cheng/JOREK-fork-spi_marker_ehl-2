@@ -170,6 +170,19 @@ ifeq (model750, $(MODEL))
   DEFINES  := $(DEFINES) -Dfullmhd
 endif
 
+CGDEP= generate_code                         # Pre-compute analytic expressions from mod_equations for performance
+USE_DOMM ?= 1
+ifeq ($(USE_DOMM), 1)
+  DEFINES := $(DEFINES) -DUSE_DOMM              # Use Dommaschk potentials, without FE correction of n.B on boundary 
+endif
+ifeq (model180, $(MODEL))
+  DEFINES := $(DEFINES) -DSEMIANALYTICAL -DSTELLARATOR_MODEL
+  FFLAGS  := $(FFLAGS) -heap-arrays
+endif
+ifeq (model183, $(MODEL))
+  DEFINES := $(DEFINES) -DSEMIANALYTICAL -DSTELLARATOR_MODEL
+  FFLAGS  := $(FFLAGS) -heap-arrays
+endif
 ifeq (.true., $(shell ./util/config.sh -p with_vpar))
   DEFINES  := $(DEFINES) -DWITH_Vpar
 endif

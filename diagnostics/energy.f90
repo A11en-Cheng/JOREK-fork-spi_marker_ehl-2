@@ -77,7 +77,7 @@ do ife =1,  element_list%n_elements
               eq_t(k,ms,mt)  = eq_t(k,ms,mt)  + nodes(i)%values(in,j,k) * element%size(i,j) * H_t(i,j,ms,mt)
             enddo
         
-	    if (in .eq. 1) then
+            if (in .eq. 1) then
               density_eq(ms,mt) = abs(eq_g(5,ms,mt))
             endif
 
@@ -137,15 +137,18 @@ do ife =1,  element_list%n_elements
         + eq_g(var_rho,ms,mt) *( eq_g1(var_uR,ms,mt)*eq_g(var_uR,ms,mt) + eq_g1(var_uZ,ms,mt)*eq_g(var_uZ,ms,mt) + eq_g1(var_up,ms,mt)*eq_g(var_up,ms,mt)  ) &
         + eq_g(var_rho,ms,mt) *( eq_g(var_uR,ms,mt) *eq_g1(var_uR,ms,mt)+ eq_g(var_uZ,ms,mt) *eq_g1(var_uZ,ms,mt)+ eq_g(var_up,ms,mt) *eq_g1(var_up,ms,mt) ) )
         endif
-
 #else
         ps0_x = (   y_t(ms,mt) * eq_s(var_psi,ms,mt) - y_s(ms,mt) * eq_t(var_psi,ms,mt) ) / xjac
         ps0_y = ( - x_t(ms,mt) * eq_s(var_psi,ms,mt) + x_s(ms,mt) * eq_t(var_psi,ms,mt) ) / xjac
         u0_x  = (   y_t(ms,mt) * eq_s(var_u,  ms,mt) - y_s(ms,mt) * eq_t(var_u,ms,mt) ) / xjac
         u0_y  = ( - x_t(ms,mt) * eq_s(var_u,  ms,mt) + x_s(ms,mt) * eq_t(var_u,ms,mt) ) / xjac
 
-        W_mag(in) = W_mag(in) +                     (ps0_x*ps0_x + ps0_y*ps0_y ) / BigR    * xjac * wst
+        W_mag(in) = W_mag(in) + (ps0_x*ps0_x + ps0_y*ps0_y)*xjac*wst/BigR
+#if STELLARATOR_MODEL
+        W_kin(in) = W_kin(in) + density_eq(ms,mt)*(u0_x*u0_x + u0_y*u0_y)*BigR**3*xjac*wst/F0**2
+#else
         W_kin(in) = W_kin(in) + density_eq(ms,mt) * (u0_x*u0_x   + u0_y*u0_y)    * BigR**3 * xjac * wst
+#endif
 #endif
 
 !        if (gamma /= 1.d0) then ! the internal energy density p/(gamma-1) may be absorbed in the kinetic energy

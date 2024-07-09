@@ -194,7 +194,12 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
   write(*,  112) ' n_dim          =  ', n_dim             
   write(*,  112) ' n_order        =  ', n_order           
   write(*,  112) ' n_tor          =  ', n_tor             
+  write(*,  112) ' n_coord_tor    =  ', n_coord_tor
+#ifdef USE_DOMM
+  write(*,  112) ' l_pol_domm     =  ', l_pol_domm
+#endif
   write(*,  112) ' n_period       =  ', n_period          
+  write(*,  112) ' n_coord_period =  ', n_coord_period
   write(*,  112) ' n_plane        =  ', n_plane           
   write(*,  112) ' n_vertex_max   =  ', n_vertex_max      
   write(*,  112) ' n_nodes_max    =  ', n_nodes_max       
@@ -270,6 +275,9 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
   write(*,LOGI_FMT) 'xpoint                ', xpoint
   write(*,REAL_FMT) 'Z_xpoint_limit        ', Z_xpoint_limit(:)
   write(*,INTG_FMT) 'xpoint_search_tries   ', xpoint_search_tries
+
+  write(*,INTG_FMT) 'm_pol_bc              ', m_pol_bc
+  write(*,INTG_FMT) 'i_plane_rtree         ', i_plane_rtree
 
   if ( xpoint ) then
     write(*,INTG_FMT) 'xcase                 ', xcase
@@ -396,12 +404,20 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
     write(*,REAL_FMT) 'V_coeff               ', V_coef(1:10)
   end if
 
+  if (domm) then
+    write(*,CHAR_FMT) 'domm_file             ', domm_file
+    write(*,REAL_FMT) 'R_domm                ', R_domm
+  end if
+
   if ( (abs(V_0) .ge. 1.d-19) .or. (num_rot) ) then
      write(*,LOGI_FMT) 'normalized_velocity_profile', normalized_velocity_profile
   endif
 
 
   if (with_TiTe) then ! (with_TiTe), i.e. single temperature ***************************************
+#if JOREK_MODEL == 180
+    write(*,REAL_FMT)   'TiTe_ratio             ', TiTe_ratio
+#endif
     if ( .not. num_Te ) then
       write(*,REAL_FMT) 'Te_0                   ', Te_0
       write(*,REAL_FMT) 'Te_1                   ', Te_1
@@ -596,6 +612,8 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
 
 
   write(*,LOGI_FMT) 'keep_current_prof     ', keep_current_prof
+  write(*,LOGI_FMT) 'init_current_prof     ', init_current_prof
+  write(*,LOGI_FMT) 'current_prof_initialized', current_prof_initialized
   write(*,LOGI_FMT) 'linear_run            ', linear_run
   write(*,REAL_FMT) 'D_prof_neg            ', D_prof_neg
   write(*,REAL_FMT) 'D_prof_neg_thresh     ', D_prof_neg_thresh
