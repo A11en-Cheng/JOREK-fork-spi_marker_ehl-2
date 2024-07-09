@@ -988,14 +988,14 @@ do ife = ife_min, ife_max
           Z_eff      = Z_eff / n_imp
 
           ! This is the total derivative of n_imp*Z_imp, need to separate the two
-          Z_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,4,ms,mt) - y_s(ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
-          Z_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,4,ms,mt) + x_s(ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
+          Z_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,4,ms,mt) - y_s(mp,ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
+          Z_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,4,ms,mt) + x_s(mp,ms,mt) * eq_aux_t(mp,4,ms,mt) ) / xjac
           Z_imp_p    = eq_aux_p(mp,4,ms,mt)
           Z_imp_s    = eq_aux_s(mp,4,ms,mt)
           Z_imp_t    = eq_aux_t(mp,4,ms,mt)
 
-          n_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,5,ms,mt) - y_s(ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
-          n_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,5,ms,mt) + x_s(ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
+          n_imp_x    = (   y_t(ms,mt) * eq_aux_s(mp,5,ms,mt) - y_s(mp,ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
+          n_imp_y    = ( - x_t(ms,mt) * eq_aux_s(mp,5,ms,mt) + x_s(mp,ms,mt) * eq_aux_t(mp,5,ms,mt) ) / xjac
           n_imp_p    = eq_aux_p(mp,5,ms,mt)
           n_imp_s    = eq_aux_s(mp,5,ms,mt)
           n_imp_t    = eq_aux_t(mp,5,ms,mt)
@@ -1570,21 +1570,21 @@ do ife = ife_min, ife_max
         endif
 
         ! Fill in the nonlocal array
-        if (nonlocal_abl .and. get_psi_n(psi_as_coord, y_g(ms,mt)) < 1. &
-          .and. get_psi_n(psi_as_coord, y_g(ms,mt)) >= 0.) then
+        if (nonlocal_abl .and. get_psi_n(psi_as_coord, y_g(mp,ms,mt)) < 1. &
+          .and. get_psi_n(psi_as_coord, y_g(mp,ms,mt)) >= 0.) then
 
-          if (get_psi_n(psi_as_coord, y_g(ms,mt)) >= get_psi_n(Psi_surface(n_flux))) then
+          if (get_psi_n(psi_as_coord, y_g(mp,ms,mt)) >= get_psi_n(Psi_surface(n_flux))) then
             i_surface = n_flux
           else
-            i_surface = INT(get_psi_n(psi_as_coord, y_g(ms,mt))*REAL(n_flux,8)) + 1 ! Initial guess
-            if (get_psi_n(psi_as_coord, y_g(ms,mt)) < get_psi_n(Psi_surface(i_surface))) then
-              do while (get_psi_n(psi_as_coord, y_g(ms,mt)) < get_psi_n(Psi_surface(i_surface)) &
+            i_surface = INT(get_psi_n(psi_as_coord, y_g(mp,ms,mt))*REAL(n_flux,8)) + 1 ! Initial guess
+            if (get_psi_n(psi_as_coord, y_g(mp,ms,mt)) < get_psi_n(Psi_surface(i_surface))) then
+              do while (get_psi_n(psi_as_coord, y_g(mp,ms,mt)) < get_psi_n(Psi_surface(i_surface)) &
                   .and. i_surface > 1)
                 i_surface = i_surface - 1
               enddo
-            else if (get_psi_n(psi_as_coord, y_g(ms,mt)) >= get_psi_n(Psi_surface(i_surface))) then
+            else if (get_psi_n(psi_as_coord, y_g(mp,ms,mt)) >= get_psi_n(Psi_surface(i_surface))) then
               !write(*,*) "SANITY CHECK", i_surface, get_psi_n(psi_as_coord, y_g(ms,mt)),  get_psi_n(Psi_surface(i_surface)), REAL(n_flux,8)
-              do while (get_psi_n(psi_as_coord, y_g(ms,mt)) >= get_psi_n(Psi_surface(i_surface+1)) &
+              do while (get_psi_n(psi_as_coord, y_g(mp,ms,mt)) >= get_psi_n(Psi_surface(i_surface+1)) &
                   .and. i_surface < n_flux - 1)
                 i_surface = i_surface + 1
               enddo
