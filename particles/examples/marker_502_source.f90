@@ -31,6 +31,7 @@ use mod_edge_elements
 use mod_impurity, only: init_imp_adas
 !$ use omp_lib
 
+
 implicit none
 
 type(event)                                       :: fieldreader, partreader, partwriter
