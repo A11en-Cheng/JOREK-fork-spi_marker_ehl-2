@@ -22,7 +22,7 @@ integer,allocatable :: iwrk(:)
 real*8             :: angle, ellip, tria_u, tria_l, quad_u, quad_l, r0, z0, a0, PI
 real*8             :: dummy(3), xdim,zdim,rzero,rgrid1,zmid,rmaxis,zmaxis,ssimag,ssibry,bcentr,a_minor
 real*8             :: xip,xdum1,xdum2,xdum3,xdum4,xdum5
-real*8             :: psi_sep, sig_sep, tanh1, zmu0, zn0, zmd, rho_bnd
+real*8             :: psi_sep, sig_sep, tanh1, zmu0, zn0, zmd, rho_bnd, T_bnd
 real*8             :: pres_bnd, sig_ext, dpdpsi_sep
 real*8             :: xb ,xe, yb, ye, smth, fp, fout
 real*8             :: B_scale, I_scale, R_scale, F_axis, factor, dfactor
@@ -46,7 +46,8 @@ I_scale = 1.d0/1.d0  ! scaling factor for the toroidal current
 R_scale = 1.d0/1.d0  ! scaling factor for the space coordinates 
 !> Define the defaults JOREK boundaries for a specific tokamak: 'ITER' (default), 'JET', 
 !> 'DIII-D' or define a boundary via user's inputs: 'USER_DEFINED' 
-tokamak_name  = 'ITER'
+!tokamak_name  = 'ITER'
+tokamak_name  = 'XL50-U'
 !> Define which default boundary to be used (major radius, vertical position and 
 !> minor radius are rescaled by the R_scale factor):
 !> NOTE: the JOREK boundary is computed using:
@@ -394,6 +395,36 @@ else if (tokamak_name == 'DIII-D') then
     a0     = 0.7 * R_scale
   else
     write(*,*) 'JOREK boundary not or wrongly specified, stopping' 
+    stop
+  end if
+
+else if (tokamak_name == 'XL50-U') then
+
+  !-------------------- contour outside DIII-D wall
+  if(boundary_type == 'OUTSIDE_WALL') then
+    ellip  = 3.0
+    tria_u = 0.4
+    tria_l = 0.4
+    quad_u = -0.5
+    quad_l = -0.5
+    n_tht  = 257
+    r0     = 0.8 * R_scale
+    z0     = 0.  * R_scale
+    a0     = 0.54 * R_scale
+
+  !-------------------- Atomic physics JOREK/NIMROD/M3D-C1 benchmark case (paper by B. Lyons)
+  else if(boundary_type == 'NIMROD_M3DC1') then
+    ellip  = 1.35/0.7
+    tria_u = 0.3
+    tria_l = 0.3
+    quad_u = 0.
+    quad_l = 0.
+    n_tht   = 257
+    r0     = 0.7 * R_scale
+    z0     = 0.  * R_scale
+    a0     = 0.5 * R_scale
+  else
+    write(*,*) 'JOREK boundary not or wrongly specified, stopping'
     stop
   end if
 
