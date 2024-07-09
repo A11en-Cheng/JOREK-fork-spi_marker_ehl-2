@@ -24,7 +24,7 @@ real*8  :: R_line, Z_line, s_line, t_line, p_line, R_mid, Z_mid, s_mid, t_mid, p
 real*8, allocatable :: R_start(:), Z_start(:), P_start(:)
 real*8  :: R, Z, P, P_s, P_t, P_st, P_ss, P_tt
 real*8  :: tol, delta_phi, Zjac, psi_s, psi_t, R_in, Z_in, R_out, Z_out, Rmin, Rmax, Zmin, Zmax, delta_s, delta_t, R_keep, Z_keep
-real*8  :: small_delta, small_delta_s, small_delta_t, delta_phi_local, delta_phi_step, phi
+real*8  :: small_delta, small_delta_s, small_delta_t, delta_phi_local, delta_phi_step
 real*8  :: atmp, cur_pert
 real*8  :: psi_out
 real*8  :: rnew(3), rold(3), dl, length 
