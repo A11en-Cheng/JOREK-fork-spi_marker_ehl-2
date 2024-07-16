@@ -70,9 +70,8 @@ do i_tor=1, n_tor
   write(*,*) ' toroidal mode numbers : ',i_tor,mode(i_tor)
 enddo
 
-call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
-
 call initialise_basis()                              ! define the basis functions at the Gaussian points
+call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
 
 open(20,file='energies.txt')
 
