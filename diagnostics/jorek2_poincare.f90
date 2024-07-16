@@ -203,6 +203,7 @@ endif
 !$omp parallel default(none) &
 !$omp shared(node_list, element_list, n_lines, R_start, Z_start, P_start, n_turn, n_phi, delta_phi, element_neighbours, ES, iplot_type) &
 !$omp private(i_lines, ip, R_out, Z_out, i_elm, s_out, t_out, ifail, R_line, Z_line, p_line, s_line, t_line, i_turn, i_phi, &
+!$omp         length, first_point, phi, rnew, rold, dl, &
 !$omp         delta_phi_local, i_steps, delta_phi_step, delta_s, delta_t, s_mid, t_mid, p_mid, small_delta_s, small_delta_t, &
 !$omp         small_delta, R_in, Z_in, i_elm_prev, i_elm_tmp, R, Z, psi_out, Rp, Zp, Tp, Pp, i)
 
