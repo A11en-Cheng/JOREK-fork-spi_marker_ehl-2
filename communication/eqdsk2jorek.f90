@@ -47,7 +47,7 @@ R_scale = 1.d0/1.d0  ! scaling factor for the space coordinates
 !> Define the defaults JOREK boundaries for a specific tokamak: 'ITER' (default), 'JET', 
 !> 'DIII-D' or define a boundary via user's inputs: 'USER_DEFINED' 
 !tokamak_name  = 'ITER'
-tokamak_name  = 'XL50-U'
+tokamak_name  = 'CFEDR'
 !> Define which default boundary to be used (major radius, vertical position and 
 !> minor radius are rescaled by the R_scale factor):
 !> NOTE: the JOREK boundary is computed using:
@@ -66,7 +66,7 @@ ellip_in    = 1.d0; tria_up_in  = 0.d0; tria_low_in = 0.d0;
 quad_up_in  = 0.d0; quad_low_in = 0.d0; n_tht_in    = 259;
 r0_in       = 3.d0; z0_in       = 0.d0; a0_in       = -1.d0; ! a0_in is later set to +1.0 if the user has not changed it with the namelist
 pres_bnd    = 1.d1 ! default to 10 Pa
-smth = 1.d-6 ! Controls the tradeoff between closeness of fit and smoothness of fit. When too small, can lead to noise pick-up. When too large, can lead to inaccurate fit.
+smth = 3.d-3!1.d-6 ! Controls the tradeoff between closeness of fit and smoothness of fit. When too small, can lead to noise pick-up. When too large, can lead to inaccurate fit.
              ! May need hand tuning, based on a visual inspection of the output.
              ! For more details, see the documentation of regrid.f in libdierckx or the "Tips and Tricks" section of the Wiki page https://www.jorek.eu/wiki/doku.php?id=eqdsk2jorek.f90. 
 write(*,*) ' EQDSK to JOREK2 '
@@ -294,6 +294,36 @@ if (tokamak_name == 'ITER') then
     r0     = 6.2   * R_scale
     z0     = -0.05 * R_scale
     a0     = 2.34  * R_scale
+  else
+    write(*,*) 'JOREK boundary not or wrongly specified, stopping' 
+    stop
+  endif
+
+else if (tokamak_name == 'CFEDR') then
+
+  !--------------------close fit to ITER wall
+  if (boundary_type == 'CLOSE_WALL_FIT') then
+    ellip  = 2.0
+    tria_u = 0.55
+    tria_l = 0.65
+    quad_u = -0.1
+    quad_l = 0.15
+    n_tht  = 257
+    r0     = 6.2  * R_scale
+    z0     = 0.1  * R_scale
+    a0     = 2.25 * R_scale
+
+  !-------------------- contour outside ITER wall
+  else if(boundary_type == 'OUTSIDE_WALL') then
+    ellip  = 1.95
+    tria_u = 0.9
+    tria_l = 0.8!0.65
+    quad_u = -0.20!-0.12
+    quad_l = -0.15!-0.1
+    n_tht  = 257
+    r0     = 7.85   * R_scale
+    z0     = 0.70   * R_scale!-0.05 * R_scale
+    a0     = 3.00  * R_scale!2.75  * R_scale
   else
     write(*,*) 'JOREK boundary not or wrongly specified, stopping' 
     stop
@@ -618,16 +648,12 @@ do i=1,n_ext
     rho_ext(i) = (rho_ext(i) - rho_bnd) * (0.5d0 - 0.5d0*tanh1) + rho_bnd
   end if
   !T_ext(i)   = T_ext(i)   * (0.5d0 - 0.5d0*tanh1) * zmu0 
-  if (allocated(ne_spline)) then
-    T_ext(i)   = T_ext(i) * zmu0 * (0.5d0 - 0.5d0*tanh1) / rho_ext(i) + T_bnd * (0.5 + 0.5*tanh1)
-  else
-    T_ext(i)   = T_ext(i) * zmu0 * (0.5d0 - 0.5d0*tanh1) + T_bnd * (0.5 + 0.5*tanh1)
-  end if
+  T_ext(i)   = p_ext(i) * zmu0 * (0.5d0 - 0.5d0*tanh1) / rho_ext(i) + T_bnd * (0.5 + 0.5*tanh1)
   !T_ext(i)   = T_ext(i)   * (0.5d0 - 0.5d0*tanh1) * zmu0 +T_bnd 
 !   T_ext(i)   = T_ext(i) / rho_ext(i) * zmu0 + T_bnd 
   p_ext(i)   = rho_ext(i) * T_ext(i)
 enddo
-T_ext(1:n_ext) = p_ext(1:n_ext)*zmu0 / rho_ext(1:n_ext)
+!T_ext(1:n_ext) = p_ext(1:n_ext)*zmu0 / rho_ext(1:n_ext)
 
 call lplot6(2,2,psi_ext,df2_ext,n_ext,'df2')
 call lplot6(3,2,psi_ext,p_ext,n_ext,'pressure')
