@@ -107,12 +107,12 @@ subroutine test_write_sim_one_particle_kinetic_leapfrog
 
   allocate(sim_to_write%groups(1))
   call allocate_particles(sim_to_write%groups(1)%particles, 1)
-  sim_to_write%time = 21.d0
+  sim_to_write%time = 20.d0
 
   call writer%run(sim_to_write)
   call MPI_Barrier(MPI_COMM_WORLD,ifail_loc)
   ! test if a file with the right name was created
-  inquire(file='part021.00000000.h5', exist=file_exists)
+  inquire(file='part020.00000000.h5', exist=file_exists)
   call assert_true(file_exists, 'file with the right name should be created')
 
   reader%time = sim_to_write%time
@@ -130,7 +130,7 @@ subroutine test_write_sim_one_particle_kinetic_leapfrog
   end if
 
   ! Delete the file
-  call remove_file(rank_loc,'part021.00000000.h5',ifail_loc)
+  call remove_file(rank_loc,'part020.00000000.h5',ifail_loc)
 end subroutine test_write_sim_one_particle_kinetic_leapfrog
 
 subroutine test_write_sim_one_group_boris
@@ -191,12 +191,12 @@ subroutine test_write_sim_two_groups_boris
   allocate(sim_to_write%groups(2))
   call allocate_particles(sim_to_write%groups(1)%particles, 2)
   call allocate_particles(sim_to_write%groups(2)%particles, 2)
-  sim_to_write%time = 21.d0
+  sim_to_write%time = 22.d0
 
   call writer%run(sim_to_write)
   call MPI_Barrier(MPI_COMM_WORLD,ifail_loc)
   ! test if a file with the right name was created
-  inquire(file='part021.00000000.h5', exist=file_exists)
+  inquire(file='part022.00000000.h5', exist=file_exists)
   call assert_true(file_exists, 'file with the right name should be created')
 
   reader%time = sim_to_write%time
@@ -218,7 +218,7 @@ subroutine test_write_sim_two_groups_boris
   end if
 
   ! Delete the file
-  call remove_file(rank_loc,'part021.00000000.h5',ifail_loc)
+  call remove_file(rank_loc,'part022.00000000.h5',ifail_loc)
 end subroutine test_write_sim_two_groups_boris
 
 !> Tools ------------------------------------------
@@ -231,11 +231,11 @@ subroutine remove_file(rank,filename,ifail)
   integer,intent(in)          :: rank
   character(len=*),intent(in) :: filename
   integer                     :: u, stat
-  call MPI_Barrier(MPI_COMM_WORLD,ifail)
   if(rank.eq.master_rank) then
     open(newunit=u, iostat=stat, file=trim(filename), status='old')
     if (stat .eq. 0) close(u, status='delete')
   endif
+  call MPI_Barrier(MPI_COMM_WORLD,ifail)
 end subroutine remove_file
 
 !> Helper function for allocating particles

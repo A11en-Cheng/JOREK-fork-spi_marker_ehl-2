@@ -42,10 +42,17 @@ write(*,*) '  n_R, n_Z, n_radial : ',nR,nZ,n_radial
 
 !-------------- start with a square central grid
 
-call grid_bezier_square(nR,nZ,R_begin,R_end,Z_begin,Z_end,.false.,node_list,element_list)
+call grid_bezier_square(nR,nZ,R_begin,R_end,Z_begin,Z_end,.true.,node_list,element_list)
 
 write(*,'(A,i6)') ' number of nodes    : ',node_list%n_nodes
 write(*,'(A,i6)') ' number of elements : ',element_list%n_elements
+
+do i=1, node_list%n_nodes
+  node_list%node(i)%boundary = 0
+enddo
+do i=1, element_list%n_elements
+  element_list%element(i)%neighbours = 0
+enddo
 
 !-------------- adapt square grid such that all edge vectors point outwards
 

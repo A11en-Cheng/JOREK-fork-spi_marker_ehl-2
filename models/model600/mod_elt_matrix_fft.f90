@@ -169,6 +169,7 @@ real*8     :: alpha_e, dalpha_e_dT, d2alpha_e_dT2, alpha_e_bis, alpha_e_tri
 real*8     :: alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y, delta_alpha_e
 !   -Coefficients related to Z_imp (! with_TiTe)
 real*8     :: alpha_imp, dalpha_imp_dT, d2alpha_imp_dT2, alpha_imp_bis, alpha_imp_tri
+real*8     :: alpha_imp_s, alpha_imp_t, alpha_imp_p, alpha_imp_x, alpha_imp_y, delta_alpha_imp
 !   -Radiation from injected impurities
 real*8     :: Lrad, dLrad_dT                                  ! Radiation rate and its derivative wrt. temperature
 real*8     :: Te_corr_eV, dTe_corr_eV_dT                      ! Temperature used in radiation rate
@@ -1666,26 +1667,26 @@ do i=1,n_vertex_max
               rhs_ij(var_Te) =  v * BigR * heat_source_e(ms,mt)                                  * xjac * tstep * factor(var_Te,1 ) & 
 
                               ! quantities from Non-equilibrium impurity model
-                              - v * BigR * (aux_dEion_dt + aux_rad)                              * xjac * tstep & ! TO BE DONE: put proper 'factor'
+                              - v * BigR * (aux_dEion_dt + aux_rad)                              * xjac * tstep * factor(var_Te,16) & 
 
                               + v * (r0 + rimp0*alpha_e_bis) * BigR**2  * (Te0_s * u0_t - Te0_t * u0_s) * tstep * factor(var_Te,2 ) &
                               + v * Te0 * BigR**2 * ( r0_s * u0_t -  r0_t * u0_s)                       * tstep * factor(var_Te,2 ) &
                               + v * alpha_e * Te0 * BigR**2 * (rimp0_s * u0_t - rimp0_t * u0_s)         * tstep * factor(var_Te,2 ) &
                               ! This is for the projected Z_imp, which do NOT depend on temperature
-                              + v * rimp0 * Te0 * BigR**2 * (alpha_e_s * u0_t - alpha_e_t * u0_s)         * tstep & ! TO BE DONE: put proper 'factor'
+                              + v * rimp0 * Te0 * BigR**2 * (alpha_e_s * u0_t - alpha_e_t * u0_s)       * tstep * factor(var_Te,2 ) & 
                                                                                                  
                               + v * (r0 + rimp0*alpha_e) * Te0 * 2.d0* GAMMA * BigR * u0_y       * xjac * tstep * factor(var_Te,3 ) &
                                                                                                  
                               - v * (r0 + rimp0*alpha_e_bis) * F0 / BigR * Vpar0 * Te0_p         * xjac * tstep * factor(var_Te,4 ) &
                               - v * Te0 * F0 / BigR * Vpar0 * (r0_p + alpha_e * rimp0_p)         * xjac * tstep * factor(var_Te,4 ) &
                               ! This is for the projected Z_imp, which do NOT depend on temperature
-                              - v * Te0 * F0 / BigR * Vpar0 * (       alpha_e_p * rimp0)         * xjac * tstep & ! TO BE DONE: put proper 'factor'
+                              - v * Te0 * F0 / BigR * Vpar0 * (       alpha_e_p * rimp0)         * xjac * tstep * factor(var_Te,4 )& 
                                                                                                  
                               - v * (r0 + rimp0*alpha_e_bis) * Vpar0 * (Te0_s * ps0_t - Te0_t * ps0_s)  * tstep * factor(var_Te,4 ) &
                               - v * Te0 * Vpar0 * (r0_s * ps0_t - r0_t * ps0_s)                         * tstep * factor(var_Te,4 ) &
                               - v * Te0 * Vpar0 * alpha_e * (rimp0_s * ps0_t - rimp0_t * ps0_s)         * tstep * factor(var_Te,4 ) &
                               ! This is for the projected Z_imp, which do NOT depend on temperature
-                              - v * Te0 * Vpar0 * rimp0 * (alpha_e_s * ps0_t - alpha_e_t * ps0_s)       * tstep & ! TO BE DONE: put proper 'factor'
+                              - v * Te0 * Vpar0 * rimp0 * (alpha_e_s * ps0_t - alpha_e_t * ps0_s)       * tstep * factor(var_Te,4 ) & 
                                                                                                  
                               - v * (r0+rimp0*alpha_e) * Te0 * GAMMA * (vpar0_s*ps0_t - vpar0_t*ps0_s)  * tstep * factor(var_Te,3 ) &
                               - v * (r0 + rimp0*alpha_e) * Te0 * GAMMA * F0 / BigR * vpar0_p     * xjac * tstep * factor(var_Te,3 ) &
@@ -1694,8 +1695,6 @@ do i=1,n_vertex_max
                               - ZKe_prof * BigR * (v_x*Te0_x + v_y*Te0_y                   )     * xjac * tstep * factor(var_Te,6 ) &
                               
                               - ZK_e_perp_num_psin*  (v_xx + v_x/Bigr + v_yy)*(Te0_xx + Te0_x/Bigr + Te0_yy) * BigR * xjac * tstep * factor(var_Te,7 ) &
-
-                              ! CEHCK: ZK_par_num term missing?
 
                               + v * (GAMMA-1.d0) * eta_T_ohm * (zj0 / BigR)**2.d0         * BigR * xjac * tstep * factor(var_Te,9 ) &
   
@@ -1711,7 +1710,7 @@ do i=1,n_vertex_max
                                             * ( v_x * u0_y - v_y * u0_x)                   * xjac * tstep * tstep * factor(var_Te,8 )&
                          ! This is for the projected Z_imp, which do NOT depend on temperature
                          - tgnum_Te * 0.25d0 * BigR**3 * Te0 * ((    +alpha_e_x*rimp0) * u0_y - (    +alpha_e_y*rimp0) * u0_x) & 
-                                            * ( v_x * u0_y - v_y * u0_x) * xjac * tstep * tstep  & ! TO BE DONE: put proper 'factor'
+                                            * ( v_x * u0_y - v_y * u0_x)                   * xjac * tstep * tstep * factor(var_Te,8 )& 
 
                          - tgnum_Te * 0.25d0 * BigR**3 * (r0+alpha_e_bis*rimp0) * (Te0_x * u0_y - Te0_y * u0_x)                       &
                                             * ( v_x * u0_y - v_y * u0_x)                   * xjac * tstep * tstep * factor(var_Te,8 )&
@@ -1722,7 +1721,7 @@ do i=1,n_vertex_max
                          ! This is for the projected Z_imp, which do NOT depend on temperature
                          - tgnum_Te * 0.25d0 / BigR * vpar0**2    &  
                                    * Te0 * ((    +alpha_e_x*rimp0) * ps0_y - (    +alpha_e_y*rimp0) * ps0_x + F0 / BigR * (    +alpha_e_p*rimp0)) &
-                                   * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * tstep * tstep       & ! TO BE DONE: put proper 'factor'
+                                   * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * tstep * tstep * factor(var_Te,8 )& 
 
                          - tgnum_Te * 0.25d0 / BigR * vpar0**2                                                    &
                                    * (r0+alpha_e_bis*rimp0) * (Te0_x * ps0_y - Te0_y * ps0_x + F0 / BigR * Te0_p)                     &
@@ -1778,6 +1777,11 @@ do i=1,n_vertex_max
                            - tgnum_Te * 0.25d0 / BigR * vpar0**2                                                    &
                                    * Te0 * ((r0_x+alpha_e*rimp0_x) * ps0_y - (r0_y+alpha_e*rimp0_y) * ps0_x  + F0 / BigR * (r0_p+alpha_e*rimp0_p))                        &
                                    * (                                   + F0 / BigR * v_p) * xjac * tstep * tstep * factor(var_Te,8 ) &
+                           ! This is for the projected Z_imp, which do NOT depend on temperature
+                           - tgnum_Te * 0.25d0 / BigR * vpar0**2 &
+                                      * Te0 * ((    +alpha_e_x*rimp0) * ps0_y - (    +alpha_e_y*rimp0) * ps0_x &
+                                               + F0 / BigR * (    +alpha_e_p*rimp0))                        &
+                                            * (                           + F0 / BigR * v_p) * xjac * tstep * tstep * factor(var_Te,8 )  &
                            - tgnum_Te * 0.25d0 / BigR * vpar0**2                                                    &
                                    * (r0+alpha_e_bis*rimp0) * (Te0_x * ps0_y - Te0_y * ps0_x + F0 / BigR * Te0_p)                       &
                                    * (                                   + F0 / BigR * v_p) * xjac * tstep * tstep * factor(var_Te,8 )
@@ -1798,19 +1802,26 @@ do i=1,n_vertex_max
               !###################################################################################################
   
               rhs_ij(var_T) =  v * BigR * heat_source(ms,mt)                                    * xjac * tstep * factor(var_T,1 ) &
-              
+                              ! quantities from Non-equilibrium impurity model
+                             - v * BigR * (aux_dEion_dt + aux_rad)                              * xjac * tstep * factor(var_T,16) & 
                              + v * (r0 + rimp0*alpha_imp_bis) * BigR**2 * (T0_s  * u0_t - T0_t * u0_s) * tstep * factor(var_T,2 ) &
                              + v * T0 * BigR**2 * ( r0_s * u0_t - r0_t * u0_s)                         * tstep * factor(var_T,2 ) &
                              + v * alpha_imp * T0 * BigR**2 * (rimp0_s * u0_t - rimp0_t * u0_s)        * tstep * factor(var_T,2 )&
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
+                             + v * rimp0 * T0 * BigR**2 * (alpha_imp_s * u0_t - alpha_imp_t * u0_s)    * tstep * factor(var_T,2 ) & 
                                                                                             
                              + v * (r0 + rimp0*alpha_imp) * T0 * 2.d0* GAMMA * BigR * u0_y      * xjac * tstep * factor(var_T,3 ) &
                             
                              - v * (r0 + rimp0*alpha_imp_bis) * F0 / BigR * Vpar0 * T0_p        * xjac * tstep * factor(var_T,4 ) &
                              - v * T0 * F0 / BigR * Vpar0 * (r0_p + alpha_imp * rimp0_p)        * xjac * tstep * factor(var_T,4 ) &
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - v * T0 * F0 / BigR * Vpar0 * (       alpha_imp_p * rimp0)        * xjac * tstep * factor(var_T,4 ) & 
                             
                              - v * (r0 + rn0*alpha_imp_bis) * Vpar0 * (T0_s * ps0_t - T0_t * ps0_s)    * tstep * factor(var_T,4 ) &
                              - v * T0 * Vpar0 * (r0_s * ps0_t - r0_t * ps0_s)                          * tstep * factor(var_T,4 ) &
                              - v * T0 * Vpar0 * alpha_imp * (rimp0_s * ps0_t - rimp0_t * ps0_s)        * tstep * factor(var_T,4 ) &
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - v * T0 * Vpar0 * rimp0 * (alpha_imp_s * ps0_t - alpha_imp_t * ps0_s)    * tstep * factor(var_T,4 ) & 
                                                                                              
                              - v * (r0+rimp0*alpha_imp) * T0 * GAMMA * (vpar0_s*ps0_t - vpar0_t*ps0_s) * tstep * factor(var_T,3 ) &
                              - v * (r0 + rimp0*alpha_imp) * T0 * GAMMA * F0 / BigR * vpar0_p    * xjac * tstep * factor(var_T,3 ) &
@@ -1849,12 +1860,19 @@ do i=1,n_vertex_max
                             
                              - tgnum_T * 0.25d0 * BigR**3 * T0 * ((r0_x+alpha_imp*rimp0_x) * u0_y - ((r0_y+alpha_imp*rimp0_y)) * u0_x)                           &
                                                 * ( v_x * u0_y - v_y * u0_x)                    * xjac * tstep * tstep * factor(var_T,8 )&
+                         ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - tgnum_T * 0.25d0 * BigR**3 * T0 * ((    +alpha_imp_x*rimp0) * u0_y - (    +alpha_imp_y*rimp0) * u0_x) & 
+                                                * ( v_x * u0_y - v_y * u0_x)                    * xjac * tstep * tstep * factor(var_T,8 ) & 
                              - tgnum_T * 0.25d0 * BigR**3 * (r0+alpha_imp_bis*rimp0) * (T0_x * u0_y - T0_y * u0_x)                           &
                                                 * ( v_x * u0_y - v_y * u0_x)                    * xjac * tstep * tstep * factor(var_T,8 )&
                             
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                        * T0 * ((r0_x+alpha_imp*rimp0_x) * ps0_y - (r0_y+alpha_imp*rimp0_y) * ps0_x + F0 / BigR * (r0_p+alpha_imp*rimp0_p))   &
                                        * ( v_x * ps0_y -  v_y * ps0_x                        )  * xjac * tstep * tstep * factor(var_T,8 )&
+                         ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - tgnum_T * 0.25d0 / BigR * vpar0**2    &  
+                                       * T0 * ((    +alpha_imp_x*rimp0) * ps0_y - (    +alpha_imp_y*rimp0) * ps0_x + F0 / BigR * (    +alpha_imp_p*rimp0)) &
+                                       * ( v_x * ps0_y -  v_y * ps0_x                         ) * xjac * tstep * tstep * factor(var_T,8 )     & 
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                        * (r0+alpha_imp_bis*rimp0) * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)                         &
                                        * ( v_x * ps0_y -  v_y * ps0_x                        )  * xjac * tstep * tstep * factor(var_T,8 )&
@@ -1907,6 +1925,11 @@ do i=1,n_vertex_max
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                      * T0 * ((r0_x+alpha_imp*rimp0_x) * ps0_y - (r0_y+alpha_imp*rimp0_y) * ps0_x  + F0 / BigR * (r0_p+alpha_imp*rimp0_p))     &
                                      * (                                   + F0 / BigR * v_p)   * xjac * tstep * tstep * factor(var_T,8 )&
+                             ! This is for the projected Z_imp, which do NOT depend on temperature
+                             - tgnum_T * 0.25d0 / BigR * vpar0**2 &
+                                       * T0 * ((    +alpha_imp_x*rimp0) * ps0_y - (    +alpha_imp_y*rimp0) * ps0_x &
+                                               + F0 / BigR * (    +alpha_imp_p*rimp0))                        &
+                                       * (                                 + F0 / BigR * v_p)   * xjac * tstep * tstep * factor(var_T,8 )       &
                              - tgnum_T * 0.25d0 / BigR * vpar0**2                                                      &
                                      * (r0+alpha_imp_bis*rimp0) * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)                           &
                                      * (                                   + F0 / BigR * v_p)   * xjac * tstep * tstep * factor(var_T,8 )
@@ -2476,12 +2499,14 @@ do i=1,n_vertex_max
                       amat(var_u,var_Te) = amat(var_u,var_Te) &
                                            - BigR**2 * (v_s * rimp0_t * alpha_e_bis * Te - v_t * rimp0_s * alpha_e_bis * Te) * theta * tstep  &
                                            ! This is for the projected Z_imp, which do NOT depend on temperature
-                                           - BigR**2 * (v_s * rimp0 * alpha_e_t   * Te   - v_t * rimp0 * alpha_e_s   * Te)   * theta * tstep  & ! TO BE DONE: put proper 'factor'
+                                           - BigR**2 * (v_s * rimp0 * alpha_e_t   * Te   - v_t * rimp0 * alpha_e_s   * Te)   * theta * tstep  & 
                                            - BigR**2 * (v_s * rimp0 * alpha_e_bis * Te_t - v_t * rimp0 * alpha_e_bis * Te_s) * theta * tstep  &
                                            - BigR**2 * (v_s * rimp0 * alpha_e_tri * Te * Te0_t - v_t * rimp0 * alpha_e_tri * Te * Te0_s) * theta * tstep
                     else
                       amat(var_u,var_T)  = amat(var_u,var_T) &
                                            - BigR**2 * (v_s * rimp0_t * alpha_imp_bis * T - v_t * rimp0_s * alpha_imp_bis * T) * theta * tstep  &
+                                           ! This is for the projected Z_imp, which do NOT depend on temperature
+                                           - BigR**2 * (v_s * rimp0 * alpha_imp_t   * T   - v_t * rimp0 * alpha_imp_s   * T)   * theta * tstep  & 
                                            - BigR**2 * (v_s * rimp0 * alpha_imp_bis * T_t - v_t * rimp0 * alpha_imp_bis * T_s) * theta * tstep  &
                                            - BigR**2 * (v_s * rimp0 * alpha_imp_tri * T * T0_t - v_t * rimp0 * alpha_imp_tri * T * T0_s) * theta * tstep
                     endif
@@ -2492,6 +2517,7 @@ do i=1,n_vertex_max
                               - BigR**2 * (v_s * rhoimp * alpha_i * Ti0_t - v_t * rhoimp * alpha_i * Ti0_s)                  * theta * tstep &
                               - BigR**2 * (v_s * rhoimp_t * alpha_e * Te0     - v_t * rhoimp_s * alpha_e * Te0)              * theta * tstep &
                               - BigR**2 * (v_s * rhoimp * alpha_e_bis * Te0_t - v_t * rhoimp * alpha_e_bis * Te0_s)          * theta * tstep &
+                              ! This is for the projected Z_imp, which do NOT depend on temperature
                               - BigR**2 * (v_s * rhoimp * alpha_e_t * Te0     - v_t * rhoimp * alpha_e_s * Te0)              * theta * tstep
                   endif
 
@@ -2988,7 +3014,11 @@ do i=1,n_vertex_max
                                                   + v * (T_s * rimp0 * alpha_imp_bis * ps0_t - T_t * rimp0 * alpha_imp_bis * ps0_s) * theta * tstep &
                                                   + v * (T0_s* rimp0 * alpha_imp_tri*T*ps0_t - T0_t* rimp0 * alpha_imp_tri*T*ps0_s) * theta * tstep &
                                                   + v * (T * rimp0_s * alpha_imp_bis * ps0_t - T * rimp0_t * alpha_imp_bis * ps0_s) * theta * tstep &
+                                                  ! This is for the projected Z_imp, which do NOT depend on temperature
+                                                  + v * (T * rimp0   * alpha_imp_s   * ps0_t - T * rimp0   * alpha_imp_t   * ps0_s) * theta * tstep &
                                                   + v * F0 / BigR * T * rimp0_p * alpha_imp_bis                              * xjac * theta * tstep &
+                                                  ! This is for the projected Z_imp, which do NOT depend on temperature
+                                                  + v * F0 / BigR * (                        + T * rimp0   * alpha_imp_p  )  * xjac * theta * tstep & 
                                                   + v * F0 / BigR * T0_p * rimp0 * T                       * alpha_imp_tri   * xjac * theta * tstep
                         amat_n(var_vpar,var_T)  = amat_n(var_vpar,var_T) &
                                                   + v * F0 / BigR * T_p * rimp0 * alpha_imp_bis                              * xjac * theta * tstep
@@ -3839,6 +3869,8 @@ do i=1,n_vertex_max
   
                                           + v * (r0 + rimp0 * alpha_imp_bis) * Vpar0 * (T0_s * psi_t - T0_t * psi_s)             * theta * tstep &
                                           + v * T0 * Vpar0 * ((r0_s+rimp0_s*alpha_imp)*psi_t - (r0_t+rimp0_t*alpha_imp)*psi_s)   * theta * tstep &
+                                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                                          + v * T0 * Vpar0 * ((    +rimp0*alpha_imp_s)*psi_t - (    +rimp0*alpha_imp_t)*psi_s)   * theta * tstep &
                                           + v * (r0 + rimp0 * alpha_imp) * GAMMA * T0 * (vpar0_s * psi_t - vpar0_t * psi_s)      * theta * tstep &
                     !=============== The ionization potential energy term=========================
                                           + (GAMMA - 1.) * v * rimp0 * dE_ion_dT * Vpar0 * (T0_s * psi_t - T0_t * psi_s)             * theta * tstep &
@@ -3863,12 +3895,20 @@ do i=1,n_vertex_max
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
                                     * T0 * ((r0_x+alpha_imp*rimp0_x) * psi_y - (r0_y+alpha_imp*rimp0_y) * psi_x)                                              &
                                     * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * theta * tstep * tstep  &
+                           ! This is for the projected Z_imp, which do NOT depend on temperature
+                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
+                                     * T0 * ((   +alpha_imp_x*rimp0) * psi_y - (    +alpha_imp_y*rimp0) * psi_x)          &
+                                     * ( v_x * ps0_y -  v_y * ps0_x                 ) * xjac * theta * tstep * tstep   & 
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
                                     * (r0+alpha_imp_bis*rimp0) * (T0_x * psi_y - T0_y * psi_x)                                              &
                                     * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * theta * tstep * tstep  &
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
                                     * T0 * ((r0_x+alpha_imp*rimp0_x) * ps0_y - (r0_y+alpha_imp*rimp0_y) * ps0_x + F0 / BigR * (r0_p+alpha_imp*rimp0_p))     &
                                     * ( v_x * psi_y -  v_y * psi_x ) * xjac * theta * tstep * tstep                   &
+                           ! This is for the projected Z_imp, which do NOT depend on temperature
+                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                       &
+                                     * T0 * ((   +alpha_imp_x*rimp0) * ps0_y - (    +alpha_imp_y*rimp0) * ps0_x + F0 / BigR * (    +alpha_imp_p*rimp0)) &
+                                     * ( v_x * psi_y -  v_y * psi_x ) * xjac * theta * tstep * tstep                  & 
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
                                     * (r0+alpha_imp_bis*rimp0) * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)                           &
                                     * ( v_x * psi_y -  v_y * psi_x ) * xjac * theta * tstep * tstep
@@ -3887,6 +3927,10 @@ do i=1,n_vertex_max
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
                                     * T0 * ((r0_x+alpha_imp*rimp0_x) * psi_y - (r0_y+alpha_imp*rimp0_y) * psi_x)                                              &
                                     * (                            + F0 / BigR * v_p)  * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 / BigR * vpar0**2                                                       &
+                                    * T0 * ((    +alpha_imp_x*rimp0) * psi_y - (    +alpha_imp_y*rimp0) * psi_x)         &
+                                    * (                            + F0 / BigR * v_p)  * xjac * theta * tstep * tstep  &
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
                                     * (r0+alpha_imp*rimp0) * (T0_x * psi_y - T0_y * psi_x)                                              &
                                     * (                            + F0 / BigR * v_p)  * xjac * theta * tstep * tstep
@@ -3894,6 +3938,8 @@ do i=1,n_vertex_max
   
                     amat(var_T,var_u) = - v * (r0 + rimp0 * alpha_imp_bis) * BigR**2 * ( T0_x * u_y - T0_y * u_x)           * xjac * theta * tstep &
                                         - v * T0 * BigR**2 * ((r0_x+rimp0_x*alpha_imp)*u_y - (r0_y+rimp0_y*alpha_imp)*u_x)  * xjac * theta * tstep &
+                                        ! This is for the projected Z_imp, which do NOT depend on temperature
+                                        - v * T0 * BigR**2 * ((    +rimp0*alpha_imp_s)*u_t - (    +rimp0*alpha_imp_t)*u_s)         * theta * tstep &
                                         - v * (r0 + rimp0 * alpha_imp) * 2.d0* GAMMA * BigR * T0 * u_y                        * xjac * theta * tstep &
                     !=============== The ionization potential energy term=========================
                                         - (GAMMA - 1.) * v * rimp0 * dE_ion_dT * BigR**2 * ( T0_s * u_t - T0_t * u_s)              * theta * tstep &
@@ -3912,10 +3958,16 @@ do i=1,n_vertex_max
   
                           + tgnum_T * 0.25d0 * BigR**2 * T0* ((r0_x+alpha_imp*rimp0_x) * u_y - (r0_y+alpha_imp*rimp0_y) * u_x)                                &
                                              * ( v_x * u0_y - v_y * u0_x)              * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 * BigR**2 * T0* ((    +alpha_imp_x*rimp0) * u_y - (    +alpha_imp_y*rimp0) * u_x)   & 
+                                             * ( v_x * u0_y - v_y * u0_x) * xjac * theta*tstep*tstep  &
                           + tgnum_T * 0.25d0 * BigR**2 * (r0+alpha_imp_bis*rimp0) * (T0_x * u_y - T0_y * u_x)                                &
                                              * ( v_x * u0_y - v_y * u0_x)              * xjac * theta * tstep * tstep &
                           + tgnum_T * 0.25d0 * BigR**2 * T0* ((r0_x+alpha_imp*rimp0_x)*u0_y - (r0_y+alpha_imp*rimp0_y)*u0_x)                              &
                                              * ( v_x * u_y - v_y * u_x)                * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 * BigR**2 * T0* ((    +alpha_imp_x*rimp0)*u0_y - (    +alpha_imp_y*rimp0)*u0_x) & 
+                                              * ( v_x * u_y - v_y * u_x) * xjac * theta*tstep*tstep    &
                           + tgnum_T * 0.25d0 * BigR**2 * (r0+alpha_imp_bis*rimp0) * (T0_x * u0_y - T0_y * u0_x)                              &
                                              * ( v_x * u_y - v_y * u_x)                * xjac * theta * tstep * tstep 
   
@@ -4030,6 +4082,8 @@ do i=1,n_vertex_max
                                       - v * (rimp0 * alpha_imp_tri) * T  * BigR**2 * ( T0_s * u0_t - T0_t * u0_s) * theta * tstep &
                                       - v * T  * BigR**2 * ( r0_s * u0_t - r0_t * u0_s)                           * theta * tstep &
                                       - v * alpha_imp_bis * T * BigR**2 * (rimp0_s * u0_t - rimp0_t * u0_s)       * theta * tstep &
+                                      ! This is for the projected Z_imp, which do NOT depend on temperature
+                                      - v * rimp0 * T * BigR**2 * (alpha_imp_s * u0_t - alpha_imp_t * u0_s)       * theta * tstep & 
                                       
                                       - v * (r0 + rimp0 * alpha_imp_bis) * 2.d0* GAMMA * BigR * T * u0_y   * xjac * theta * tstep &
                                       
@@ -4037,12 +4091,16 @@ do i=1,n_vertex_max
                                       + v * (rimp0 * alpha_imp_tri) * T  * Vpar0 * (T0_s * ps0_t - T0_t * ps0_s)  * theta * tstep &
                                       + v * T  * Vpar0 * (r0_s * ps0_t - r0_t * ps0_s)                            * theta * tstep & 
                                       + v * alpha_imp_bis * T * Vpar0 * (rimp0_s * ps0_t - rimp0_t * ps0_s)       * theta * tstep &
+                                      ! This is for the projected Z_imp, which do NOT depend on temperature
+                                      + v * rimp0 * T * Vpar0 * (alpha_imp_s * ps0_t - alpha_imp_t * ps0_s)       * theta * tstep & 
                                       
                                       + v * (r0+rimp0*alpha_imp_bis) * GAMMA * T * (vpar0_s*ps0_t - vpar0_t*ps0_s)* theta * tstep &
                                       + v * (r0+rimp0*alpha_imp_bis) * GAMMA * T * F0 / BigR * vpar0_p     * xjac * theta * tstep &
                                       
                                       + v * (rimp0 * alpha_imp_tri) * T  * F0 / BigR * Vpar0 * T0_p        * xjac * theta * tstep &
-                                      + v * T * F0 / BigR * Vpar0 * (r0_p + rimp0_p * alpha_imp_bis)         * xjac * theta * tstep &
+                                      + v * T * F0 / BigR * Vpar0 * (r0_p + rimp0_p * alpha_imp_bis)       * xjac * theta * tstep &
+                                      ! This is for the projected Z_imp, which do NOT depend on temperature
+                                      + v * T * F0  / BigR * Vpar0 * (     + rimp0   * alpha_imp_p  )      * xjac * theta * tstep & 
                                       
                                       + (ZK_par_T-ZK_prof) * BigR / BB2 * Bgrad_T_star * Bgrad_T_T * xjac * theta * tstep &
                                       + ZK_prof * BigR * ( v_x*T_x + v_y*T_y )                      *xjac * theta * tstep &
@@ -4077,6 +4135,10 @@ do i=1,n_vertex_max
                           + tgnum_T * 0.25d0 * BigR**2 * T* ((r0_x+alpha_imp_bis*rimp0_x) * u0_y &
                                                              - (r0_y+alpha_imp_bis*rimp0_y) * u0_x)                               &
                                     * ( v_x * u0_y - v_y * u0_x)                       * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 * BigR**2 * T * ((    +alpha_imp_x  *rimp0  )*u0_y &
+                                                            - (    +alpha_imp_y  *rimp0  )*u0_x)   &
+                                    * ( v_x * u0_y - v_y * u0_x) * xjac * theta * tstep * tstep & 
                           + tgnum_T * 0.25d0 * BigR**2 * (r0+alpha_imp_bis*rimp0) * (T_x * u0_y - T_y * u0_x)                                &
                                     * ( v_x * u0_y - v_y * u0_x)                       * xjac * theta * tstep * tstep &
                           + tgnum_T * 0.25d0 * BigR**2 * (alpha_imp_tri*rimp0)*T* (T0_x * u0_y - T0_y * u0_x)         &
@@ -4087,6 +4149,10 @@ do i=1,n_vertex_max
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                        &
                                     * (r0+alpha_imp_bis*rimp0) * (T_x * ps0_y - T_y * ps0_x               )                                 &
                                     * ( v_x * ps0_y -  v_y * ps0_x                  )  * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 / BigR * vpar0**2 &
+                                     * T * ((    +alpha_imp_x  *rimp0  )*ps0_y - (    +alpha_imp_y  *rimp0  )*ps0_x + F0 / BigR * (    +alpha_imp_p*rimp0)) &
+                                     * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * theta * tstep * tstep &
                           + tgnum_T * 0.25d0 / BigR * vpar0**2 &
                                     * (alpha_imp_tri*rimp0)* T * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)      &
                                     * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * theta * tstep * tstep 
@@ -4102,6 +4168,10 @@ do i=1,n_vertex_max
   
                           + tgnum_T * 0.25d0 / BigR * vpar0**2                                                            &
                                     * T * ((r0_x+alpha_imp_bis*rimp0_x) * ps0_y - (r0_y+alpha_imp_bis*rimp0_y) * ps0_x + F0 / BigR * (r0_p+alpha_imp_bis*rimp0_p))                                &
+                                    * (                                 + F0 / BigR * v_p) * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 / BigR * vpar0**2 &
+                                    * T * ((    +alpha_imp_x  *rimp0  )*ps0_y - (    +alpha_imp_y  *rimp0  )*ps0_x + F0 / BigR * (    +alpha_imp_p  *rimp0  )) &
                                     * (                                 + F0 / BigR * v_p) * xjac * theta * tstep * tstep &
                           + tgnum_T * 0.25d0 / BigR * vpar0**2 &
                                     * (alpha_imp_tri*rimp0)* T * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)      &
@@ -4130,8 +4200,12 @@ do i=1,n_vertex_max
                       amat(var_T,var_vpar) = + v * (r0 + rimp0 * alpha_imp_bis) * F0 / BigR * Vpar * T0_p   * xjac * theta * tstep &
                                              + v * T0 * F0 / BigR * Vpar * (r0_p + rimp0_p * alpha_imp)     * xjac * theta * tstep &
                                              
+                                             ! This is for the projected Z_imp, which do NOT depend on temperature
+                                             + v * T0 * F0 / BigR * Vpar * (     + rimp0 * alpha_imp_p)     * xjac * theta * tstep & 
                                              + v * (r0+rimp0*alpha_imp_bis) * Vpar * (T0_s*ps0_t - T0_t*ps0_s)     * theta * tstep &
                                              + v * T0 * Vpar * ((r0_s+rimp0_s*alpha_imp)*ps0_t - (r0_t+rimp0_t*alpha_imp)*ps0_s) * theta * tstep & 
+                                             ! This is for the projected Z_imp, which do NOT depend on temperature
+                                             + v * T0 * Vpar * ((    +rimp0*alpha_imp_s)*ps0_t - (    +rimp0*alpha_imp_t)*ps0_s) * theta * tstep & 
                                              
                                              + v * (r0 + rimp0 * alpha_imp) * GAMMA * T0 * (vpar_s * ps0_t - vpar_t * ps0_s)     * theta * tstep &
                       !=============== The ionization potential energy term=========================
@@ -4162,6 +4236,10 @@ do i=1,n_vertex_max
                           + tgnum_T * 0.25d0 / BigR * 2.d0 * vpar0*vpar                                               &
                                     * T0 * ((r0_x+alpha_imp*rimp0_x) * ps0_y - (r0_y+alpha_imp*rimp0_y) * ps0_x + F0 / BigR * (r0_p+alpha_imp*rimp0_p))                           &
                                     * ( v_x * ps0_y -  v_y * ps0_x                   ) * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 / BigR * 2.d0 * vpar0*vpar &
+                                    * T0 * ((    +alpha_imp_x*rimp0) * ps0_y - (    +alpha_imp_y*rimp0) * ps0_x + F0 / BigR * (    +alpha_imp_p*rimp0)) &
+                                    * ( v_x * ps0_y -  v_y * ps0_x                   ) * xjac * theta * tstep * tstep & 
                           + tgnum_T * 0.25d0 / BigR * 2.d0 * vpar0*vpar                                               &
                                     * (r0+alpha_imp_bis*rimp0) * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)                           &
                                     * ( v_x * ps0_y -  v_y * ps0_x                   ) * xjac * theta * tstep * tstep 
@@ -4170,6 +4248,10 @@ do i=1,n_vertex_max
                           + tgnum_T * 0.25d0 / BigR * 2.d0 * vpar0*vpar                                               &
                                     * T0 * ((r0_x+alpha_imp*rimp0_x) * ps0_y - (r0_y+alpha_imp*rimp0_y) * ps0_x + F0 / BigR * (r0_p+alpha_imp*rimp0_p))                           &
                                     * (                            + F0 / BigR * v_p)  * xjac * theta * tstep * tstep &
+                          ! This is for the projected Z_imp, which do NOT depend on temperature
+                          + tgnum_T * 0.25d0 / BigR * 2.d0 * vpar0*vpar &
+                                    * T0 * ((    +alpha_imp_x*rimp0) * ps0_y - (    +alpha_imp_y*rimp0) * ps0_x + F0 / BigR * (    +alpha_imp_p*rimp0)) &
+                                    * (                            + F0 / BigR * v_p) * xjac * theta * tstep * tstep & 
                           + tgnum_T * 0.25d0 / BigR * 2.d0 * vpar0*vpar                                               &
                                     * (r0+alpha_imp_bis*rimp0) * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)                           &
                                     * (                            + F0 / BigR * v_p)  * xjac * theta * tstep * tstep 
@@ -4217,6 +4299,9 @@ do i=1,n_vertex_max
                       !=========================New TG_num terms====================================
                      + tgnum_T * 0.25d0 * BigR**2 * T0 * alpha_imp * (rhoimp_x * u0_y - rhoimp_y * u0_x)    &
                                * ( v_x * u0_y - v_y * u0_x) * xjac * theta*tstep*tstep     &
+                     ! This is for the projected Z_imp, which do NOT depend on temperature
+                     + tgnum_T * 0.25d0 * BigR**2 * T0 * rhoimp * (alpha_imp_x * u0_y - alpha_imp_y * u0_x)     &
+                               * ( v_x * u0_y - v_y * u0_x) * xjac * theta*tstep*tstep     & 
 
                      + tgnum_T * 0.25d0 * BigR**2 * alpha_imp_bis * rhoimp * (T0_x * u0_y - T0_y * u0_x)      &
                                * ( v_x * u0_y - v_y * u0_x) * xjac* theta*tstep*tstep      &
@@ -4224,6 +4309,10 @@ do i=1,n_vertex_max
                      + tgnum_T * 0.25d0 / BigR * vpar0**2 &
                                * T0 * alpha_imp * (rhoimp_x * ps0_y - rhoimp_y * ps0_x                     )           &
                                * ( v_x * ps0_y -  v_y * ps0_x                   ) * xjac * theta * tstep * tstep&
+                     ! This is for the projected Z_imp, which do NOT depend on temperature
+                     + tgnum_T * 0.25d0 / BigR * vpar0**2 &
+                               * T0 * rhoimp * (alpha_imp_x * ps0_y - alpha_imp_y * ps0_x + F0 / BigR * alpha_imp_p)     &
+                               * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * theta * tstep * tstep   & 
                      + tgnum_T * 0.25d0 / BigR * vpar0**2 &
                                * alpha_imp_bis * rhoimp * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)           &
                                * ( v_x * ps0_y -  v_y * ps0_x                  ) * xjac * theta * tstep * tstep &
@@ -4233,9 +4322,15 @@ do i=1,n_vertex_max
 
                      - v * rhoimp * BigR**2 * alpha_imp_bis * (T0_s * u0_t - T0_t * u0_s)     * theta * tstep &
                      - v * alpha_imp * T0 * BigR**2 * (rhoimp_s * u0_t - rhoimp_t * u0_s)       * theta * tstep &
+                     ! This is for the projected Z_imp, which do NOT depend on temperature
+                     - v * rhoimp * T0 * BigR**2 * (alpha_imp_s * u0_t - alpha_imp_t * u0_s)       * theta * tstep & 
                      + v * rhoimp * F0 / BigR * Vpar0 * alpha_imp_bis * T0_p           * xjac * theta * tstep &
+                     ! This is for the projected Z_imp, which do NOT depend on temperature
+                     + v * rhoimp * T0 * F0 / BigR * Vpar0 * alpha_imp_p               * xjac * theta * tstep & 
                      + v * rhoimp * Vpar0 * alpha_imp_bis * (T0_s * ps0_t - T0_t * ps0_s)     * theta * tstep &
                      + v * alpha_imp * T0 * Vpar0 * (rhoimp_s * ps0_t - rhoimp_t * ps0_s)       * theta * tstep &
+                     ! This is for the projected Z_imp, which do NOT depend on temperature
+                     + v * rhoimp * T0 * Vpar0 * (alpha_imp_s * ps0_t - alpha_imp_t * ps0_s)       * theta * tstep &
 
                      - v * alpha_imp * rhoimp * 2.d0* GAMMA * BigR * T0 * u0_y                   * xjac * theta * tstep &
                      + v * alpha_imp * rhoimp * GAMMA * T0 * (vpar0_s * ps0_t - vpar0_t * ps0_s)        * theta * tstep &
@@ -4266,6 +4361,10 @@ do i=1,n_vertex_max
                        + tgnum_T * 0.25d0 / BigR * vpar0**2 &
                             * T0 * alpha_imp * (rhoimp_x * ps0_y - rhoimp_y * ps0_x                    )    &
                             * (                            + F0 / BigR * v_p) * xjac * theta * tstep * tstep&
+                       ! This is for the projected Z_imp, which do NOT depend on temperature
+                       + tgnum_T * 0.25d0 / BigR * vpar0**2 &
+                            * T0 * rhoimp * (alpha_imp_x * ps0_y - alpha_imp_y * ps0_x + F0 / BigR * alpha_imp_p)   &
+                            * (                            + F0 / BigR * v_p) * xjac * theta * tstep * tstep   & 
                        + tgnum_T * 0.25d0 / BigR * vpar0**2 &
                             * alpha_imp_bis * rhoimp * (T0_x * ps0_y - T0_y * ps0_x + F0 / BigR * T0_p)        &
                             * (                            + F0 / BigR * v_p) * xjac * theta * tstep * tstep
@@ -5269,8 +5368,16 @@ subroutine construct_imp_charge_states()
   alpha_e_s     = m_i_over_m_imp*Z_imp_s
   alpha_e_t     = m_i_over_m_imp*Z_imp_t
 
+  alpha_imp_x   = 0.5*m_i_over_m_imp*Z_imp_x
+  alpha_imp_y   = 0.5*m_i_over_m_imp*Z_imp_y
+  alpha_imp_p   = 0.5*m_i_over_m_imp*Z_imp_p
+  alpha_imp_s   = 0.5*m_i_over_m_imp*Z_imp_s
+  alpha_imp_t   = 0.5*m_i_over_m_imp*Z_imp_t
+
   delta_alpha_e = 0.d0
+  delta_alpha_imp = 0.d0
   if (use_marker) delta_alpha_e = m_i_over_m_imp * delta_Z_imp
+  if (use_marker) delta_alpha_imp = 0.5*m_i_over_m_imp * delta_Z_imp
 
   ne_JOREK    = r0_corr + alpha_e * rimp0_corr                             ! Electron density in JOREK unit
   ne_JOREK    = corr_neg_dens(ne_JOREK,(/1.d-1,1.d-1/),1.d-3)           
