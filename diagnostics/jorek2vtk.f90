@@ -198,6 +198,10 @@ allocate(bnd_node_list)
 my_id     = 0
 call initialise_parameters(my_id, "__NO_FILENAME__")
 
+! --- Define the basis functions at the Gaussian points
+call initialise_basis()
+call init_chi_basis()
+
 ! --- Preset parameters
 nsub                   = 5       ! Number of subdivisions of the cubic finite elements into linear pieces
 i_tor                  = -1      ! If i_tor > 0, only this mode will be included in the vtk file...
@@ -476,12 +480,7 @@ do k_tor=1, n_coord_tor
   mode_coord(k_tor) = + int(k_tor / 2) * n_coord_period
 enddo
 
-
 call import_restart(node_list,  element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
-
-call initialise_basis                              ! define the basis functions at the Gaussian points
-
-call init_chi_basis
 
 nnos = nsub*nsub*element_list%n_elements
 allocate(currdens(nnos),xyz(3,nnos),scalars(nnos,1:n_scalars),vectors(nnos,3,1:n_vectors))
