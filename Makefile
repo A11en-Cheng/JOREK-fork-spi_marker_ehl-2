@@ -31,6 +31,12 @@ clean:
 	-@rm -r $(MODDIR)
 	-@find . -name '*.mod' -delete -or -name '*.o' -delete
 	-@rm mpiversion.mk
+	@echo ">> Deleting Dynamically Generated Header Files <<"
+	-@rm -f models/$(MODEL)/rhs_automatic.h
+	-@rm -f models/$(MODEL)/amat_automatic.h
+	-@rm -f models/$(MODEL)/aux_automatic.h
+	-@rm -f algexpr2fort
+	-@rm -f generate_code
 cleandep:
 	@echo ">> Deleting Dependency Files <<"
 	-@rm -r $(DEPDIR)
@@ -117,6 +123,9 @@ printsettings:
 	@echo "INCLUDES  = $(INCLUDES)"
 	@echo "LIBS      = $(LIBS)"
 
+$(OBJDIR)/mod_elt_matrix.o $(MODDIR)/mod_elt_matrix.mod: $(CGDEP)
+$(OBJDIR)/mod_elt_matrix_fft.o $(MODDIR)/mod_elt_matrix_fft.mod: $(CGDEP)
+
 # For each source dir add an explicit rule with the template
 $(foreach dir,$(DIRS),$(eval $(call O_TEMPLATE,$(dir)/)))
 # For each source dir add a rule to create dependency files
@@ -150,6 +159,7 @@ most: jorek2_connection2 \
       jorek2vtk_3d \
       jorek2vtk \
       jorek2vtk_GaussVortTerms \
+      test_gvec2jorek_import \
       jorek_to_helena \
       new_diag_demo \
       jorek2_postproc \
@@ -159,6 +169,11 @@ most: jorek2_connection2 \
 # Make all object files we know of
 find_files = $(wildcard $(dir)/*.f90) $(wildcard $(dir)/*.c) $(wildcard $(dir)/*.f) $(wildcard $(dir)/*.cpp)
 objs: $(foreach file,$(foreach dir,$(DIRS), $(find_files)), $(OBJDIR)/$(notdir $(basename $(file))).o)
+
+generate_code: algexpr2fort
+	@echo ">> Generating evaluation statements for mod_elt_matrix <<"
+	@./algexpr2fort
+	@touch generate_code
 
 # Special cases
 # Add here: Global includes (as the line below)

@@ -19,6 +19,7 @@ USE_MUMPS        = 1
 USE_FFTW         = 1
 USE_HDF5         = 1
 USE_IMAS         = 1
+USE_MUSCLE       = 0
 
 # Directory containing the user-compiled libraries (e.g., MUMPS, PASTIX, ...)
 LIBDIR = $(HOME)
@@ -61,8 +62,21 @@ LIBDIERCKX = $(LIBDIR)/Dierckx/dierckx.a
 #HDF5
 HDF5_HOME ?= $(H5DIR)
 HDF5INCLUDE=$(HDF5_HOME)/include
-HDF5LIB=-lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lz
+HDF5LIB= -L$(HDF5_HOME)/lib -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lz
 
+#IMASINCLUDE=`pkg-config --cflags-only-I al-fortran`
+#IMASLIB=`pkg-config --libs-only-L --libs-only-l al-fortran`
 IMASINCLUDE=`pkg-config --cflags-only-I imas-ifort`
 IMASLIB=`pkg-config --libs-only-L --libs-only-l imas-ifort`
+
+#MUSCLE_INCLUDE = -I/work/imas/opt/EasyBuild/software/MUSCLE3/0.6.0-intel-2020b/include
+#MUSCLE_LIB     = -lmuscle  
+MUSCLE_INCLUDE=`pkg-config --cflags ymmsl_fortran libmuscle_mpi_fortran libmuscle ymmsl`
+MUSCLE_LIB=`pkg-config --libs ymmsl_fortran libmuscle_mpi_fortran libmuscle ymmsl`
+
+MUSCLE_INCLUDE=`pkg-config --cflags ymmsl_fortran libmuscle_mpi_fortran ymmsl`
+MUSCLE_LIB=`pkg-config --libs ymmsl_fortran libmuscle_mpi_fortran ymmsl`
+
+
+
 

@@ -12,14 +12,14 @@ extra_remote_files="rho.dat t.dat ffp.dat dperp.dat zkperp.dat acd89_ar.dat ccd8
 # --- Compile the code for the test case
 function compile_jorek () {
   if [ "$initialrun" == "yes" ]; then
-    ./util/config.sh model=$jorekmodel n_tor=1 n_plane=1 n_period=1 $options         || exit 1
-    make $compilopt $debugoptions jorek_model${jorekmodel}                           || exit 1
-    mv jorek_model${jorekmodel} jorek_model${jorekmodel}_1                           || exit 1
-    make cleanall                                                                    || exit 1
+    ./util/config.sh model=$jorekmodel n_tor=1 n_coord_tor=1 l_pol_domm=0 n_plane=1 n_period=1 n_coord_period=1 $options || exit 1
+    make $compilopt $debugoptions jorek_model${jorekmodel}                                                               || exit 1
+    mv jorek_model${jorekmodel} jorek_model${jorekmodel}_1                                                               || exit 1
+    make cleanall                                                                                                        || exit 1
   fi
-  ./util/config.sh model=$jorekmodel n_tor=3 n_plane=4 n_period=1 $options           || exit 1
-  make $compilopt $debugoptions jorek_model${jorekmodel}                             || exit 1
-  mv jorek_model${jorekmodel} jorek_model${jorekmodel}_3                             || exit 1
+  ./util/config.sh model=$jorekmodel n_tor=3 n_coord_tor=1 l_pol_domm=0 n_plane=4 n_period=1 n_coord_period=1 $options || exit 1
+  make $compilopt $debugoptions jorek_model${jorekmodel}                                                               || exit 1
+  mv jorek_model${jorekmodel} jorek_model${jorekmodel}_3                                                               || exit 1
 }
 
 

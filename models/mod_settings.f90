@@ -4,7 +4,8 @@ implicit none
 
 integer, parameter :: n_tor             = 3      !< number of toroidal harmonics
 integer, parameter :: n_coord_tor       = 1      !< number of toroidal harmonics in (R, Z) coordinates
-integer, parameter :: n_period          = 6      !< periodicity in toroidal direction
+integer, parameter :: l_pol_domm        = 0      !< highest poloidal mode in the Dommaschk potentials        
+integer, parameter :: n_period          = 1      !< periodicity in toroidal direction
 integer, parameter :: n_coord_period    = 1      !< periodicity of the device in toroidal direction: equivalent to number of field periods
 integer, parameter :: n_plane           = 4      !< number of toroidal angles
 integer, parameter :: n_order           = 3      !< order of the polynomial basis
@@ -18,7 +19,7 @@ integer, parameter :: n_pieces_max      = 6001   !< maximum number of line piece
 ! ##################################################################################################
 
 ! The following line is needed by ./util/config.sh:
-! #SETTINGS# n_tor n_coord_tor n_period n_coord_period n_plane n_order n_nodes_max n_elements_max n_boundary_max n_pieces_max
+! #SETTINGS# n_tor n_coord_tor l_pol_domm n_period n_coord_period n_plane n_order n_nodes_max n_elements_max n_boundary_max n_pieces_max
 
 ! --- a few constants that should not be touched
 integer, parameter :: n_dim             = 2                !< number of dimensions

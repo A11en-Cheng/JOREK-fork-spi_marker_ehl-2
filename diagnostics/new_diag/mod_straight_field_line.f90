@@ -292,7 +292,7 @@ module mod_straight_field_line
     end if
     
     ! --- Output some data to files for debugging.
-    if ( debug ) then
+    if ( DEBUG ) then
       open(42, FILE='determine_theta_mag.rr-zz.dat', ACTION='WRITE', STATUS='REPLACE')
       do k = 1, mapping%nstpts
         do j = 0, mapping%npts(k)
@@ -495,7 +495,7 @@ module mod_straight_field_line
               ( ( mapping%tt(k,mapping%npts(k)) - mapping%tt(k,0) - sign(2.*PI,mapping%tt(k,j)-mapping%tt(k,0)) ) / &
               ( mapping%tt(k,mapping%npts(k)) - mapping%tt(k,mapping%npts(k)-1) ) ) ) * 2.*PI
           end do
-          if ( debug ) then 
+          if ( DEBUG ) then 
             !$omp critical
             write(*,'(" Field line",I6,":    psin=",F7.3,"    npts=",I7)') k, mapping%psin(k),     &
               mapping%npts(k)

@@ -12,6 +12,7 @@ subroutine initialise(my_id, n_cpu, skip_help)
   use basis_at_gaussian
   use mod_openadas, only : read_adf11
   use mod_impurity, only : init_imp_adas
+  use mod_plasma_functions, only: initialise_reference_parameters
 
 #if ((defined WITH_Neutrals) && (!defined WITH_Impurities))
   use mod_neutral_source
@@ -95,6 +96,8 @@ subroutine initialise(my_id, n_cpu, skip_help)
   call init_imp_adas(my_id)
 #endif
 
+  ! --- Initialize derived reference parameters
+  call initialise_reference_parameters()
   
   ! --- Define the basis functions at the Gaussian points
   call initialise_basis()
@@ -231,6 +234,10 @@ subroutine sanity_checks(my_id, n_cpu, mpi_required, mpi_provided)
   ! --- Some checks not to waste any cpu time
   if ( (n_tor < 1) .or. (mod(n_tor,2) == 0) ) then
     write(*,*) 'FATAL : Hard-coded parameter n_tor has an illegal value', n_tor
+    call MPI_Abort(MPI_COMM_WORLD, 23, ierr)
+    stop
+  else if ( (n_coord_tor < 1) .or. (mod(n_coord_tor,2) == 0) ) then
+    write(*,*) 'FATAL : Hard-coded parameter n_coord_tor has an illegal value', n_coord_tor
     call MPI_Abort(MPI_COMM_WORLD, 23, ierr)
     stop
   else if ( (n_coord_tor > 1) .and. (rst_hdf5_version .eq. 1) ) then

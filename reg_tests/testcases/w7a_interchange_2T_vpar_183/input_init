@@ -1,0 +1,95 @@
+&in1
+
+ restart = .f.
+ regrid  = .f.
+ refinement=.false.
+ tstep  = 1.
+ nstep  = 1
+
+ nout = 1
+
+! rst_hdf5 = 1    ! = 0 ; restart from binary files
+!                 ! = 1 ; restart from HDF5 files
+
+ fbnd(1)   = 2.
+ fbnd(2:4) = 0.
+ mf        = 0
+
+ ellip  = 1.
+ tria_u = 0.
+ tria_l = 0.
+ quad_u = -0.
+ quad_l = -0.
+
+ freeboundary = .f.
+ gvec_grid_import = .true.
+ keep_current_prof = .f.
+! time_evol_scheme = "implicit Euler"
+ fix_axis_nodes = .t.
+ bc_natural_open = .f.
+ eta_T_dependent = .f.
+ visco_T_dependent = .f.
+ zkpar_T_dependent = .f.
+
+ xampl  = +0.
+ xsig   = 0.6
+ xwidth = 1.5
+ xtheta = 4.7
+ xshift = 0.0
+ xpoint = .f.
+
+ R_begin = 2.9
+ R_end   = 3.1
+ Z_begin = -0.1
+ Z_end   = 0.1
+
+ R_geo = 10.0
+ Z_geo = 0.
+
+ F0 = 1.530851
+
+ amin     = 1.
+
+ n_R      = 0
+ n_Z      = 0
+ n_radial = 48
+ n_pol    = 48
+
+ n_flux   = 25
+ n_tht    = 32
+ n_open   = 0
+ n_leg    = 0
+ n_private = 0
+
+ m_pol_bc = 128
+
+ eta   = 3.d-7
+ visco = 0.d-9
+
+ eta_num = 0.d-13
+ visco_num = 1.d-15
+
+ D_par  = 0.d0
+ D_perp = 0.d-7
+
+ ZK_par  = 0.d0
+ ZK_perp = 0.d-7
+
+ heatsource     = 0.d0
+ particlesource = 0.d0
+
+ rho_0 = 1.
+ rho_1 = 1.
+ rho_coef(1)  =  0.0
+ rho_coef(2)  =  0.0
+ rho_coef(3)  =  0.0
+ rho_coef(4)  =  1.d0
+ rho_coef(5)  =  5.d0
+
+! gmres = .f.
+ !iter_precon = 22
+ !gmres_m = 1000
+ !gmres_4 = 1.d0
+ !gmres_max_iter = 400
+ gmres_tol = 1.d-8
+/

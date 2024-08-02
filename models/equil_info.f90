@@ -9,11 +9,11 @@ module equil_info
   
   
   
-  use constants,          only: LOWER_XPOINT, UPPER_XPOINT, DOUBLE_NULL,SYMMETRIC_XPOINT
+  use constants,          only: PI, LOWER_XPOINT, UPPER_XPOINT, DOUBLE_NULL,SYMMETRIC_XPOINT
   use data_structure,     only: type_node_list, type_element_list, type_bnd_element_list
   use gauss
   use basis_at_gaussian,  only: H, H_s, H_t, n_degrees
-  use phys_module,        only: R_geo, Z_geo, FF_0, psi_axis_t, psi_bnd_t, Z_xpoint_t, index_now, SDN_threshold, &
+  use phys_module,        only: i_plane_rtree, n_plane, n_period, R_geo, Z_geo, FF_0, psi_axis_t, psi_bnd_t, Z_xpoint_t, index_now, SDN_threshold, &
                                 R_axis_t, Z_axis_t, index_start, tokamak_device, Z_xpoint_limit, xpoint_search_tries
   use mod_interp
   
@@ -115,7 +115,7 @@ module equil_info
   !> Re-calculate the equilibrium state.
   subroutine update_equil_state(my_id, node_list, element_list, bnd_elm_list, xpoint, xcase)
     
-    use phys_module,    only: freeboundary, equil_initialized
+    use phys_module,    only: freeboundary, equil_initialized, R_domm
 
     ! --- Routine parameters.
     integer,                     intent(in)    :: my_id
@@ -129,11 +129,53 @@ module equil_info
     integer :: my_id_fake, i_out, ifail, i, mv1
     real*8  :: R_out, Z_out, s_out, t_out, R1, R2, dR, R_s, R_t, Z_s, Z_t
     real*8  :: P_s, P_t, P_st, P_ss, P_tt
+    real*8  :: toroidal_angle, dummy
     
     my_id_fake  = 9999
 
-    ES%LCFS_is_lost = is_LCFS_lost(node_list, element_list, bnd_elm_list)
+#if STELLARATOR_MODEL
+     ES%LCFS_is_lost = .false.
+
+     ! find_limiter and find_axis routines do not work for stellarators currently, so we assume the axis and boundary points from
+     ! the imported GVEC grid. Psi_axis and Psi_lim are set to 0.0 and 1.0, as currently the normalised radial coordinate is 
+     ! interpolated from the GVEC grid in stellarator simulations
+     ES%i_elm_axis = 1
+     ES%s_axis = 0.d0
+     ES%t_axis = 0.d0
+     ES%ifail_axis = 0
+     toroidal_angle = 2.d0*PI*float(i_plane_rtree - 1)/float(n_period*n_plane)
+     call interp_RZP(node_list,element_list,ES%i_elm_axis,ES%s_axis,ES%t_axis,toroidal_angle, ES%R_axis, ES%Z_axis)
+     ES%psi_axis = 0.0
+
+     ES%axis_is_psi_minimum   = .true.
     
+     ES%limiter_plasma        = .true.
+     ES%active_xpoint  = 0
+     ES%R_xpoint(:)    = R_geo
+     ES%Z_xpoint(1)    = -99.d0
+     ES%Z_xpoint(2)    =  99.d0
+     
+     ES%i_elm_lim     = element_list%n_elements
+     ES%s_lim         = 1.0
+     ES%t_lim         = 1.d0
+     call interp_RZP(node_list,element_list,ES%i_elm_lim,1.0,1.0,toroidal_angle, ES%R_lim, ES%Z_lim)
+     ES%Psi_lim       = 1.0
+     ES%ifail_lim     = 0
+    
+     ES%R_bnd      =  ES%R_lim
+     ES%Z_bnd      =  ES%Z_lim
+     ES%Psi_bnd    =  ES%Psi_lim
+     ES%i_elm_bnd  =  ES%i_elm_lim
+     ES%s_bnd      =  ES%s_lim
+     ES%t_bnd      =  ES%t_lim
+     ES%ifail_bnd  =  ES%ifail_lim
+     
+     ES%xpoint     = xpoint
+     ES%xcase      = xcase
+#else
+    
+    ES%LCFS_is_lost = is_LCFS_lost(node_list, element_list, bnd_elm_list)
+ 
     ! --- Find the magnetic axis.
     call find_axis(my_id_fake, node_list, element_list, ES%psi_axis, ES%R_axis, ES%Z_axis,              &
       ES%i_elm_axis, ES%s_axis, ES%t_axis, ES%ifail_axis)
@@ -271,6 +313,7 @@ module equil_info
         ES%ifail_bnd  =  ES%ifail_xpoint
       endif
     endif  
+#endif
     
     ! --- Strike points.
     ES%num_strike          = 0
@@ -354,7 +397,7 @@ module equil_info
     ! --- Local variables.
     real*8  :: P, P_s, P_t, P_st, P_ss, P_tt, R_t, Z_t, R_s, Z_s
     real*8  :: R_out, Z_out, s_out, t_out, R1, Z1, R2, Z2     
-    real*8  :: psi_axis, R_axis, Z_axis, s_axis, t_axis
+    real*8  :: phi, psi_axis, R_axis, Z_axis, s_axis, t_axis
     integer :: i_elm, i_elm_out, i_elm_axis, ifail  
     
     ! --- Get coordinates of the magnetic axis
@@ -369,7 +412,8 @@ module equil_info
     
     ! --- Find random point (R,Z) coordinates at computational boundary
     i_elm = bnd_elm_list%bnd_element(1)%element 
-    call interp_RZ(node_list, element_list, i_elm, 0.d0, 0.d0, R1, R_s, R_t, Z1, Z_s, Z_t)
+    phi = 2.d0*pi*float(i_plane_rtree - 1)/float(n_period*n_plane)
+    call interp_RZP(node_list,element_list,i_elm,0.d0,0.d0,phi,R1,Z1)
 
     ! --- Find point between axis and bnd point (located 25% away from axis on the connecting line)
     R2 = R_axis + 0.25d0*(R1-R_axis)
@@ -1077,7 +1121,7 @@ module equil_info
   subroutine LCFS_shape_parameters(node_list,element_list)
   
     use data_structure
-    use phys_module, only: xcase, xpoint
+    use phys_module, only: xcase, xpoint, n_tht
     use mod_interp
     
     implicit none
@@ -1099,6 +1143,47 @@ module equil_info
     type (type_surface_list) :: surface_list
     
     
+    Rmax = -1.d99;   Zmax = -1.d99
+    Rmin =  1.d99;   Zmin =  1.d99
+
+    npoints = 40
+    
+#if STELLARATOR_MODEL
+    ! Assume LCFS is the simulation boundary and take shape parameters from the n=0 boundary
+    do i_elm = element_list%n_elements - (n_tht-1), element_list%n_elements
+      do ig = 1, npoints
+        t = float(ig-1)/float(npoints-1)
+        
+        call interp_RZ(node_list,element_list,i_elm,1.0,t,RRgi,dRRgi_dr,dRRgi_ds,dRRgi_drs,dRRgi_drr,dRRgi_dss, &
+                                                          ZZgi,dZZgi_dr,dZZgi_ds,dZZgi_drs,dZZgi_drr,dZZgi_dss)
+        if (RRgi > Rmax) then
+          Rmax   = RRgi;    Z_Rmax = ZZgi;
+        endif 
+    
+        if (ZZgi > Zmax) then
+          R_Zmax = RRgi;    Zmax = ZZgi;
+        endif 
+    
+        if (RRgi < Rmin) then
+          Rmin   = RRgi;    Z_Rmin = ZZgi;
+        endif 
+    
+        if (ZZgi < Zmin) then
+          R_Zmin = RRgi;    Zmin = ZZgi;
+        endif 
+    
+      end do
+    end do
+    
+    ! --- As defined in T. Luce, PPCF 55 (2013) 095009, equations (1-6)
+    ES%LCFS_Rgeo    = (Rmax + Rmin) / 2.0 
+    ES%LCFS_a       = (Rmax - Rmin) / 2.0
+    ES%LCFS_epsilon =  ES%LCFS_a / ES%LCFS_Rgeo
+    ES%LCFS_kappa   = (Zmax - Zmin) / (2.0 * ES%LCFS_a ) 
+    ES%LCFS_deltaU  = (ES%LCFS_Rgeo - R_Zmax) / ES%LCFS_a
+    ES%LCFS_deltaL  = (ES%LCFS_Rgeo - R_Zmin) / ES%LCFS_a
+#else
+    ! Compute approximate LCFS from n=0 Psi values
     surface_list%n_psi = 1 
     allocate( surface_list%psi_values(surface_list%n_psi) )
     surface_list%psi_values(1) = ES%psi_axis + (ES%psi_bnd - ES%psi_axis) * 0.9999d0 ! Not 1 to avoid legs
@@ -1168,6 +1253,7 @@ module equil_info
       ES%LCFS_deltaL  = (ES%LCFS_Rgeo - R_Zmin) / ES%LCFS_a
     
     end do
+#endif
   
   end subroutine LCFS_shape_parameters
 
