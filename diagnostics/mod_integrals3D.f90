@@ -455,7 +455,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp           x_ss, x_tt, x_st, y_ss, y_tt, y_st, eq_ss, eq_tt, eq_st, eq_sp, eq_tp,         &
 !$omp           eq_spp, eq_tpp, psi_axisym, s_norm, stel_current_source, eq_s_3d, eq_t_3d,     &
 !$omp           eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p,                                        &
-!$omp           wst, BigR, r0, T0, Te0, zj0, ps0, dTdx, dTdy, drhodx, drhody, dpsidx, dpsidy, dpsidp, dudx, dudy,  &
+!$omp           wst, BigR, r0, T0, Te0, zj0, ps0, dTdx, dTdy, drhodx, drhody, dpsidx, dpsidy, dpsidp, dudx, dudy,  dudp, &
 !$omp           dpsidx_3d, dpsidy_3d, saw_ene_dens, BB2_zero,                                  &
 !$omp           w0, dwdx, dwdy, u0_xpp, u0_ypp, visco_T, visco_fact_old, visco_fact_new,       &
 !$omp           dpdx, dpdy, phi, Ti0, psi_as_coord, vprp_disp,                                 &
