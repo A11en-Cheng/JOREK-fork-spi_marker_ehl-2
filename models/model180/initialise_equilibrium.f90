@@ -67,6 +67,10 @@ if (my_id .eq. 0) then
   call solve_Psi_boundary_eqn(node_list, bnd_elm_list)
   call setup_boundary_condition(node_list, bnd_node_list)
 #else
+  if ( n_plane < 2*(n_coord_tor-1) ) then
+    write(*,*) 'Vacuum field solve requires n_plane > 2*(n_coord_tor-1) to avoid aliasing!'
+    stop
+  endif
   call poisson(my_id,4,node_list,element_list,bnd_node_list,bnd_elm_list,1,1,1, &
                0.0,1.0,xpoint,xcase,(/ -99.0, 99.0 /),freeboundary_equil,refinement,1)   !----------- for GS use -1
 #endif

@@ -22,10 +22,10 @@ implicit none
 
 !--- Input parameters --------------------!
 !-----------------------------------------!
-integer, parameter :: points_per_turn = 500
-real*8, parameter  :: delta_phi = 2*PI/float(n_coord_period*points_per_turn)
+integer, parameter :: points_per_turn = 2500
+real*8, parameter  :: delta_phi = 2*PI/float(n_period*points_per_turn)
 integer, parameter :: n_lines = 20
-integer, parameter :: num_pol_turns = 30
+integer, parameter :: num_pol_turns = 200
 integer, parameter :: assumed_max_q = 8
 !-----------------------------------------!
 !-----------------------------------------!
@@ -51,7 +51,7 @@ integer   :: status(MPI_STATUS_SIZE)
 
 real*8    :: rphin_arr(n_lines) = 0.d0, polturns_arr(n_lines) = 0.d0, torturns_arr(n_lines) = 0.d0, phi_arr(n_lines) = 0.d0, R_arr(n_lines) = 0.d0
 real*8    :: rphin_arr_tot(n_lines) = 0.d0, polturns_arr_tot(n_lines) = 0.0, torturns_arr_tot(n_lines) = 0.0, phi_arr_tot(n_lines) = 0.d0, R_arr_tot(n_lines) = 0.d0
-real*8    :: R_poinc_tot(n_lines*num_pol_turns*n_coord_period*assumed_max_q) = 0.d0, Z_poinc_tot(n_lines*num_pol_turns*n_coord_period*assumed_max_q), phi_poinc_tot(n_lines*num_pol_turns*n_coord_period*assumed_max_q)
+real*8    :: R_poinc_tot(n_lines*num_pol_turns*n_period*assumed_max_q) = 0.d0, Z_poinc_tot(n_lines*num_pol_turns*n_period*assumed_max_q), phi_poinc_tot(n_lines*num_pol_turns*n_period*assumed_max_q)
 
 ! --- Initialise constants
 integer   :: v_s0_t0   = 1    ! the vertex and edge indices follow and anti-clockwise convention
@@ -198,9 +198,9 @@ do i = 1, n_lines
     
     ! Include points when single field period is crossed in Poincare
     if ( mod(j, points_per_turn) .eq. 0 ) then
-      R_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j/points_per_turn) = RR
-      Z_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j/points_per_turn) = ZZ
-      phi_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j/points_per_turn) = phi
+      R_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j/points_per_turn) = RR
+      Z_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j/points_per_turn) = ZZ
+      phi_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j/points_per_turn) = phi
     endif
 
     ! Determine if poloidal turn is made
@@ -231,13 +231,13 @@ call MPI_Reduce(R_arr,     R_arr_tot,     n_lines,MPI_DOUBLE_PRECISION,MPI_SUM,0
 ! --- Open the output files to which the Poincare data will be written in ascii format
 if (my_id .eq. 0) then
   open(21,file='q_stel_poinc_R-Z.dat')
-  write(21,*) '#  R                 Z               Field Line No'
+  write(21,*) '#  R       Z       % Completion        Safety Factor       Field Line No'
   
   ! --- Write points for local MPI (id=0)
   do i = 1, n_lines
-    do j = 1, num_pol_turns*n_coord_period*assumed_max_q 
-      if (R_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j) .ne. 0.0) then
-        write(21,'(3e18.8,i6)') R_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j), Z_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j), phi_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j), int(i)
+    do j = 1, num_pol_turns*n_period*assumed_max_q 
+      if (R_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j) .ne. 0.0) then
+        write(21,'(4e18.8,i6)') R_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j), Z_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j), 100.0 * polturns_arr_tot(i) / float(num_pol_turns), phi_arr_tot(i)/(2.d0*PI)/polturns_arr_tot(i), int(i)
       endif
     enddo
     write(21,*)
@@ -246,14 +246,14 @@ if (my_id .eq. 0) then
   ! --- Write points for all other MPIs
   ! --- If this is mpi_0, we receive data from the other MPIs and print it
   do i_cpu=1,n_cpu-1
-    nrecv = n_lines*num_pol_turns*n_coord_period*assumed_max_q
+    nrecv = n_lines*num_pol_turns*n_period*assumed_max_q
     call mpi_recv(R_poinc_tot,nrecv, MPI_DOUBLE_PRECISION, i_cpu, i_cpu, MPI_COMM_WORLD, status, ierr)
     call mpi_recv(Z_poinc_tot,nrecv, MPI_DOUBLE_PRECISION, i_cpu, i_cpu, MPI_COMM_WORLD, status, ierr)
     call mpi_recv(phi_poinc_tot,nrecv, MPI_DOUBLE_PRECISION, i_cpu, i_cpu, MPI_COMM_WORLD, status, ierr)
     do i = 1, n_lines
-      do j = 1, num_pol_turns*n_coord_period*assumed_max_q 
-        if (R_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j) .ne. 0.0) then
-          write(21,'(3e18.8,i6)') R_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j), Z_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j), phi_poinc_tot((i-1)*num_pol_turns*n_coord_period*assumed_max_q+j), int(i)
+      do j = 1, num_pol_turns*n_period*assumed_max_q 
+        if (R_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j) .ne. 0.0) then
+          write(21,'(4e18.8,i6)') R_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j), Z_poinc_tot((i-1)*num_pol_turns*n_period*assumed_max_q+j), 100.0 * polturns_arr_tot(i) / float(num_pol_turns), phi_arr_tot(i)/(2.d0*PI)/polturns_arr_tot(i), int(i)
         endif
       enddo
       write(21,*)
@@ -263,7 +263,7 @@ if (my_id .eq. 0) then
   close(21)
 else
   ! --- If this is not mpi_0, we send data to the main MPI 0
-  nsend = n_lines*num_pol_turns*n_coord_period*assumed_max_q
+  nsend = n_lines*num_pol_turns*n_period*assumed_max_q
   call mpi_send(R_poinc_tot, nsend,MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
   call mpi_send(Z_poinc_tot, nsend,MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)
   call mpi_send(phi_poinc_tot, nsend,MPI_DOUBLE_PRECISION, 0, my_id, MPI_COMM_WORLD, ierr)

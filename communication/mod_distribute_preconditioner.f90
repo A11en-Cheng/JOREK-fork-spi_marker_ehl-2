@@ -336,8 +336,8 @@ contains
     allocate(pc%mat%index_max(pc%n_cpu_n)); pc%mat%index_max(1:pc%n_cpu_n) = 0
     pc%mat%index_min(pc%my_id_n + 1) = 1
     pc%mat%index_max(pc%my_id_n + 1) = pc%mat%nnz/(pc%mat%block_size*pc%mat%block_size)
-    call MPI_Allreduce(MPI_IN_PLACE,pc%mat%index_min,pc%n_cpu_n,MPI_INTEGER_ALL,MPI_SUM,pc%MPI_COMM_N,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,pc%mat%index_max,pc%n_cpu_n,MPI_INTEGER_ALL,MPI_SUM,pc%MPI_COMM_N,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,pc%mat%index_min,pc%n_cpu_n,MPI_INTEGER,MPI_SUM,pc%MPI_COMM_N,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,pc%mat%index_max,pc%n_cpu_n,MPI_INTEGER,MPI_SUM,pc%MPI_COMM_N,ierr)
     
     allocate(pc%rhs%val(pc%mat%ng))
     pc%rhs%val(1:pc%mat%ng) = 0.d0

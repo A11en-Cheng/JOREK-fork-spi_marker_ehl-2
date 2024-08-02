@@ -214,7 +214,7 @@ module mod_strumpack
         distr(rank+1) = imin
 
         if (rank.eq.(n_cpu-1)) distr(rank+2) = imax + 1
-        call MPI_Allreduce(MPI_IN_PLACE,distr,n_cpu+1,MPI_INTEGER,MPI_SUM,spss%comm,ierr)
+        call MPI_Allreduce(MPI_IN_PLACE,distr,n_cpu+1,MPI_INTEGER_ALL,MPI_SUM,spss%comm,ierr)
 
         ! check for consistency
         ierr = 0
