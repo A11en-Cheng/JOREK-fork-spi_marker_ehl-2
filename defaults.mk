@@ -91,10 +91,10 @@ ifeq ($(COMPILER_FAMILY), intel)
   ifeq ($(DEBUG), 1)
     # Debug flags for ifort, see http://www.nas.nasa.gov/hecc/support/kb/recommended-intel-compiler-debugging-options_92.html
     FLAGS += -O0 -g -traceback
-    FLAGS += -ftrapuv
     FLAGS += -debug all -debug-parameters
     FLAGS += -fstack-security-check
-    FLAGS += -fpe0
+    FFLAGS += -ftrapuv
+    FFLAGS += -fpe0
     FFLAGS += -check all,noarg_temp_created
     FFLAGS += -check bounds
     FFLAGS += -check uninit

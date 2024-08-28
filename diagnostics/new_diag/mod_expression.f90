@@ -124,6 +124,7 @@ module mod_expression
     call add(exprs_all, 'dPsi_dt     ', 'Time derivative of poloidal magnetic flux             ')
     call add(exprs_all, 'u           ', 'Velocity Stream Function                              ')
     call add(exprs_all, 'Phi         ', 'Electric Potential Phi                                ')
+    call add(exprs_all, 'qpar_tot    ', 'Total parallel heat-flux (conduc + convec + kin)      ')
     call add(exprs_all, 'zj          ', 'Toroidal Current Density Multiplied by 1/R            ')
     call add(exprs_all, 'currdens    ', 'Physical Toroidal Current Density (== zj/R)           ')
     call add(exprs_all, 'JR          ', 'Physical current density (R component)                ')
@@ -621,9 +622,12 @@ module mod_expression
     real*8 :: hh, hh_s, hh_t, hh_ss, hh_tt, hh_st, hhz, hhz_p, hhz_pp, sz, vv(0:n_var), va(n_var), aux(20)
     real*8 :: delta_g(n_var), delta_s(n_var), delta_t(n_var)
     ! --- Fluxes
-    real*8  ::  ZKpar_flux, ZKipar_flux, ZKepar_flux, ZKperp_flux, ZKiperp_flux, ZKeperp_flux,     &
-      Dpar_flux, Dperp_flux, partF_cnv_par, partF_cnv_tot
-    real*8  ::  pres_flux_par, pres_flux_tot, kin_flux_par, kin_flux_tot, neut_part_flux, ExB_norm 
+    real*8  ::  ZKpar_flux, ZKipar_flux, ZKepar_flux, ZKpar_flux_norm, ZKipar_flux_norm, ZKepar_flux_norm,   &
+                ZKperp_flux_norm, ZKiperp_flux_norm, ZKeperp_flux_norm,                                      &
+                pres_flux_par, kin_flux_par, pres_flux_par_norm, kin_flux_par_norm,                          &
+                pres_flux_tot_norm, kin_flux_tot_norm, Dpar_flux_norm, Dperp_flux_norm, neut_part_flux_norm, &
+                partF_cnv_par_norm, partF_cnv_tot_norm, ExB_norm 
+    
     ! --- Normalization factors
     real*8  :: rho_norm, fact_time, fact_mu_zero, fact_ne, fact_rho, fact_T, fact_vpar,            &
       fact_resistiv, fact_Er, fact_flux, fact_rad, fact_ffp_si
@@ -708,7 +712,12 @@ module mod_expression
          stop
      end select
 #endif
-    
+   
+    if ( (tor_pos_list%n_pos > 1) .and. pol_pos_list%has_dedicated_tor_pos ) then
+      write(*,*) 'ERROR: When giving dedicated phi coords to each poloidal coordinate, tor_pos_list%n_pos must be 1'
+      stop
+    endif
+
     if ( allocated(result) ) deallocate(result)
     allocate( result(tor_pos_list%n_pos, pol_pos_list%n_pos(1), pol_pos_list%n_pos(2),             &
       expr_list%n_expr) )
@@ -775,7 +784,12 @@ module mod_expression
           tor_pos => tor_pos_list%pos(itorpos)
           
           ! --- Toroidal Coordinate and Basis Functions
-          phi     = tor_pos%phi
+          if (pol_pos_list%has_dedicated_tor_pos) then
+            phi     = pol_pos%phi
+          else
+            phi     = tor_pos%phi
+          endif 
+
           HZ(1)   = 1.d0
           HZ_p(1) = 0.d0
           do i = 1, (n_tor-1) / 2
@@ -1453,56 +1467,65 @@ module mod_expression
           ! --- Fluxes 
           if (with_impurities) then
             if (with_TiTe) then
-              pres_flux_par =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * Vpar_tot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
             else
-              pres_flux_par =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * Vpar_tot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
             end if !/ with_TiTe
           else
             if (with_TiTe) then
-              pres_flux_par =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * Vpar_tot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
             else
-              pres_flux_par =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * r0 * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * r0 * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
             end if !/ with_TiTe
           end if ! /with_impurities
+          pres_flux_par_norm =  pres_flux_par * Bnorm / Btot                             !  p v_par·n
 
-          kin_flux_par  = 0.5d0*r0* (VR*VR + VZ*VZ + V_phi*V_phi)* Vpar_tot * Bnorm / Btot ! 0.5 nv^2 v_par·n
-          kin_flux_tot  = 0.5d0*r0* (VR*VR + VZ*VZ + V_phi*V_phi)* (VR*nmlR + VZ*nmlZ)     ! 0.5 nv^2 v·n 
+          kin_flux_par      = 0.5d0*r0* (VR*VR + VZ*VZ + V_phi*V_phi)* Vpar_tot          !  0.5 nv^2 v_par
+          kin_flux_par_norm = kin_flux_par * Bnorm / Btot                                !  0.5 nv^2 v_par·n   
+          kin_flux_tot_norm = 0.5d0*r0* (VR*VR + VZ*VZ + V_phi*V_phi)* (VR*nmlR + VZ*nmlZ) !0.5 nv^2 v·n 
 
           if ( with_TiTe ) then
-            ZKipar_flux    = - ZKi_par_T *(BR*Ti0_R + BZ*Ti0_Z + Btor*Ti0_p/R) * Bnorm / BB2 / (gamma-1.d0)   ! q_par·n 
-            ZKiperp_flux   = - ZKi_prof  *( Ti0_R*nmlR + Ti0_Z*nmlZ)                         / (gamma-1.d0) & ! q_perp·n
-                             + ZKi_prof  *(BR*Ti0_R + BZ*Ti0_Z + Btor*Ti0_p/R) * Bnorm / BB2 / (gamma-1.d0) 
-            ZKepar_flux    = - ZKe_par_T *(BR*Te0_R + BZ*Te0_Z + Btor*Te0_p/R) * Bnorm / BB2 / (gamma-1.d0)   ! q_par·n 
-            ZKeperp_flux   = - ZKe_prof  *( Te0_R*nmlR + Te0_Z*nmlZ)                         / (gamma-1.d0) & ! q_perp·n
-                             + ZKe_prof  *(BR*Te0_R + BZ*Te0_Z + Btor*Te0_p/R) * Bnorm / BB2 / (gamma-1.d0) 
-            ZKpar_flux     = ZKipar_flux  + ZKepar_flux
-            ZKperp_flux    = ZKiperp_flux + ZKeperp_flux
+            ZKipar_flux      = - ZKi_par_T *(BR*Ti0_R + BZ*Ti0_Z + Btor*Ti0_p/R) / Btot        / (gamma-1.d0)   ! q_par 
+            ZKipar_flux_norm = ZKipar_flux * Bnorm / Btot                                                       ! q_par·n
+            ZKiperp_flux_norm= - ZKi_prof  *( Ti0_R*nmlR + Ti0_Z*nmlZ)                         / (gamma-1.d0) & ! q_perp·n
+                               + ZKi_prof  *(BR*Ti0_R + BZ*Ti0_Z + Btor*Ti0_p/R) * Bnorm / BB2 / (gamma-1.d0) 
+            ZKepar_flux      = - ZKe_par_T *(BR*Te0_R + BZ*Te0_Z + Btor*Te0_p/R) / Btot        / (gamma-1.d0)   ! q_par 
+            ZKepar_flux_norm = ZKepar_flux * Bnorm / Btot                                                       ! q_par·n
+            ZKeperp_flux_norm= - ZKe_prof  *( Te0_R*nmlR + Te0_Z*nmlZ)                         / (gamma-1.d0) & ! q_perp·n
+                               + ZKe_prof  *(BR*Te0_R + BZ*Te0_Z + Btor*Te0_p/R) * Bnorm / BB2 / (gamma-1.d0) 
+            ZKpar_flux       = ZKipar_flux       + ZKepar_flux
+            ZKpar_flux_norm  = ZKipar_flux_norm  + ZKepar_flux_norm
+            ZKperp_flux_norm = ZKiperp_flux_norm + ZKeperp_flux_norm
           else
-            ZKpar_flux    = - ZKpar_T *(BR*T0_R + BZ*T0_Z + Btor*T0_p/R) * Bnorm / BB2 / (gamma-1.d0) ! q_par·n 
-            ZKperp_flux   = - ZK_prof *( T0_R*nmlR + T0_Z*nmlZ)        / (gamma-1.d0) &                ! q_perp·n
-                            + ZK_prof *(BR*T0_R + BZ*T0_Z + Btor*T0_p/R) * Bnorm / BB2 / (gamma-1.d0) 
-            ZKipar_flux   = ZKpar_flux  / 2.d0
-            ZKiperp_flux  = ZKperp_flux / 2.d0
+            ZKpar_flux       = - ZKpar_T *(BR*T0_R + BZ*T0_Z + Btor*T0_p/R) / Btot              / (gamma-1.d0) ! q_par
+            ZKpar_flux_norm  = ZKpar_flux* Bnorm / Btot                                                        ! q_par·n
+            ZKperp_flux_norm = - ZK_prof *( T0_R*nmlR + T0_Z*nmlZ)        / (gamma-1.d0) &                     ! q_perp·n
+                                 + ZK_prof *(BR*T0_R + BZ*T0_Z + Btor*T0_p/R) * Bnorm / BB2 / (gamma-1.d0) 
+            ZKipar_flux      = ZKpar_flux      / 2.d0
+            ZKipar_flux_norm = ZKpar_flux_norm / 2.d0  
+            ZKiperp_flux_norm= ZKperp_flux_norm/ 2.d0
 
-            ZKepar_flux   = ZKpar_flux  / 2.d0
-            ZKeperp_flux  = ZKperp_flux / 2.d0
+            ZKepar_flux      = ZKpar_flux      / 2.d0
+            ZKepar_flux_norm = ZKpar_flux_norm / 2.d0
+            ZKeperp_flux_norm= ZKperp_flux_norm/ 2.d0
           end if
+
+   
+          Dpar_flux_norm   = - D_par  * (BR*r0_R + BZ*T0_Z + Btor*T0_p/R) * Bnorm / BB2
+          Dperp_flux_norm  = - D_prof * ( r0_R*nmlR + T0_Z*nmlZ)                       &                              
+                             + D_prof * (BR*r0_R + BZ*T0_Z + Btor*T0_p/R) * Bnorm / BB2 
     
-          Dpar_flux     = - D_par  * (BR*r0_R + BZ*T0_Z + Btor*T0_p/R) * Bnorm / BB2
-          Dperp_flux    = - D_prof * ( r0_R*nmlR + T0_Z*nmlZ)                       &                              
-                          + D_prof * (BR*r0_R + BZ*T0_Z + Btor*T0_p/R) * Bnorm / BB2 
-    
-          partF_cnv_par =   r0 * Vpar_tot * Bnorm / Btot                           !  p v_par·n
-          partF_cnv_tot =   r0 * ( VR * nmlR + VZ * nmlZ )                         !  n v·n
+          partF_cnv_par_norm =   r0 * Vpar_tot * Bnorm / Btot                           !  p v_par·n
+          partF_cnv_tot_norm =   r0 * ( VR * nmlR + VZ * nmlZ )                         !  n v·n
     
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
-          neut_part_flux= -D_neutral_x*rn0_R * nmlR - D_neutral_y * rn0_Z * nmlZ
+          neut_part_flux_norm= -D_neutral_x*rn0_R * nmlR - D_neutral_y * rn0_Z * nmlZ
 #else
-          neut_part_flux= 0.d0
+          neut_part_flux_norm= 0.d0
 #endif    
          
           ! --- Other parameters (combination of the main variables)
@@ -1796,7 +1819,10 @@ module mod_expression
                 
               case ( 'Phi' )
                 res = u0 * F0 / fact_time !### sign?
-                
+
+              case ( 'qpar_tot' )
+                res = (ZKpar_flux + kin_flux_par + pres_flux_par) * fact_flux
+ 
               case ( 'zj' )
                 res = zj0 / fact_mu_zero
                 
@@ -2091,55 +2117,55 @@ module mod_expression
                 res = gamma_stangeby*r0*Te0*vpar0*Bnorm*fact_flux
 
               case ( 'heatF_par_cd' )
-                res = ZKpar_flux * fact_flux
+                res = ZKpar_flux_norm * fact_flux 
 
               case ( 'heatF_prp_cd' )
-                res = ZKperp_flux * fact_flux
+                res = ZKperp_flux_norm * fact_flux
 
               case ( 'heatF_tot_cd' )
-                res = (ZKperp_flux + ZKpar_flux) * fact_flux
+                res = (ZKperp_flux_norm + ZKpar_flux_norm) * fact_flux
 
               case ( 'heatF_par_cv' )
-                res = pres_flux_par * fact_flux
+                res = pres_flux_par_norm * fact_flux
 
               case ( 'heatF_prp_cv' )
-                res = (pres_flux_tot-pres_flux_par) * fact_flux
+                res = (pres_flux_tot_norm-pres_flux_par_norm) * fact_flux
 
               case ( 'heatF_tot_cv' )
-                res = pres_flux_tot * fact_flux
+                res = pres_flux_tot_norm * fact_flux
 
               case ( 'heatF_tot_th'  )
-                res = (pres_flux_tot + ZKperp_flux + ZKpar_flux) * fact_flux
+                res = (pres_flux_tot_norm + ZKperp_flux_norm + ZKpar_flux_norm) * fact_flux
 
               case ( 'heatF_total'  )
-                res = (pres_flux_tot + ZKperp_flux + ZKpar_flux + kin_flux_tot) * fact_flux
+                res = (pres_flux_tot_norm + ZKperp_flux_norm + ZKpar_flux_norm + kin_flux_tot_norm) * fact_flux
 
               case ( 'kinEn_F_par' )
-                res = kin_flux_par * fact_flux
+                res = kin_flux_par_norm * fact_flux
 
               case ( 'kinEn_F_perp ' )
-                res = (kin_flux_tot-kin_flux_par) * fact_flux
+                res = (kin_flux_tot_norm-kin_flux_par_norm) * fact_flux
 
               case ( 'kinEn_F_tot ' )
-                res = kin_flux_tot * fact_flux
+                res = kin_flux_tot_norm * fact_flux
 
               case ( 'partF_par_cd' )
-                res = Dpar_flux * fact_ne / fact_time
+                res = Dpar_flux_norm * fact_ne / fact_time
 
               case ( 'partF_prp_cd' )
-                res = Dperp_flux * fact_ne / fact_time
+                res = Dperp_flux_norm * fact_ne / fact_time
 
               case ( 'partF_par_cv' )
-                res = partF_cnv_par * fact_ne / fact_time
+                res = partF_cnv_par_norm * fact_ne / fact_time
 
               case ( 'partF_prp_cv' )
-                res = (partF_cnv_tot - partF_cnv_par) * fact_ne / fact_time
+                res = (partF_cnv_tot_norm - partF_cnv_par_norm) * fact_ne / fact_time
 
               case ( 'partF_total'  )
-                res = partF_cnv_tot * fact_ne / fact_time
+                res = partF_cnv_tot_norm * fact_ne / fact_time
 
               case ( 'npartF_total'  )
-                res = neut_part_flux * fact_ne / fact_time
+                res = neut_part_flux_norm * fact_ne / fact_time
 
               case ( 'ExB_norm'  )
                 res = ExB_norm * fact_flux

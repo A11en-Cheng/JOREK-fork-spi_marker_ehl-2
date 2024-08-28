@@ -137,7 +137,10 @@ do i=1, element_list%n_elements
 
           ifound = ifound + 1
 
-!         write(*,*) ' first solution : ',s,iv,i
+          if(ifound > 4)  then
+            write(*,*) ' Warning, ifound > 4, consider changing grid settings!'
+            write(*,*) ' first solution : ',s,iv,i,ifound
+          endif
 
           call flux_surface_add_point(node_list,element_list,surface_list,s,i,iv,ifound,r_psi,s_psi,dpsi_dr,dpsi_ds)
 
@@ -147,7 +150,10 @@ do i=1, element_list%n_elements
 
           ifound = ifound + 1
 
-!         write(*,*) ' second solution : ',s2,iv,i
+          if(ifound > 4) then
+            write(*,*) ' Warning, ifound > 4, consider changing grid settings!'
+            write(*,*) ' second solution : ',s2,iv,i,ifound
+          endif
 
           call flux_surface_add_point(node_list,element_list,surface_list,s2,i,iv,ifound,r_psi,s_psi,dpsi_dr,dpsi_ds)
 
@@ -159,7 +165,10 @@ do i=1, element_list%n_elements
 
           ifound = ifound + 1
 
-!         write(*,*) ' third solution : ',s3,iv,i
+          if(ifound > 4) then
+            write(*,*) ' Warning, ifound > 4, consider changing grid settings!'
+            write(*,*) ' third solution : ',s3,iv,i,ifound
+          endif
 
           call flux_surface_add_point(node_list,element_list,surface_list,s3,i,iv,ifound,r_psi,s_psi,dpsi_dr,dpsi_ds)
 
@@ -366,11 +375,11 @@ do i=1, element_list%n_elements
 
       endif
      
-!    endif
+  !    endif
 
   enddo
 
 enddo
 
 return
-end
+end subroutine find_flux_surfaces

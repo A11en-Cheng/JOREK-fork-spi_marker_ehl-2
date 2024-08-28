@@ -424,6 +424,7 @@ contains
 
     counter = 0    
     deltas = 0.d0
+    differentials = 0.d0
 
     !> compute the first derivatives
     call compute_rhs(fields,n_variables,n_int_parameters,n_real_parameters, &

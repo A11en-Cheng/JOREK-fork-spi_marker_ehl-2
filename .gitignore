@@ -74,3 +74,6 @@ non_regression_tests_*
 mpiversion.mk
 new_diag_demo
 jorek2_get_new_extension_patch_connections
+fluid_loads_on_3D_wall
+jorek2_IDS
+jorek2_fields_xyz

@@ -4,7 +4,7 @@ module mod_boundary
   implicit none
   private
   public boundary_from_grid, log_bnd_info
-  public wall_normal_vector
+  public wall_normal_vector, get_st_on_bnd
 
   
   
@@ -502,6 +502,36 @@ module mod_boundary
     bnd_elm_list%n_bnd_elements = nbnd_elem - 1
 
   end subroutine remove_elem
+
+
+
+
+
+  !> Transforms 1D local coordinate along the boundary to s,t coordinates of the 2D element
+  pure subroutine get_st_on_bnd(s_or_t, side, s, t)
+
+    implicit none
+
+    real*8,  intent(in)    :: s_or_t ! local coordinate along the 1D boundary element
+    integer, intent(in)    :: side   ! side of the boundary element
+    real*8,  intent(inout) :: s,t    ! local coordinates for the 2D boundary element
+
+    select case (side)
+    case (1)
+      s = s_or_t;  t= 0.d0;    
+    case (2)
+      s = 1.d0;    t = s_or_t; 
+    case (3)
+      s = s_or_t;  t = 1.d0;    
+    case (4)
+      s = 0.d0;    t = s_or_t;  
+    end select
+  
+  end subroutine get_st_on_bnd
+
+
+
+
 
 
   !> Get a normal vector from the wall on your element. It is your own responsibility to ensure
