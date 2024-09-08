@@ -24,6 +24,7 @@ use mod_coronal
 use mod_bootstrap_functions
 use equil_info, only : get_psi_n
 use mod_sources
+use mod_plasma_functions
 
 implicit none
 

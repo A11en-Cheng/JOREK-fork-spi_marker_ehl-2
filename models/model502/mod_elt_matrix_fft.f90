@@ -26,6 +26,7 @@ use mod_bootstrap_functions
 use equil_info, only : get_psi_n
 use mod_sources
 use profiles, only: interpolProf
+use mod_plasma_functions
 
 implicit none
 
