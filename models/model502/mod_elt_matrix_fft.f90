@@ -84,7 +84,7 @@ real*8     :: Vpar0, Vpar0_s, Vpar0_t, Vpar0_p, Vpar0_x, Vpar0_y, Vpar0_ss, Vpar
 real*8     :: BigR_x, vv2, eta_T, visco_T, deta_dT, d2eta_d2T, dvisco_dT, visco_num_T, eta_num_T
 real*8     :: deta_dr0, deta_drn0, deta_num_dT, dvisco_num_dT
 real*8     :: visco_T_heating, dvisco_dT_heating, d2visco_dT2_heating
-real*8     :: eta_T_ohm, deta_dT_ohm, deta_dr0_ohm, deta_drn0_ohm
+real*8     :: eta_T_ohm, deta_dT_ohm, d2eta_d2T_ohm, deta_dr0_ohm, deta_drn0_ohm
 real*8     :: lnA, dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0
 real*8     :: ZK_par_num, Ti0_ps0_x, Ti_ps0_x, Ti0_psi_x, Ti0_ps0_y, Ti_ps0_y, Ti0_psi_y, v_ps0_x, v_psi_x, v_ps0_y, v_psi_y
 real*8     :: Te0_ps0_x, Te_ps0_x, Te0_psi_x, Te0_ps0_y, Te_ps0_y, Te0_psi_y

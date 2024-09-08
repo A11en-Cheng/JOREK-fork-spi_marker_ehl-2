@@ -78,7 +78,7 @@ real*8     :: P0, P0_x, P0_y, P0_s, P0_t, P0_ss, P0_st, P0_tt, P0_p, P0_xx, P0_x
 real*8     :: Pi0, Pi0_x, Pi0_y, Pi0_s, Pi0_t, Pi0_ss, Pi0_st, Pi0_tt, Pi0_p, Pi0_xx, Pi0_xy, Pi0_yy
 real*8     :: Pe0, Pe0_x, Pe0_y, Pe0_s, Pe0_t, Pe0_ss, Pe0_st, Pe0_tt, Pe0_p, Pe0_xx, Pe0_xy, Pe0_yy
 real*8     :: BigR_x, vv2, eta_T, visco_T, deta_dT, d2eta_d2T, dvisco_dT, d2visco_d2T, deta_dr0, deta_drn0
-real*8     :: visco_num_T, eta_num_T, eta_T_ohm, deta_dT_ohm, deta_dr0_ohm, deta_drn0_ohm, deta_num_dT, dvisco_num_dT
+real*8     :: visco_num_T, eta_num_T, eta_T_ohm, deta_dT_ohm, d2eta_d2T_ohm, deta_dr0_ohm, deta_drn0_ohm, deta_num_dT, dvisco_num_dT
 real*8     :: visco_T_heating, dvisco_dT_heating, d2visco_dT2_heating
 real*8     :: lnA, dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0
 real*8     :: amat_11, amat_12, amat_21, amat_22, amat_23, amat_24, amat_25, amat_26, amat_33, amat_31, amat_44, amat_42
