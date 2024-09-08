@@ -80,6 +80,7 @@ real*8     :: Pe0, Pe0_x, Pe0_y, Pe0_s, Pe0_t, Pe0_ss, Pe0_st, Pe0_tt, Pe0_p, Pe
 real*8     :: BigR_x, vv2, eta_T, visco_T, deta_dT, d2eta_d2T, dvisco_dT, d2visco_d2T, deta_dr0, deta_drn0
 real*8     :: visco_num_T, eta_num_T, eta_T_ohm, deta_dT_ohm, deta_dr0_ohm, deta_drn0_ohm, deta_num_dT, dvisco_num_dT
 real*8     :: visco_T_heating, dvisco_dT_heating, d2visco_dT2_heating
+real*8     :: lnA, dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0
 real*8     :: amat_11, amat_12, amat_21, amat_22, amat_23, amat_24, amat_25, amat_26, amat_33, amat_31, amat_44, amat_42
 real*8     :: amat_51, amat_52, amat_55, amat_56, amat_57, amat_61, amat_62, amat_63, amat_64, amat_65, amat_66, amat_67, amat_16, amat_13
 real*8     :: amat_71, amat_72, amat_75, amat_76, amat_77, amat_15, amat_18, amat_19, amat_29
@@ -637,43 +638,43 @@ do ms=1, n_gauss
      delta_ps_x = (   y_t(ms,mt) * delta_s(mp,1,ms,mt) - y_s(ms,mt) * delta_t(mp,1,ms,mt) ) / xjac
      delta_ps_y = ( - x_t(ms,mt) * delta_s(mp,1,ms,mt) + x_s(ms,mt) * delta_t(mp,1,ms,mt) ) / xjac
      
-     ! --- Temperature dependent resistivity
-     if ( eta_T_dependent .and. Te0_corr <= T_max_eta) then
-       eta_T     = eta   * (Te0_corr/Te_0)**(-1.5d0)
-       deta_dT   = ( - eta   * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) ) * dTe0_corr_dT
-       d2eta_d2T = (  eta   * (3.75d0) * Te0_corr**(-3.5d0) * Te_0**(1.5d0) ) * d2Te0_corr_dT2
-       deta_dr0  = 0.
-       deta_drn0 = 0.
-     else if (eta_T_dependent .and. Te0_corr > T_max_eta) then
-       eta_T     = eta   * (T_max_eta/Te_0)**(-1.5d0)
-       deta_dT   = 0.
-       d2eta_d2T = 0.
-       deta_dr0  = 0.
-       deta_drn0 = 0.
-     else
-       eta_T     = eta
-       deta_dT   = 0.d0
-       d2eta_d2T = 0.d0
-       deta_dr0  = 0.
-       deta_drn0 = 0.
-     end if
-
-     if ( eta_T_dependent .and. Te0_corr <= T_max_eta_ohm ) then
-       eta_T_ohm     = eta_ohmic   * (Te0_corr/Te_0)**(-1.5d0)
-       deta_dT_ohm   = ( - eta_ohmic   * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) ) * dTe0_corr_dT
-       deta_dr0_ohm  = 0.
-       deta_drn0_ohm = 0.
-     else if (eta_T_dependent .and. Te0_corr > T_max_eta_ohm) then
-       eta_T_ohm     = eta_ohmic   * (T_max_eta_ohm/Te_0)**(-1.5d0)
-       deta_dT_ohm   = 0.
-       deta_dr0_ohm  = 0.
-       deta_drn0_ohm = 0.
-     else
-       eta_T_ohm      = eta_ohmic
-       deta_dT_ohm    = 0.d0
-       deta_dr0_ohm   = 0.
-       deta_drn0_ohm  = 0.
-     end if
+!     ! --- Temperature dependent resistivity
+!     if ( eta_T_dependent .and. Te0_corr <= T_max_eta) then
+!       eta_T     = eta   * (Te0_corr/Te_0)**(-1.5d0)
+!       deta_dT   = ( - eta   * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) ) * dTe0_corr_dT
+!       d2eta_d2T = (  eta   * (3.75d0) * Te0_corr**(-3.5d0) * Te_0**(1.5d0) ) * d2Te0_corr_dT2
+!       deta_dr0  = 0.
+!       deta_drn0 = 0.
+!     else if (eta_T_dependent .and. Te0_corr > T_max_eta) then
+!       eta_T     = eta   * (T_max_eta/Te_0)**(-1.5d0)
+!       deta_dT   = 0.
+!       d2eta_d2T = 0.
+!       deta_dr0  = 0.
+!       deta_drn0 = 0.
+!     else
+!       eta_T     = eta
+!       deta_dT   = 0.d0
+!       d2eta_d2T = 0.d0
+!       deta_dr0  = 0.
+!       deta_drn0 = 0.
+!     end if
+!
+!     if ( eta_T_dependent .and. Te0_corr <= T_max_eta_ohm ) then
+!       eta_T_ohm     = eta_ohmic   * (Te0_corr/Te_0)**(-1.5d0)
+!       deta_dT_ohm   = ( - eta_ohmic   * (1.5d0)  * Te0_corr**(-2.5d0) * Te_0**(1.5d0) ) * dTe0_corr_dT
+!       deta_dr0_ohm  = 0.
+!       deta_drn0_ohm = 0.
+!     else if (eta_T_dependent .and. Te0_corr > T_max_eta_ohm) then
+!       eta_T_ohm     = eta_ohmic   * (T_max_eta_ohm/Te_0)**(-1.5d0)
+!       deta_dT_ohm   = 0.
+!       deta_dr0_ohm  = 0.
+!       deta_drn0_ohm = 0.
+!     else
+!       eta_T_ohm      = eta_ohmic
+!       deta_dT_ohm    = 0.d0
+!       deta_dr0_ohm   = 0.
+!       deta_drn0_ohm  = 0.
+!     end if
 
 ! ================== Old Spizter resistivity ============
 !     eta_Sp = 1.65d-9*17*(1.d-3*Te0_corr/(2*EL_CHG*MU_ZERO*central_density*1.d20))**(-1.5d0) &
@@ -1109,31 +1110,46 @@ do ms=1, n_gauss
        Z_eff     = max(Z_eff / ne_JOREK, 1.) 
      endif
 
-     ! This is to represent the dependence on Z_eff in resistivity
-     eta_coef     = Z_eff*(1.+1.198*Z_eff+0.222*Z_eff**2)/(1.+2.966*Z_eff+0.753*Z_eff**2)
-     eta_coef     = eta_coef / ((1.+1.198+0.222)/(1.+2.966+0.753))
+!     ! This is to represent the dependence on Z_eff in resistivity
+!     eta_coef     = Z_eff*(1.+1.198*Z_eff+0.222*Z_eff**2)/(1.+2.966*Z_eff+0.753*Z_eff**2)
+!     eta_coef     = eta_coef / ((1.+1.198+0.222)/(1.+2.966+0.753))
+!
+!     deta_coef_dZeff = (1.+1.198*Z_eff+0.222*Z_eff**2)/(1.+2.966*Z_eff+0.753*Z_eff**2)
+!     deta_coef_dZeff = deta_coef_dZeff + Z_eff*(1.198+2.*0.222*Z_eff)/(1.+2.966*Z_eff+0.753*Z_eff**2)
+!     deta_coef_dZeff = deta_coef_dZeff - Z_eff*(1.+1.198*Z_eff+0.222*Z_eff**2)*(2.966+2.*0.753*Z_eff)/((1.+2.966*Z_eff+0.753*Z_eff**2)**2)
+!     deta_coef_dZeff = deta_coef_dZeff / ((1.+1.198+0.222)/(1.+2.966+0.753))
+!
+!     !eta_Sp = 0. ! For intear benchmark
+!     !detaSp_dT = 0. ! For intear benchmark
+!     !detaSp_dr0 = 0.
+!     !detaSp_drn0 = 0.
+!
+!     if ( eta_T_dependent ) then
+!       deta_dr0  = eta_T * deta_coef_dZeff * dZ_eff_dr0 * dr0_corr_dn
+!       deta_drn0 = eta_T * deta_coef_dZeff * dZ_eff_drn0 * drn0_corr_dn
+!       deta_dT   = deta_dT * eta_coef + eta_T * deta_coef_dZeff * dZ_eff_dT
+!       eta_T     = eta_T * eta_coef
+!
+!       deta_dr0_ohm  = eta_T_ohm * deta_coef_dZeff * dZ_eff_dr0 * dr0_corr_dn
+!       deta_drn0_ohm = eta_T_ohm * deta_coef_dZeff * dZ_eff_drn0 * drn0_corr_dn
+!       deta_dT_ohm   = deta_dT_ohm * eta_coef + eta_T_ohm * deta_coef_dZeff * dZ_eff_dT
+!       eta_T_ohm = eta_T_ohm * eta_coef
+!     end if
+     ! --- Normalized coulomb logarithm for resistivity
+     call coulomb_log_ei(Te0, Te0_corr, r0, r0_corr, rn0, rn0_corr, alpha_e, lnA, dalpha_e_dT, &
+                         dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)
 
-     deta_coef_dZeff = (1.+1.198*Z_eff+0.222*Z_eff**2)/(1.+2.966*Z_eff+0.753*Z_eff**2)
-     deta_coef_dZeff = deta_coef_dZeff + Z_eff*(1.198+2.*0.222*Z_eff)/(1.+2.966*Z_eff+0.753*Z_eff**2)
-     deta_coef_dZeff = deta_coef_dZeff - Z_eff*(1.+1.198*Z_eff+0.222*Z_eff**2)*(2.966+2.*0.753*Z_eff)/((1.+2.966*Z_eff+0.753*Z_eff**2)**2)
-     deta_coef_dZeff = deta_coef_dZeff / ((1.+1.198+0.222)/(1.+2.966+0.753))
+     ! --- Eta
+     call resistivity(eta, Te0, Te0_corr, T_max_eta, Te_0, Z_eff, lnA, eta_T, & 
+                      dZ_eff_dT, dZ_eff_dr0, dZ_eff_drn0, dr0_corr_dn, drn0_corr_dn,             & 
+                      deta_dT, d2eta_d2T, deta_dr0, deta_drn0,                                     &
+                      dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)           
 
-     !eta_Sp = 0. ! For intear benchmark
-     !detaSp_dT = 0. ! For intear benchmark
-     !detaSp_dr0 = 0.
-     !detaSp_drn0 = 0.
-
-     if ( eta_T_dependent ) then
-       deta_dr0  = eta_T * deta_coef_dZeff * dZ_eff_dr0 * dr0_corr_dn
-       deta_drn0 = eta_T * deta_coef_dZeff * dZ_eff_drn0 * drn0_corr_dn
-       deta_dT   = deta_dT * eta_coef + eta_T * deta_coef_dZeff * dZ_eff_dT
-       eta_T     = eta_T * eta_coef
-
-       deta_dr0_ohm  = eta_T_ohm * deta_coef_dZeff * dZ_eff_dr0 * dr0_corr_dn
-       deta_drn0_ohm = eta_T_ohm * deta_coef_dZeff * dZ_eff_drn0 * drn0_corr_dn
-       deta_dT_ohm   = deta_dT_ohm * eta_coef + eta_T_ohm * deta_coef_dZeff * dZ_eff_dT
-       eta_T_ohm = eta_T_ohm * eta_coef
-     end if
+     ! --- Eta ohmic
+     call resistivity(eta_ohmic, Te0, Te0_corr, T_max_eta_ohm, Te_0, Z_eff, lnA, eta_T_ohm,  &
+                      dZ_eff_dT, dZ_eff_dr0, dZ_eff_drn0, dr0_corr_dn, drn0_corr_dn,             & 
+                      deta_dT_ohm, d2eta_d2T_ohm, deta_dr0_ohm, deta_drn0_ohm,                     & 
+                      dlnA_dT, d2lnA_dT2, dlnA_dr0, dlnA_drimp0)    
 
   !-------------------------------------------
   ! --- Radiative function, using interpolation
