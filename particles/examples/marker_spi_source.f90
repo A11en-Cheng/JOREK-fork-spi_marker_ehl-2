@@ -1,6 +1,6 @@
 !> Testing the coupling of the projections of particles to JOREK
 
-program marker_502_source
+program marker_spi_source
 use particle_tracer
 use mod_particle_diagnostics
 use mpi
@@ -815,4 +815,4 @@ pure function f_source_imp(P, P_norm) result(f)
 
 end function f_source_imp
 
-end program marker_502_source
+end program marker_spi_source
