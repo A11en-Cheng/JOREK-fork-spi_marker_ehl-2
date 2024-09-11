@@ -1467,19 +1467,23 @@ module mod_expression
           ! --- Fluxes 
           if (with_impurities) then
             if (with_TiTe) then
-              pres_flux_par =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par      =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
             else
-              pres_flux_par =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par      =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
             end if !/ with_TiTe
           else
             if (with_TiTe) then
-              pres_flux_par =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par      =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
             else
-              pres_flux_par =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
-              pres_flux_tot =  gamma/(gamma-1.d0) * r0 * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
+              pres_flux_par      =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * r0 * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
             end if !/ with_TiTe
           end if ! /with_impurities
 
