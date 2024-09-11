@@ -130,7 +130,7 @@ if (my_id == 0) then
   endif
 
   call tr_debug_write("Deb_poisson",nz_AA)
-  
+
   n_border = 0
   if (itype .ne. 0) then
     do i=1,node_list%n_nodes
@@ -165,7 +165,19 @@ if (my_id == 0) then
       if (node_list%node(i)%boundary .eq.21) n_border = n_border + n_degrees_per_boundary_node
     enddo
   endif
-  
+
+  if (.not. use_pastix_eq .and. (itype .eq. 0 .and. ivar_out .eq. 710)) then
+    do i=1,node_list%n_nodes
+      if(treat_axis)then
+        ! --- Only one fixed for fixed-axis (only valid for G1-cases at the moment!!!)
+        if (node_list%node(i)%axis_node    ) n_border = n_border+1
+      else
+        ! --- t-derivatives and cross derivatives are switched off on axis, so (n_order+1)/2 are not fixed
+        if (node_list%node(i)%axis_node    ) n_border = n_border + n_degrees - (n_order+1)/2
+      endif
+    enddo
+  endif
+
   if ((.not. freeboundary_equil) .or. (itype .ne. -1)) then
     nz_AA = nz_AA + n_border
   elseif  (freeboundary_equil .and. (itype .eq. -1)) then
@@ -425,7 +437,7 @@ if (my_id == 0) then
   a_mat%nnz = nz_AA
   
   zbig = 1.d10
-  
+
 end if ! my_id == 0
 
 !----------------------- boundary conditions
@@ -530,8 +542,48 @@ elseif (itype .eq. 4) then
   write(*,*) "itype == 4 is only possible for model 180"
   stop
 #endif
-elseif (itype .ne. 0) then        ! apply fixed boundary conditions (not for variable projection)
 
+elseif (.not. use_pastix_eq .and. (itype .eq. 0 .and. ivar_out .eq. 710)) then
+  if (my_id == 0 ) then
+
+    ! --- calculate node_indices
+    call calculate_node_indices(node_indices)
+
+    do i=1,node_list%n_nodes
+  
+      ! --- On axis, we fix the t-derivatives, plus all cross-derivatives
+      if (node_list%node(i)%axis_node) then
+      
+        if (treat_axis) then ! For G1 elements only at the moment !
+          ! penalize 4th DoF to enforce C0 continuity at the grid center        
+          index_i = node_list%node(i)%index(4)  ! base index in the main matrix
+          a_mat%irn(ilarge+1) = index_i
+          a_mat%jcn(ilarge+1) = index_i
+          a_mat%val(ilarge+1)   = zbig
+          ilarge = ilarge + 1
+        endif
+
+        if(fix_axis_nodes)then
+          do k = 1,(n_order+1)/2
+            do l = 2,(n_order+1)/2 ! start t-index from 2 to keep only the pure s-derivatives
+              index = node_indices(k,l)
+              index_i = node_list%node(i)%index(index)  ! base index in the main matrix
+              a_mat%irn(ilarge+1) = index_i
+              a_mat%jcn(ilarge+1) = index_i
+              a_mat%val(ilarge+1)   = zbig
+              ilarge = ilarge + 1
+            enddo
+          enddo
+        endif
+
+      endif
+    enddo
+    nz_AA_old = nz_AA
+    nz_AA     = ilarge
+    a_mat%nnz = nz_AA
+  endif
+
+elseif (itype .ne. 0) then        ! apply fixed boundary conditions (not for variable projection)
   if (my_id == 0 ) then
 
     ! --- calculate node_indices
@@ -644,9 +696,10 @@ if (my_id == 0) then
   elseif (use_pastix_eq) then
     solver%library = pastix
   endif
+
   call solve_sparse_system(a_mat, rhs_vec, rhs_vec, solver)
   call solver%finalize()
-  
+
   call tr_debug_write("a_mat%ng",int(a_mat%ng))
   call tr_debug_write("a_mat%nnz",int(a_mat%nnz))
   

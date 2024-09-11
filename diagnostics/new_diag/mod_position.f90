@@ -43,6 +43,7 @@ module mod_position
   type t_pol_pos
     logical            :: outside = .false. !< Outside computational domain?
     real*8             :: R, R_s, R_t, R_st, R_ss, R_tt, Z, Z_s, Z_t, Z_st, Z_ss, Z_tt, s, t
+    real*8             :: phi    !< This poloidal location has a unique phi angle (for 1D trayectories)
     integer            :: ielm
     type(type_element) :: element
     type(type_node)    :: nodes(n_vertex_max)
@@ -58,7 +59,8 @@ module mod_position
   type t_pol_pos_list
     type(t_pol_pos), allocatable :: pos(:,:)
     integer :: n_pos(2) = 0
-    logical :: full_turn !< Do the positions cover a full poloidal turn?
+    logical :: full_turn                     !< Do the positions cover a full poloidal turn?
+    logical :: has_dedicated_tor_pos=.false. !< Each poloidal coord has a dedicated (separate) toroidal coord? (for 1D trayectories)
   end type t_pol_pos_list
   
   !> Data structure for a toroidal position
