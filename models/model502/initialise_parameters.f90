@@ -3,6 +3,7 @@ subroutine initialise_parameters(my_id, filename)
 
 use tr_module
 use phys_module
+use mod_plasma_functions, only: initialise_reference_parameters
 use vacuum
 use pellet_module
 use live_data
@@ -310,6 +311,9 @@ if (my_id .eq. 0) then
 
   !if (using_spi) call init_spi()
   if (using_spi) call init_spi_all()
+
+  call initialise_reference_parameters()
+
 endif
 
 return

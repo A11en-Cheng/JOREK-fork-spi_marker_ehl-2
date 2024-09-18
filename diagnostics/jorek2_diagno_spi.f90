@@ -71,6 +71,12 @@ do i_tor=1, n_tor
 enddo
 
 call initialise_basis()                              ! define the basis functions at the Gaussian points
+! --- Preset namelist input parameters
+call preset_parameters()
+
+! --- Initialize derived reference parameters
+call initialise_reference_parameters()  
+
 call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
 
 open(20,file='energies.txt')
