@@ -79,6 +79,7 @@ subroutine initialise_basis()
     HZ_p(1,k) = 0.d0
     HZ_coord(1,k)   = 1.d0
     HZ_coord_p(1,k) = 0.d0
+    HZ_pp(1,k) = 0.d0
 
     do i=1,(n_tor-1)/2
       HZ(2*i,k)      =                           cos(mode(2*i)  *phi)
