@@ -20,6 +20,7 @@ use mod_import_restart
 use mod_impurity
 use mod_integrals3D
 use mod_expression, only: exprs_all_int, init_expr, t_expr_list
+use mod_plasma_functions, only: initialise_reference_parameters
 
 implicit none
 
@@ -73,6 +74,15 @@ enddo
 call initialise_basis()                              ! define the basis functions at the Gaussian points
 ! --- Preset namelist input parameters
 call preset_parameters()
+
+#if (defined WITH_Neutrals) || (defined WITH_Impurities)
+! --- Read ADAS data and generate coronal equilibrium if needed
+call init_imp_adas(0)
+#else
+if (use_imp_adas .and. (nimp_bg(1) > 0.d0)) then
+  call init_imp_adas(0)
+endif
+#endif
 
 ! --- Initialize derived reference parameters
 call initialise_reference_parameters()  
@@ -238,8 +248,6 @@ if (using_spi) then
 endif
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
-  ! --- Read ADAS data and generate coronal equilibrium is needed
-  call init_imp_adas(0)
   if (output_prad_phi) then
     ! --- Determine boundary information from the grid
     call boundary_from_grid(node_list, element_list, bnd_node_list, bnd_elm_list, .false.)
