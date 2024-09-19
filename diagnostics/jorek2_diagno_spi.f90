@@ -72,8 +72,6 @@ do i_tor=1, n_tor
 enddo
 
 call initialise_basis()                              ! define the basis functions at the Gaussian points
-! --- Preset namelist input parameters
-call preset_parameters()
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 ! --- Read ADAS data and generate coronal equilibrium if needed
