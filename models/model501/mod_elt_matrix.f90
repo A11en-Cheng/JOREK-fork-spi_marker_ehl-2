@@ -762,9 +762,9 @@ do ms=1, n_gauss
        case('Ne')
          m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u
        case('Fe')
-         m_i_over_m_imp = central_mass/56. ! Argon mass = 56 u and main ion (D) mass = 2 u
+         m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u and main ion (D) mass = 2 u
        case('W')
-         m_i_over_m_imp = central_mass/184. ! Neon mass = 184 u and main ion (D) mass = 2 u
+         m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u and main ion (D) mass = 2 u
        case default
          write(*,*) '!! Gas type "', trim(imp_type(index_main_imp)), '" unknown (in mod_injection_source.f90) !!'
          write(*,*) '=> We assume the gas is D2.'

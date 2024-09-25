@@ -917,9 +917,9 @@ do ife = ife_min, ife_max
             m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u
             m_imp          = 20.
           case('Fe')
-            m_i_over_m_imp = central_mass/56. ! Neon mass = 56 u
+            m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u
           case('W')
-            m_i_over_m_imp = central_mass/184. ! Neon mass = 184 u
+            m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u
           case default
             write(*,*) '!! Gas type "', trim(imp_type(index_main_imp)), '" unknown (in mod_injection_source.f90) !!'
             write(*,*) '=> We assume the gas is D2.'
@@ -2008,9 +2008,9 @@ do m_bndelem = 1, bnd_elm_list%n_bnd_elements
         case('Ne')
           m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u
         case('Fe')
-          m_i_over_m_imp = central_mass/56. ! Neon mass = 56 u
+          m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u
         case('W')
-          m_i_over_m_imp = central_mass/184. ! Neon mass = 184 u
+          m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u
         case default
           write(*,*) '!! Gas type "', trim(imp_type(index_main_imp)), '" unknown (in mod_injection_source.f90) !!'
           write(*,*) '=> We assume the gas is D2.'

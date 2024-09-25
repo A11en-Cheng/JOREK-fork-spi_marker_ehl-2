@@ -888,10 +888,10 @@ do ms=1, n_gauss
          m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u and main ion (D) mass = 2 u
          m_imp          = 20.
        case('Fe')
-         m_i_over_m_imp = central_mass/56. ! Argon mass = 56 u and main ion (D) mass = 2 u
+         m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u and main ion (D) mass = 2 u
          m_imp          = 56.
        case('W')
-         m_i_over_m_imp = central_mass/184. ! Neon mass = 184 u and main ion (D) mass = 2 u
+         m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u and main ion (D) mass = 2 u
          m_imp          = 184.
        case default
          write(*,*) '!! Gas type "', trim(imp_type(index_main_imp)), '" unknown (in inj_source.f90) !!'

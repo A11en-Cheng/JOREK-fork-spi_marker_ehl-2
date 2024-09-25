@@ -344,9 +344,9 @@ select case ( trim(imp_type(index_main_imp)) )
   case('Ne')
     m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u and main ion (D) mass = 2 u
   case('Fe')
-    m_i_over_m_imp = central_mass/56. ! Argon mass = 56 u and main ion (D) mass = 2 u
+    m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u and main ion (D) mass = 2 u
   case('W')
-    m_i_over_m_imp = central_mass/184. ! Neon mass = 184 u and main ion (D) mass = 2 u
+    m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u and main ion (D) mass = 2 u
   case default
     m_i_over_m_imp = central_mass/2.
 end select
