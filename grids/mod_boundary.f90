@@ -505,30 +505,28 @@ module mod_boundary
 
 
 
-
-
   !> Transforms 1D local coordinate along the boundary to s,t coordinates of the 2D element
-  pure subroutine get_st_on_bnd(s_or_t, side, s, t)
+  pure subroutine get_st_on_bnd(s_or_t, side, s, t, s_const)
 
     implicit none
 
-    real*8,  intent(in)    :: s_or_t ! local coordinate along the 1D boundary element
-    integer, intent(in)    :: side   ! side of the boundary element
-    real*8,  intent(inout) :: s,t    ! local coordinates for the 2D boundary element
+    real*8,  intent(in)    :: s_or_t  ! local coordinate along the 1D boundary element
+    integer, intent(in)    :: side    ! side of the boundary element
+    real*8,  intent(inout) :: s,t     ! local coordinates for the 2D boundary element
+    logical, intent(inout) :: s_const ! is it an s_constant surface?
 
     select case (side)
     case (1)
-      s = s_or_t;  t= 0.d0;    
+      s = s_or_t;  t= 0.d0;     s_const = .false.
     case (2)
-      s = 1.d0;    t = s_or_t; 
+      s = 1.d0;    t = s_or_t;  s_const = .true.
     case (3)
-      s = s_or_t;  t = 1.d0;    
+      s = s_or_t;  t = 1.d0;    s_const = .false.
     case (4)
-      s = 0.d0;    t = s_or_t;  
+      s = 0.d0;    t = s_or_t;  s_const = .true.
     end select
   
   end subroutine get_st_on_bnd
-
 
 
 

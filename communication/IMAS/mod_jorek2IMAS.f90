@@ -25,6 +25,7 @@ module mod_jorek2IMAS
   ! Transform to COCOS convention 8 --> 11
   real*8 :: fact_psi =  2.d0 * PI
   real*8 :: fact_Ip  = -1.d0
+  real*8 :: fact_phi_dir = -1.d0  ! -1 to go from 8-->11 or 8-->17
 
     
   ! *******************************************************************************************************
@@ -123,7 +124,7 @@ module mod_jorek2IMAS
       ! --- Put the grid in GGD
       allocate( mhd_ids%grid_ggd(n_grid) )
       grid => mhd_ids%grid_ggd(grid_ind)
-      call grid2ggd( grid, node_list, element_list )
+      call grid2ggd( grid, node_list, element_list, bnd_node_list, bnd_elm_list )
     endif
 
     ! --- Normalization factors for IMAS
@@ -698,11 +699,11 @@ module mod_jorek2IMAS
         allocate( pf_passive%loop(i_coil)%element(coil_set%coil(i_coil)%nparts_coil) )
         do k=1, coil_set%coil(i_coil)%nparts_coil
           pf_passive%loop(i_coil)%element(k)%turns_with_sign           = coil_set%coil(i_coil)%n_thick_turns(k)
-          pf_passive%loop(i_coil)%element(k)%geometry.geometry_type    = 2 ! Rectangle type
-          pf_passive%loop(i_coil)%element(k)%geometry.rectangle.r      = coil_set%coil(i_coil)%R(k)
-          pf_passive%loop(i_coil)%element(k)%geometry.rectangle.z      = coil_set%coil(i_coil)%Z(k)
-          pf_passive%loop(i_coil)%element(k)%geometry.rectangle.width  = coil_set%coil(i_coil)%dR(k)
-          pf_passive%loop(i_coil)%element(k)%geometry.rectangle.height = coil_set%coil(i_coil)%dZ(k)
+          pf_passive%loop(i_coil)%element(k)%geometry%geometry_type    = 2 ! Rectangle type
+          pf_passive%loop(i_coil)%element(k)%geometry%rectangle%r      = coil_set%coil(i_coil)%R(k)
+          pf_passive%loop(i_coil)%element(k)%geometry%rectangle%z      = coil_set%coil(i_coil)%Z(k)
+          pf_passive%loop(i_coil)%element(k)%geometry%rectangle%width  = coil_set%coil(i_coil)%dR(k)
+          pf_passive%loop(i_coil)%element(k)%geometry%rectangle%height = coil_set%coil(i_coil)%dZ(k)
         enddo
       endif
 
@@ -791,11 +792,11 @@ module mod_jorek2IMAS
         allocate( pf_active%coil(i_coil)%element(coil_set%coil(i_coil)%nparts_coil) )
         do k=1, coil_set%coil(i_coil)%nparts_coil
           pf_active%coil(i_coil)%element(k)%turns_with_sign           = coil_set%coil(i_coil)%n_thick_turns(k)
-          pf_active%coil(i_coil)%element(k)%geometry.geometry_type    = 2 ! Rectangle type
-          pf_active%coil(i_coil)%element(k)%geometry.rectangle.r      = coil_set%coil(i_coil)%R(k)
-          pf_active%coil(i_coil)%element(k)%geometry.rectangle.z      = coil_set%coil(i_coil)%Z(k)
-          pf_active%coil(i_coil)%element(k)%geometry.rectangle.width  = coil_set%coil(i_coil)%dR(k)
-          pf_active%coil(i_coil)%element(k)%geometry.rectangle.height = coil_set%coil(i_coil)%dZ(k)
+          pf_active%coil(i_coil)%element(k)%geometry%geometry_type    = 2 ! Rectangle type
+          pf_active%coil(i_coil)%element(k)%geometry%rectangle%r      = coil_set%coil(i_coil)%R(k)
+          pf_active%coil(i_coil)%element(k)%geometry%rectangle%z      = coil_set%coil(i_coil)%Z(k)
+          pf_active%coil(i_coil)%element(k)%geometry%rectangle%width  = coil_set%coil(i_coil)%dR(k)
+          pf_active%coil(i_coil)%element(k)%geometry%rectangle%height = coil_set%coil(i_coil)%dZ(k)
         enddo
       endif
 
@@ -849,7 +850,7 @@ module mod_jorek2IMAS
       ! --- Put the grid in GGD
       allocate( radiation_ids%grid_ggd(n_grid) )
       grid => radiation_ids%grid_ggd(grid_ind)
-      call grid2ggd( grid, node_list, element_list )
+      call grid2ggd( grid, node_list, element_list, bnd_node_list, bnd_elm_list )
     endif
  
     ! --- Normalization factors for IMAS
@@ -1728,6 +1729,110 @@ module mod_jorek2IMAS
 
 
 
+  ! --- Fill an IDS with a rectangular grid containing BR and BZ, extending to the vacuum
+  ! --- It needs full free-boundary
+  subroutine fill_fields_vacuum_extension(first_step, time_SI, mhd_ids, Rmin, Rmax, Zmin, Zmax, nR, nZ)  
+
+    use mod_vacuum_fields, only: mag_field_including_vacuum
+
+    implicit none
+
+    ! --- External parameters
+    logical,   intent(in) :: first_step   !< Is this the first step?
+    real*8,    intent(in) :: time_SI      !< Time in SI units
+    real*8,    intent(in) :: Rmin, Rmax, Zmin, Zmax !< parameters defining rectangular grid
+    integer,   intent(in) :: nR, nZ  !< Number of grid points in R and Z
+    
+    type(ids_mhd), target,     intent(inout) :: mhd_ids
+    
+    ! --- Local parameters
+    type(ids_generic_grid_scalar),      pointer :: ggd_scalar
+    type(ids_generic_grid_aos3_root),   pointer :: grid
+    
+    integer :: n_slice, i_slice, grid_ind, grid_sub_ind, n_grid_sub, n_grid, num_nodes
+    integer :: iR, iZ, i_pol, i_element, n_element
+    integer, allocatable :: rect_elms_vertices_tmp(:,:), rect_elms_vertices(:,:)
+    real*8, allocatable  :: B_tot(:,:,:), RZ(:,:)
+
+    ! --- Construct rectangular RZ grid in the poloidal plane
+    allocate(RZ(nR*nZ,2))
+    do iR=1, nR
+      do iZ=1, nZ
+        i_pol = iR + (iZ-1)*nR
+        RZ(i_pol,1) = Rmin + float(iR-1)*(Rmax-Rmin) / float(nR-1)
+        RZ(i_pol,2) = Zmin + float(iZ-1)*(Zmax-Zmin) / float(nZ-1)
+      enddo
+    enddo
+
+    ! --- Connectivity matrix for quadrilateral elements
+    allocate(rect_elms_vertices_tmp(nR*nZ,4))
+    i_element  = 0
+    do iZ=1,nZ-1
+      do iR=1,nR-1               
+        i_element = i_element + 1
+        rect_elms_vertices_tmp(i_element,1) = (iZ-1)*nR + iR
+        rect_elms_vertices_tmp(i_element,2) = (iZ-1)*nR + iR + 1
+        rect_elms_vertices_tmp(i_element,3) = (iZ  )*nR + iR + 1
+        rect_elms_vertices_tmp(i_element,4) = (iZ  )*nR + iR
+      enddo
+    enddo
+    n_element = i_element
+    allocate(rect_elms_vertices(n_element,4))
+    rect_elms_vertices(:,:) = rect_elms_vertices_tmp(1:n_element,:) 
+    deallocate(rect_elms_vertices_tmp)
+    
+    ! --- Get magnetic field in the given grid for different harmonics
+    call mag_field_including_vacuum(RZ, B_tot)
+
+    ! --- Fill IDS
+    ! --- Number of grids and grid subsets
+    n_grid       = 1
+    n_grid_sub   = 1
+    grid_ind     = 1  ! Index
+    grid_sub_ind = 1  ! Index
+  
+    if (first_step) then
+      ! --- Put the grid in GGD
+      allocate( mhd_ids%grid_ggd(n_grid) )
+      grid => mhd_ids%grid_ggd(grid_ind)
+      call rect_grid2ggd( grid, rect_elms_vertices, RZ )
+    endif
+
+    ! --- Set times
+    n_slice = 1  
+    i_slice = 1
+    allocate(  mhd_ids%time(n_slice) )
+    allocate(  mhd_ids%ggd(n_slice ) )
+
+    mhd_ids%ids_properties%homogeneous_time = 1
+
+    allocate(mhd_ids%ids_properties%comment(1))
+  
+    mhd_ids%time(i_slice)     = time_SI 
+    mhd_ids%ggd(i_slice)%time = time_SI
+
+    mhd_ids%ids_properties%comment = "The magnetic field exported in a rectangular grid for each &
+                                      Fourier harmonic. It can be used for field line tracing or &
+                                      to produce synthetic magnetic diagnostics (for example). "
+
+    ! --- Fill BR
+    allocate( mhd_ids%ggd(i_slice)%b_field_r(n_grid_sub))
+    ggd_scalar => mhd_ids%ggd(i_slice)%b_field_r(grid_sub_ind)
+    call fill_node_values_with_harmonics( ggd_scalar, B_tot(:,:,1), grid_ind, grid_sub_ind, 1.d0 )
+
+    ! --- Fill BZ
+    allocate( mhd_ids%ggd(i_slice)%b_field_z(n_grid_sub))
+    ggd_scalar => mhd_ids%ggd(i_slice)%b_field_z(grid_sub_ind)
+    call fill_node_values_with_harmonics( ggd_scalar, B_tot(:,:,2), grid_ind, grid_sub_ind, 1.d0 )
+
+  end subroutine fill_fields_vacuum_extension
+
+
+
+
+
+
+
   ! --- Fills Bezier coefficients in GGD
   subroutine fill_Bezier_coefficients( ggd_scalar, node_list, var_index, grid_ind, grid_sub_ind, res_fact )
   
@@ -1761,10 +1866,15 @@ module mod_jorek2IMAS
     do inode=1, num_nodes    
       do itor=1, n_tor
         
-        inode_glob = inode + (itor-1)*num_nodes 
-  
-        ggd_scalar%coefficients(inode_glob,:) = node_list%node(inode)%values(itor,:,var_index)
-        ggd_scalar%values(inode_glob)         = node_list%node(inode)%values(itor,1,var_index)
+         inode_glob = inode + (itor-1)*num_nodes
+         
+        if ( (itor .eq. 1) .or. mod(itor, 2) .eq. 0 ) then ! reverse sign of sine modes to transform COCOS convention
+           ggd_scalar%coefficients(inode_glob,:) =   node_list%node(inode)%values(itor,:,var_index)
+           ggd_scalar%values(inode_glob)         =   node_list%node(inode)%values(itor,1,var_index)
+        else
+           ggd_scalar%coefficients(inode_glob,:) = fact_phi_dir *  node_list%node(inode)%values(itor,:,var_index)
+           ggd_scalar%values(inode_glob)         = fact_phi_dir *  node_list%node(inode)%values(itor,1,var_index)
+        end if
 
       enddo
     enddo
@@ -1780,8 +1890,52 @@ module mod_jorek2IMAS
   
   
   
+
+  ! --- Fills values in GGD for each toroidal harmonic
+  subroutine fill_node_values_with_harmonics( ggd_scalar, node_values, grid_ind, grid_sub_ind, res_fact )
+  
+    implicit none
+  
+    ! --- External parameters
+    type(ids_generic_grid_scalar),  intent(inout) ::  ggd_scalar
+    real*8, dimension(:,:), intent(in)  :: node_values  !< values at nodes on the poloidal plane (i_pol, i_harmonic)
+    integer,                intent(in)  :: grid_ind, grid_sub_ind
+    real*8,                 intent(in)  :: res_fact
+  
+    ! --- Local parameters
+    integer :: num_nodes, inode, inode_glob, itor
+    
+    num_nodes = size(node_values(:,1),1)
+
+    if ( associated(ggd_scalar%values) ) then
+      deallocate( ggd_scalar%values )
+      allocate( ggd_scalar%values(num_nodes*n_tor) ) 
+    else
+      allocate( ggd_scalar%values(num_nodes*n_tor) )
+    endif
+  
+    do inode=1, num_nodes    
+      do itor=1, n_tor
+        inode_glob = inode + (itor-1)*num_nodes 
+        ggd_scalar%values(inode_glob)= node_values(inode,itor)
+      enddo
+    enddo
+  
+    ggd_scalar%grid_index = grid_ind
+    ggd_scalar%grid_subset_index = grid_sub_ind
+ 
+   ! --- Re-scale values
+    ggd_scalar%values = ggd_scalar%values * res_fact
+  
+  end subroutine fill_node_values_with_harmonics
+  
+  
+
+
+
+  
   !< Fills JOREK grid into GGD
-  subroutine grid2ggd( grid, node_list, element_list )
+  subroutine grid2ggd( grid, node_list, element_list, bnd_node_list, bnd_elm_list )
   
     implicit none
   
@@ -1789,12 +1943,18 @@ module mod_jorek2IMAS
     type(ids_generic_grid_aos3_root),     pointer   :: grid
     type (type_node_list),    intent(in)            :: node_list
     type (type_element_list), intent(in)            :: element_list
+    type (type_bnd_node_list),    intent(in)        :: bnd_node_list
+    type (type_bnd_element_list), intent(in)        :: bnd_elm_list
   
   
     ! --- Local parameters
     type(ids_generic_grid_dynamic_space), pointer   ::  space_RZ
     type(ids_generic_grid_dynamic_space), pointer   ::  space_fourier
-    type(ids_generic_grid_dynamic_space_dimension), pointer :: ids_cells
+    type(ids_generic_grid_dynamic_space_dimension),     pointer :: ids_cells
+    type(ids_generic_grid_dynamic_grid_subset_element), pointer :: sub_elm
+    type(type_bnd_element)                             :: bnd_elm
+
+
     
     integer:: idx, shot_number, run_number, num_nodes, num_cells   
     integer :: gs_index, i, j
@@ -1855,7 +2015,7 @@ module mod_jorek2IMAS
     enddo
   
     ! Writing grid_subsets
-    allocate(grid%grid_subset(1))  
+    allocate(grid%grid_subset(2))  
   
     ! Subset for nodes in the combined space
     gs_index = 1
@@ -1868,7 +2028,30 @@ module mod_jorek2IMAS
                                                          of the combined RZ x Fourier space (number of nodes &
                                                          is N_poloidal_nodes x N_fourier). "
     grid%grid_subset(gs_index)%dimension                 = 1    ! 1 is the convention for 0D nodes
+
+
+    
+    gs_index = 2  ! for boundary 
   
+    allocate( grid%grid_subset(gs_index)%identifier%name(1)         )
+    allocate( grid%grid_subset(gs_index)%identifier%description(1)  )
+    grid%grid_subset(gs_index)%identifier%name(1)        = "bnd elements"
+    grid%grid_subset(gs_index)%identifier%index          = 44 
+    grid%grid_subset(gs_index)%identifier%description(1) = "All elements belonging to the boundary &
+                                                            and index to the nodes belonging to it."
+    grid%grid_subset(gs_index)%dimension                 = 2    ! 2 is the convention for edge
+    allocate(grid%grid_subset(gs_index)%element(bnd_elm_list%n_bnd_elements))
+    do i =1, bnd_elm_list%n_bnd_elements
+       bnd_elm =  bnd_elm_list%bnd_element(i)
+       sub_elm => grid%grid_subset(gs_index)%element(i)
+       allocate(sub_elm%object(2))
+       do j = 1,2
+          sub_elm%object(j)%dimension = 1   ! 0D nodes
+          sub_elm%object(j)%space     = 1   ! from poloidal space
+          sub_elm%object(j)%index = bnd_elm%vertex(j)
+       end do
+    end do
+
     ! Fill toroidal space 
     space_fourier  => grid%space(2)
     allocate(    space_fourier%coordinates_type(1)    )
@@ -1903,6 +2086,109 @@ module mod_jorek2IMAS
     enddo
   
   end subroutine grid2ggd
+
+
+
+
+
+
+   !< Fills simple rectangular RZ grid including Fourier space into GGD
+  subroutine rect_grid2ggd( grid, vertex_elm_array, RZ )
+  
+    implicit none
+  
+    ! --- External parameters
+    type(ids_generic_grid_aos3_root),     pointer   :: grid
+    real*8,  intent(in) :: RZ(:,:)
+    integer, intent(in) :: vertex_elm_array(:,:)
+  
+    ! --- Local parameters
+    type(ids_generic_grid_dynamic_space), pointer   ::  space_RZ
+    type(ids_generic_grid_dynamic_space), pointer   ::  space_fourier
+    type(ids_generic_grid_dynamic_space_dimension), pointer :: ids_cells
+    
+    integer:: idx, shot_number, run_number, num_nodes, num_cells   
+    integer :: gs_index, i, j
+    
+    integer :: itor, idof, n_slice, i_slice, grid_ind, grid_sub_ind, n_grid_sub
+
+    num_nodes = size(RZ(:,1),1)
+    num_cells = size(vertex_elm_array(:,1),1)
+
+    ! Write grid geometry
+    allocate(  grid%space(2)                           )
+    allocate(  grid%space(1)%objects_per_dimension(3)  )
+    allocate(  grid%space(1)%coordinates_type(2)       )
+  
+    ! Set coordinates type to [R, Z]
+    grid%space(1)%coordinates_type = (/ 4, 3 /)
+  
+    allocate(grid%identifier%description(1))
+    allocate(grid%identifier%name(1))
+    grid%identifier%description(1) = "Mesh coming from the JOREK code: combined 2D space in the poloidal plane &
+                                      with Fourier space for the toroidal angle dependence"
+    grid%identifier%name  = "JOREK simple rectangular mesh"
+    grid%identifier%index = 0   ! Unspecified
+  
+    space_RZ  => grid%space(1)
+  
+    ! Fill simplified grid nodes (uses geometry instead of geometry_2D and misses Bezier representation) 
+    allocate( space_RZ%objects_per_dimension(1)%object(num_nodes) )  ! Allocate to number of nodes
+    do i=1, num_nodes 
+      allocate( space_RZ%objects_per_dimension(1)%object(i)%geometry(2) ) ! Allocate dimensions per each node
+      space_RZ%objects_per_dimension(1)%object(i)%geometry(:) = RZ(i,:)
+    enddo
+  
+    ! Fill dummy variables for 1D elements (edges)
+    allocate( space_RZ%objects_per_dimension(2)%object(1) )          ! Allocate just one edge    
+    allocate( space_RZ%objects_per_dimension(2)%object(1)%nodes(1))  
+    space_RZ%objects_per_dimension(2)%object(1)%nodes(1) = 0
+
+    space_RZ%geometry_type%index = 0  ! Standard geometry (non Fourier)
+  
+    ! Fill JOREK 2D elements (or cells)
+    ids_cells => space_RZ%objects_per_dimension(3)
+    allocate( ids_cells%object(num_cells) )
+    do i=1, num_cells
+      allocate(  ids_cells%object(i)%nodes(4)  )
+      ids_cells%object(i)%nodes(:) = vertex_elm_array(i,:) 
+    enddo
+  
+    ! Writing grid_subsets
+    allocate(grid%grid_subset(1))  
+  
+    ! Subset for nodes in the combined space
+    gs_index = 1
+  
+    allocate( grid%grid_subset(gs_index)%identifier%name(1)         )
+    allocate( grid%grid_subset(gs_index)%identifier%description(1)  )
+    grid%grid_subset(gs_index)%identifier%name(1)        = "nodes"
+    grid%grid_subset(gs_index)%identifier%index          = 1 
+    grid%grid_subset(gs_index)%identifier%description(1) = "The elements of the grid subset are the 0D nodes &
+                                                         of the combined RZ x Fourier space (number of nodes &
+                                                         is N_poloidal_nodes x N_fourier). "
+    grid%grid_subset(gs_index)%dimension                 = 1    ! 1 is the convention for 0D nodes
+  
+    ! Fill toroidal space 
+    space_fourier  => grid%space(2)
+    allocate(    space_fourier%coordinates_type(1)    )
+    allocate(    space_fourier%identifier%description(1)  )
+    space_fourier%coordinates_type(1) = 5          ! The coordinate type is 5, phi angle
+    space_fourier%geometry_type%index = n_period   ! Fourier periodicity
+    space_fourier%identifier%description(1) = "Toroidal Fourier space"             
+  
+    allocate(  space_fourier%objects_per_dimension(1)               )  ! We have only one dimension of
+    allocate(  space_fourier%objects_per_dimension(1)%object(n_tor) )  ! toroidal harmonics
+  
+    do i=1, n_tor
+      allocate(  space_fourier%objects_per_dimension(1)%object(i)%geometry(1) )  ! toroidal harmonics
+      space_fourier%objects_per_dimension(1)%object(i)%geometry(1) = i
+    enddo
+
+
+  end subroutine rect_grid2ggd
+
+
 
 
 
@@ -2026,9 +2312,6 @@ module mod_jorek2IMAS
     endif
   
   end subroutine initialise_postproc_settings
-
-
-
 
 #endif
 

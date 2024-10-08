@@ -40,12 +40,13 @@ program jorek2_wall_forces
                                             stdout=>output_unit, &
                                             stderr=>error_unit
   implicit none
+
   character(len=60), parameter ::      FMT = "(1I5.5,'..', 1I5.5,'_' , 1f5.3 )" 
   integer   :: my_id, my_id_n, my_id_master, ierr, ierr2
   integer   :: i_rank(n_tor), n_cpu, n_cpu_n, n_cpu_master, m_cpu, n_masters, n_cpu_trans, my_id_trans
   integer   :: MPI_COMM_N, MPI_GROUP_MASTER, MPI_GROUP_WORLD, MPI_COMM_MASTER, MPI_COMM_TRANS
   integer   :: required,provided,StatInfo
-  integer   :: istep, delta_step, istart, iend
+  integer   :: istep, delta_step, istart, iend, n_phi_int
   integer*4 :: rank, comm_size 
   logical   :: first_step
 
@@ -55,7 +56,7 @@ program jorek2_wall_forces
   character*20                          :: fact
   character(len=MPI_MAX_PROCESSOR_NAME) :: name
   integer :: resultlength
-  namelist /wall_forces/ istart, iend, delta_step, scale_fact 
+  namelist /wall_forces/ istart, iend, delta_step, scale_fact, n_phi_int 
  
   !***********************************************************************
   !*                  intialisation (copied from jorek2_main)            *
@@ -99,12 +100,14 @@ program jorek2_wall_forces
 
   first_step = .true.
   if (my_id==0) then
+     n_phi_int  = 64
      open(25, file='wall_forces.nml', action='read', status='old', iostat=ierr)
      if (ierr==0) then
         read(25,wall_forces)
      end if
      if (scale_fact > 1.d3 .or. scale_fact < 1.d-3) scale_fact = 1.01d0
      write(*,*) 'scale factor:', scale_fact
+     write(*,*) 'n_phi_int   :', n_phi_int
      write(fact,FMT) istart, iend, scale_fact
      open(87,file=trim('total_wall_forces_')//trim(fact)//'.dat',action='write')
      write(87,*) '#Step  time(norm)   time(ms)      Fx(N)        Fy(N)          Fz(N)'
@@ -113,6 +116,7 @@ program jorek2_wall_forces
   call MPI_BCAST(     istart,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_BCAST(       iend,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_BCAST( delta_step,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+  call MPI_BCAST(  n_phi_int,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_BCAST( scale_fact,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
   ! --- Loop over restart files
@@ -165,7 +169,7 @@ program jorek2_wall_forces
     endif 
   
     ! --- FORCES ---
-    call total_wall_forces(my_id, node_list, element_list, scale_fact, Fx, Fy, Fz)
+    call total_wall_forces(my_id, node_list, element_list, scale_fact, Fx, Fy, Fz, n_phi_int)
  
     if (my_id==0) then
       write(87,'(I5.5,5ES14.6)') istep, t_start, t_start*sqrt_mu0_rho0*1.d3, Fx, Fy, Fz 

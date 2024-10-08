@@ -209,7 +209,7 @@ module mod_plasma_response
   !-------------------------------------------------------------------------------------
   !> Calculates the magnetic field produced by plasma currents at arbitrary x,y,z points 
   !-------------------------------------------------------------------------------------
-  subroutine plasma_fields_at_xyz(my_id, node_list,element_list, x,y,z, bx, by, bz)
+  subroutine plasma_fields_at_xyz(my_id, node_list,element_list, x,y,z, bx, by, bz, psip, n_phi_int)
 
     !$ use omp_lib
     use mpi_mod
@@ -220,7 +220,8 @@ module mod_plasma_response
     type (type_node_list),    intent(in) :: node_list
     type (type_element_list), intent(in) :: element_list
     real*8,  intent(in)                  :: x(:), y(:), z(:)     ! Points where fields are calculated
-    real*8,  intent(inout)               :: bx(:), by(:), bz(:)
+    real*8,  intent(inout)               :: bx(:), by(:), bz(:), psip(:)
+    integer,                  intent(in) :: n_phi_int  ! Number of points for integration in the phi direction
 
     ! --- local variables    
     type (type_element)      :: element
@@ -228,16 +229,19 @@ module mod_plasma_response
     
     real*8     :: x_g(n_gauss,n_gauss),        x_s(n_gauss,n_gauss),        x_t(n_gauss,n_gauss)
     real*8     :: y_g(n_gauss,n_gauss),        y_s(n_gauss,n_gauss),        y_t(n_gauss,n_gauss)
-    real*8     :: eq_g(n_plane,n_gauss,n_gauss)
+    real*8     :: eq_g(n_phi_int,n_gauss,n_gauss)
     
     integer    :: i, j, ms, mt, iv, inode, ife, mp, in
     integer    :: ierr, n_cpu, ife_delta, ife_min, ife_max, omp_nthreads, omp_tid
     real*8     :: zj0, R, xp,yp,zp, dd, wst, xjac, delta_phi, phi
-    real*8     :: d_vec(3), J_vec(3), cross(3), dB(3)
+    real*8     :: d_vec(3), J_vec(3), cross(3), dB(3), dA(3)
     real*8     :: wgauss_copy(n_gauss)
     integer    :: n_points
-
+    real*8     :: HZ_local(n_tor,n_phi_int)
+    
     real*8, allocatable :: bx_tmp(:), by_tmp(:), bz_tmp(:)
+    real*8, allocatable :: Ax_tmp(:), Ay_tmp(:), Az_tmp(:)
+    real*8, allocatable :: Ax(:), Ay(:), Az(:)
 
     ! --- MPI initialization
     call MPI_COMM_SIZE(MPI_COMM_WORLD, n_cpu, ierr) ! number of MPI procs
@@ -247,26 +251,36 @@ module mod_plasma_response
     ife_min   =      my_id     * ife_delta + 1
     ife_max   = min((my_id +1) * ife_delta, element_list%n_elements)
 
+    do mp=1, n_phi_int
+       phi = 2.d0*PI*float(mp-1)/float(n_phi_int) / float(n_period)
+       HZ_local(1,mp) = 1
+       do in = 1, (n_tor-1)/2
+          HZ_local(2*in, mp)   = cos(mode(2*in)  *phi)
+          HZ_local(2*in+1, mp) = sin(mode(2*in)  *phi)
+       end do
+    end do
    
     n_points = size(x,1)
     allocate(bx_tmp(n_points), by_tmp(n_points), bz_tmp(n_points))
+    allocate(Ax_tmp(n_points), Ay_tmp(n_points), Az_tmp(n_points))
     
-    bx     = 0.d0;  by     = 0.d0;  bz     = 0.d0;
+    bx     = 0.d0;  by     = 0.d0;  bz     = 0.d0;  psip     = 0.d0;
     bx_tmp = 0.d0;  by_tmp = 0.d0;  bz_tmp = 0.d0;
+    Ax_tmp = 0.d0;  Ay_tmp = 0.d0;  Az_tmp = 0.d0;  
 
-    delta_phi = 2.d0 * PI / float(n_plane) 
+    delta_phi = 2.d0 * PI / float(n_phi_int) 
  
     wgauss_copy = wgauss
 
     ! --- OpenMP parallelization of element loop
     !$omp parallel default(none)                                                           &
-    !$omp   shared(my_id,element_list,node_list, H, H_s, H_t, HZ, ife_min, ife_max,        &
-    !$omp          delta_phi, n_points, x, y, z, bx_tmp, by_tmp, bz_tmp, wgauss_copy)      &
+    !$omp   shared(my_id,element_list,node_list, H, H_s, H_t, HZ_local, ife_min, ife_max, n_phi_int,    &
+    !$omp          delta_phi, n_points, x, y, z, bx_tmp, by_tmp, bz_tmp, Ax_tmp, Ay_tmp, Az_tmp, wgauss_copy)      &
     !$omp   private(ife,iv,inode,element,nodes,i,j, in, mp, ms, mt,                        &
     !$omp           x_g, y_g, x_s, y_s, x_t, y_t, xjac, eq_g, zj0, R, xp, yp, zp, dd, phi, &
-    !$omp           d_vec, J_vec, cross, dB, wst, omp_nthreads,omp_tid)
+    !$omp           d_vec, J_vec, cross, dB, dA, wst, omp_nthreads,omp_tid)
     
-#ifdef OPENMP
+#ifdef _OPENMP
     omp_nthreads = omp_get_num_threads()
     omp_tid      = omp_get_thread_num()
 #else
@@ -274,7 +288,7 @@ module mod_plasma_response
     omp_tid      = 0
 #endif
     
-    !$omp do reduction(+:bx_tmp, by_tmp, bz_tmp)     
+    !$omp do reduction(+:bx_tmp, by_tmp, bz_tmp,Ax_tmp, Ay_tmp, Az_tmp )     
        
     !--- Go through all the elements
     do ife = ife_min, ife_max
@@ -315,11 +329,11 @@ module mod_plasma_response
       do i=1,n_vertex_max
         do j=1,n_degrees
 
-          do mp=1,n_plane
+          do mp=1,n_phi_int
             do ms=1, n_gauss
               do mt=1, n_gauss
                 do in=1,n_tor
-                  eq_g(mp,ms,mt) = eq_g(mp,ms,mt) + nodes(i)%values(in,j,3) * element%size(i,j) * H(i,j,ms,mt)  * HZ(in,mp)
+                  eq_g(mp,ms,mt) = eq_g(mp,ms,mt) + nodes(i)%values(in,j,3) * element%size(i,j) * H(i,j,ms,mt)  * HZ_local(in,mp)
                 enddo !---ntor
       	      enddo !---gauss
             enddo !---gauss
@@ -337,7 +351,7 @@ module mod_plasma_response
           R    = x_g(ms,mt)
           zp   = y_g(ms,mt)
 
-          do mp=1,n_plane
+          do mp=1,n_phi_int
 
             phi   =  float(mp-1) * delta_phi
             xp    =  R * Cos(phi)
@@ -358,10 +372,16 @@ module mod_plasma_response
                               d_vec(1)*J_vec(2) - d_vec(2)*J_vec(1) /)
     
               dB(:)     =  cross(:) / (dd**3.d0) / (4.d0*PI) * wst * xjac * R * delta_phi
+              dA(:)     =  J_vec(:) /  dd        / (4.d0*PI) * wst * xjac * R * delta_phi
     
-              bx_tmp(i) = bx_tmp(i) + dB(1)
-              by_tmp(i) = by_tmp(i) + dB(2)
-              bz_tmp(i) = bz_tmp(i) + dB(3)
+              bx_tmp(i)  = bx_tmp(i) + dB(1)
+              by_tmp(i)  = by_tmp(i) + dB(2)
+              bz_tmp(i)  = bz_tmp(i) + dB(3)
+
+              Ax_tmp(i)  = Ax_tmp(i) + dA(1)
+              Ay_tmp(i)  = Ay_tmp(i) + dA(2)
+              Az_tmp(i)  = Az_tmp(i) + dA(3)
+        
             enddo
 
           enddo
@@ -379,6 +399,20 @@ module mod_plasma_response
     call MPI_AllReduce(bz_tmp,bz,n_points,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
     deallocate(bx_tmp, by_tmp, bz_tmp)   
+    allocate(Ax(n_points), Ay(n_points), Az(n_points))
+    Ax = 0.d0;  Ay = 0.d0; Az=0.d0
+
+    call MPI_AllReduce(Ax_tmp,Ax,n_points,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+    call MPI_AllReduce(Ay_tmp,Ay,n_points,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+    call MPI_AllReduce(Az_tmp,Az,n_points,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    deallocate(Ax_tmp, Ay_tmp, Az_tmp)   
+
+    do i=1, n_points
+      psip(i) = Ax(i)*y(i) - Ay(i)*x(i)
+    end do
+    
+    deallocate(Ax, Ay, Az)   
 
   end subroutine plasma_fields_at_xyz
   
