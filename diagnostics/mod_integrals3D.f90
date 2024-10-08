@@ -217,7 +217,7 @@ real*8, allocatable :: local_source_volume(:), local_source_volume_drift(:)
 !   -Mass ratio between main ions and impurites (m_i/m_imp)
 real*8  :: m_i_over_m_imp, m_imp
 !   -Mean impurity ionization state
-real*8  :: Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, eta_coef, ne_JOREK, dne_JOREK_dx, dne_JOREK_dy
+real*8  :: Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, ne_JOREK, dne_JOREK_dx, dne_JOREK_dy
 real*8  :: Z_eff_imp 
 !   -Corrected plasma temperature and density for radiation calculation
 real*8  :: Ti_corr_eV
@@ -482,7 +482,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp           source_bg_arr, source_imp_arr, source_bg_drift_arr, source_imp_drift_arr,      &
 !$omp           m_i_over_m_imp, m_imp, Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, n_imp,           &
 !$omp           ne_JOREK, P_imp, Lrad, E_ion, E_ion_bg, ion_i, aux_rad,                        &
-!$omp           ion_k, Z_eff_imp, eta_coef, Ti_corr_eV,                                        &
+!$omp           ion_k, Z_eff_imp, Ti_corr_eV,                                        &
 !$omp           Z_imp_s, Z_imp_t, Z_imp_p, Z_imp_x, Z_imp_y,                                   &
 !$omp           n_imp_s, n_imp_t, n_imp_p, n_imp_x, n_imp_y,                                   &
 #endif
@@ -1065,14 +1065,6 @@ do ife = ife_min, ife_max
         if (Z_eff < 1) Z_eff = 1.
         if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
    
-        ! This is to represent the dependence on Z_eff in resistivity
-        if ( eta_T_dependent ) then
-          eta_coef     = Z_eff*(1.+1.198*Z_eff+0.222*Z_eff**2)/(1.+2.966*Z_eff+0.753*Z_eff**2)
-          eta_coef     = eta_coef / ((1.+1.198+0.222)/(1.+2.966+0.753))
-          eta_T        = eta_T * eta_coef
-          eta_T_ohm    = eta_T_ohm * eta_coef
-        endif
-
         if (.not. use_marker) then
           if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. rimp0 > rn0_min) then
             Lrad = 0.0
