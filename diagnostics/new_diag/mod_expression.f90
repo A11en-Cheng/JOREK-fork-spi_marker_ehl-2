@@ -1464,6 +1464,14 @@ module mod_expression
   
 #endif
 
+          if ( .not. with_impurities ) then 
+            Z_eff      = 1
+            r0_corr    = corr_neg_dens(r0)
+            rimp0      = 0.d0
+            rimp0_corr = 0.d0
+            beta_imp   = 0.d0
+          endif
+
           ! --- Fluxes 
           if (with_impurities) then
             if (with_TiTe) then
@@ -1658,74 +1666,6 @@ module mod_expression
     end if  
 
 #endif
-
-#ifdef WITH_Impurities
-
-          Te_corr_eV   = Te0_corr/(EL_CHG*MU_ZERO*central_density*1.d20)  ! Te in eV
-          Te_eV = Te0/(EL_CHG*MU_ZERO*central_density * 1.d20)
-  
-          if (allocated(P_imp)) deallocate(P_imp)
-          allocate(P_imp(0:imp_adas(index_main_imp)%n_Z))
-
-          call imp_cor(index_main_imp)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ),&
-                                     p_out=P_imp, z_avg=Z_imp)
-
-          alpha_imp = 0.5*m_i_over_m_imp*(Z_imp+1.) - 1.
-          beta_imp  = m_i_over_m_imp*Z_imp - 1.
-                  
-          r0_corr    = corr_neg_dens(r0,(/1.d-9,1.d-5/),1.d-3)
-          rimp0_corr = corr_neg_dens(rimp0,(/1.d-9,1.d-5 /),1.d-3)
-          ne_SI   = (r0_corr + beta_imp * rimp0_corr) * 1.d20 * central_density ! electron density (SI)
-
-          if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. rimp0 > 0.d0) then
-            Lrad = 0.
-            call radiation_function_linear(imp_adas(index_main_imp),imp_cor(index_main_imp),log10(ne_SI),   &
-                                           log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad)
-            Lrad = Lrad * m_i_over_m_imp ! Adjust since rimp0 is MASS density
-          else
-            Lrad = 0.
-          end if
-  
-          frad_bg = 0.
-          do i_imp = 1, n_adas
-            if (i_imp == index_main_imp) cycle
-            r_imp_bg = nimp_bg(i_imp) / (1.d20 * central_density)  ! Background impurity density in JU
-            if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. r_imp_bg > 0) then
-              Lrad_imp = 0.0
-              call radiation_function_linear(imp_adas(i_imp),imp_cor(i_imp),log10(ne_SI),   &
-                                             log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad_imp)
-              frad_bg = frad_bg + r_imp_bg * Lrad_imp 
-            else     
-              Lrad_imp = 0.
-              frad_bg = frad_bg
-            end if   
-          end do 
-          ne_JOREK = ne_SI / 1.d20 / central_density ! Put ne_SI back to JOREK units to have consistent fact_ne factor with other models (see below)
-
-          ! Calculate the effective charge of all species
-          Z_eff        = 0.
-
-          ! First get the value of Z_eff
-          Z_eff        = r0_corr - rimp0_corr
-          do ion_i=1, imp_adas(index_main_imp)%n_Z
-            Z_eff      = Z_eff + m_i_over_m_imp * rimp0_corr * P_imp(ion_i) * real(ion_i,8)**2
-          end do
-          Z_eff         = Z_eff / ne_JOREK
-          if (Z_eff < 1.) Z_eff = 1.
-          if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
-
-          ! use the correct ne to obtain the coefficients
-          call atomic_coeff_deuterium(Te0_corr, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
-                                      LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT, ne_JOREK, rn0, .true. ) 
-  
-#endif
-          if ( .not. with_impurities ) then 
-            Z_eff      = 1
-            r0_corr    = corr_neg_dens(r0)
-            rimp0      = 0.d0
-            rimp0_corr = 0.d0
-            beta_imp   = 0.d0
-          endif
 
           call coulomb_log_ei(T_or_Te, T_or_Te_corr, r0, r0_corr, rimp0, rimp0_corr, beta_imp, ln_Lambda)
           call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, ln_Lambda, eta_T)          
