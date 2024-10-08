@@ -175,7 +175,7 @@ varmin = 1.e50; varmax = -1.e50; varminout = 1.e50; varmaxout = -1.e50;
 !$omp           omp_nthreads,omp_tid)
 
 
-#ifdef OPENMP
+#ifdef _OPENMP
 omp_nthreads = omp_get_num_threads()
 omp_tid      = omp_get_thread_num()
 #else
