@@ -947,6 +947,21 @@ do i=1,n_vertex_max
           Z_imp_t  = 0.0
           delta_Z_imp = 0.0
 
+          alpha_e_x     = 0.0 
+          alpha_e_y     = 0.0
+          alpha_e_p     = 0.0
+          alpha_e_s     = 0.0
+          alpha_e_t     = 0.0
+
+          alpha_imp_x   = 0.0
+          alpha_imp_y   = 0.0
+          alpha_imp_p   = 0.0
+          alpha_imp_s   = 0.0
+          alpha_imp_t   = 0.0
+
+          delta_alpha_e = 0.d0
+          delta_alpha_imp = 0.d0
+
           n_imp_x  = 0.0
           n_imp_y  = 0.0
           n_imp_p  = 0.0
