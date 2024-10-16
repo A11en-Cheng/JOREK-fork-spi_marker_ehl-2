@@ -95,9 +95,8 @@ do i_tor=1, n_tor
   mode(i_tor) = + int(i_tor / 2) * n_period
 enddo
 
+call initialise_basis()                              ! define the basis functions at the Gaussian points
 call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true.)
-
-call initialise_basis                              ! define the basis functions at the Gaussian points
 
 rho_norm = central_density*1.d20 * central_mass * 1.67d-27
 t_norm   = sqrt(MU_zero*rho_norm)
