@@ -100,6 +100,8 @@ real*8, dimension(n_plane,n_var,n_gauss,n_gauss) :: delta_g, delta_s, delta_t, d
 real*8, dimension(:,:,:,:,:), pointer :: eq
 real*8, dimension(n_var)              :: eq_px, eq_py
 
+real*8                                :: phi_source, dPhi_source_dpsi,dummy1,dummy2, dummy3, dummy4, dummy5, dummy6, dPhi_source_dpsi2, s_factor
+
 real*8, dimension(4), parameter  :: vr = (/1.,0.,1.,0./), vp = (/0.,1.,0.,1./), dur = (/1.,1.,0.,0./), dup = (/0.,0.,1.,1./)
 
 eq => thread_eq(tid)%eq
@@ -145,6 +147,7 @@ delta_g = 0.d0; delta_s = 0.d0; delta_t = 0.d0; delta_p = 0.d0
 
 eq = 0.d0
 
+s_factor = 1.0 / (n_flux - 1)
 s_norm          = 0.d0
 current_source  = 0.d0
 particle_source = 0.d0
@@ -309,7 +312,7 @@ do ms=1, n_gauss
       eq(var_R,0,0,0,:) = x_g(mp,ms,mt); eq(var_R,1,0,0,:) = 1.d0 ! Cylindrical R coordinate
 
       psi_norm = s_norm(ms,mt)
-
+      
       ! The Psi in the equations differs by a factor of F0 from the normal JOREK Psi
       eq( var_Psi,:,:,:,:) = eq( var_Psi,:,:,:,:)/F0
       eq(var_dPsi,:,:,:,:) = eq(var_dPsi,:,:,:,:)/F0
@@ -321,6 +324,19 @@ do ms=1, n_gauss
 
       eq(var_S_rho,0,0,0,:) = particle_source(mp,ms,mt)   ! S_rho
       eq(  var_S_j,0,0,0,:) = current_source(mp,ms,mt)/F0 ! S_j
+
+      ! Poloidal momentum source based on artificial ExB flow - note only first order derivatives are implemented
+      call potential_source(xpoint2, xcase2, y_g(mp,ms,mt), Z_xpoint, psi_norm, 0.0, 1.0, phi_source, dPhi_source_dpsi,dummy1,dPhi_source_dpsi2,dummy2,dummy3,dummy4,dummy5,dummy6)
+      dphi_source_dpsi = dphi_source_dpsi*s_factor
+      eq(var_S_phi_pol,0,0,0,:) = phi_source
+      eq(var_S_phi_pol,1,0,0,:) = (y_t(mp,ms,mt)*dphi_source_dpsi)/xjac
+      eq(var_S_phi_pol,0,1,0,:) = (-x_t(mp,ms,mt)*dphi_source_dpsi)/xjac
+      eq(var_S_phi_pol,0,0,1,:) = -eq(var_S_Phi_pol,1,0,0,:)*x_p(mp,ms,mt) - eq(var_S_Phi_pol,0,1,0,:)*y_p(mp,ms,mt)
+      ! Poloidal momentum source needs to be compared with Phi excluding t derivatives - note this assumes a flux surface aligned grid
+      eq(var_Phi_pol,0,0,0,1) = eq_g(mp,var_Phi,ms,mt)
+      eq(var_Phi_pol,1,0,0,1) = (y_t(mp,ms,mt)*eq_s(mp,var_Phi,ms,mt))/xjac
+      eq(var_Phi_pol,0,1,0,1) = (-x_t(mp,ms,mt)*eq_s(mp,var_Phi,ms,mt))/xjac
+      eq(var_Phi_pol,0,0,1,1) = eq_p(mp,var_Phi,ms,mt) - eq(var_Phi_pol,1,0,0,1)*x_p(mp,ms,mt) - eq(var_Phi_pol,0,1,0,1)*y_p(mp,ms,mt)
 
       if (with_TiTe) then
         
@@ -564,7 +580,7 @@ do ms=1, n_gauss
                                         + h_t(k,l,ms,mt)*(x_st(mp,ms,mt)*x_s(mp,ms,mt) - x_ss(mp,ms,mt)*x_t(mp,ms,mt)))*element%size(k,l)*dur/xjac**2 &
                                         - xjac_y*(-h_s(k,l,ms,mt)*x_t(mp,ms,mt) + h_t(k,l,ms,mt)*x_s(mp,ms,mt))*element%size(k,l)*dur/xjac**2
                   eq(var_varStar,1,1,0,:) = (-h_ss(k,l,ms,mt)*y_t(mp,ms,mt)*x_t(mp,ms,mt) - h_tt(k,l,ms,mt)*x_s(mp,ms,mt)*y_s(mp,ms,mt)                 &
-     	                                + h_st(k,l,ms,mt)*(y_s(mp,ms,mt)*x_t(mp,ms,mt)  + y_t(mp,ms,mt)*x_s(mp,ms,mt))                                &
+     	                                  + h_st(k,l,ms,mt)*(y_s(mp,ms,mt)*x_t(mp,ms,mt)  + y_t(mp,ms,mt)*x_s(mp,ms,mt))                                &
                                         - h_s(k,l,ms,mt)*(x_st(mp,ms,mt)*y_t(mp,ms,mt) - x_tt(mp,ms,mt)*y_s(mp,ms,mt))                                &
                                         - h_t(k,l,ms,mt)*(x_st(mp,ms,mt)*y_s(mp,ms,mt) - x_ss(mp,ms,mt)*y_t(mp,ms,mt)))*element%size(k,l)*dur/xjac**2 &
                                         - xjac_x*(-h_s(k,l,ms,mt)*x_t(mp,ms,mt) + h_t(k,l,ms,mt)*x_s(mp,ms,mt))*element%size(k,l)*dur/xjac**2
@@ -581,7 +597,13 @@ do ms=1, n_gauss
                                         - y_p(mp,ms,mt)*eq(var_varStar,1,1,0,:)
                   eq(var_varStar,0,1,1,:) = u_py*dup - x_p_y*eq(var_varStar,1,0,0,:) - y_p(mp,ms,mt)*eq(var_varStar,0,2,0,:) - y_p_y*eq(var_varStar,0,1,0,:) &
                                         - x_p(mp,ms,mt)*eq(var_varStar,1,1,0,:)
-                  
+  
+                  ! Unknown increments to next time step, neglecting poloidal derivatives (for poloidal momentum source)
+                  eq(var_varStar_pol,0,0,0,:) = H(k,l,ms,mt)*element%size(k,l)*dur
+                  eq(var_varStar_pol,1,0,0,:) = (y_t(mp,ms,mt)*h_s(k,l,ms,mt))*element%size(k,l)*dur/xjac
+                  eq(var_varStar_pol,0,1,0,:) = (-x_t(mp,ms,mt)*h_s(k,l,ms,mt))*element%size(k,l)*dur/xjac
+                  eq(var_varStar_pol,0,0,1,:) = H(k,l,ms,mt)*element%size(k,l)*dup - eq(var_varStar_pol,1,0,0,:)*x_p(mp,ms,mt) - eq(var_varStar_pol,0,1,0,:)*y_p(mp,ms,mt)      
+
                   call get_amat(amat_ij, eq)                
                   
                   ! Include pre-factor to contribution

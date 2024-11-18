@@ -33,6 +33,12 @@ subroutine derive_num_profiles(my_id)
       call derivProf(num_Te_x, num_Te_y1, num_Te_len, num_Te_y2)
       call derivProf(num_Te_x, num_Te_y2, num_Te_len, num_Te_y3)
     end if
+
+    if ( num_Phi ) then
+      call derivProf(num_Phi_x, num_Phi_y0, num_Phi_len, num_Phi_y1)
+      call derivProf(num_Phi_x, num_Phi_y1, num_Phi_len, num_Phi_y2)
+      call derivProf(num_Phi_x, num_Phi_y2, num_Phi_len, num_Phi_y3)
+    end if
     
     if ( num_Fprofile ) then
       call derivProf(num_Fprofile_x, num_Fprofile_y0, num_Fprofile_len, num_Fprofile_y1)

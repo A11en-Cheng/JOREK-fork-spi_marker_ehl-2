@@ -3,8 +3,8 @@ subroutine read_num_profiles(my_id)
   
   use phys_module
   use profiles, only: readProf, readProfNeo, derivProf
-  use mod_F_profile
-  
+  use mod_F_profile  
+
   implicit none
   
   integer, intent(in) :: my_id
@@ -18,7 +18,7 @@ subroutine read_num_profiles(my_id)
     rho_0 = num_rho_y0(1)
     num_rho_y0 = num_rho_y0 - rho_1
   end if
-  
+
   num_rhon = ( rhon_file /= 'none' )
   if ( num_rhon .and. ( my_id == 0 ) ) then
     call readProf(num_rhon_x, num_rhon_y0, num_rhon_len, rhon_file)
@@ -122,7 +122,7 @@ subroutine read_num_profiles(my_id)
     end if
   end if
 #endif
-  
+
   num_d_perp = ( d_perp_file /= 'none' )
   if ( num_d_perp .and. ( my_id == 0 ) ) then
     call readProf(num_d_perp_x, num_d_perp_y, num_d_perp_len, d_perp_file)
@@ -182,6 +182,14 @@ subroutine read_num_profiles(my_id)
                         check_positive=.true.)
   end if
   
+  num_Phi = ( Phi_file /= 'none' )
+  if ( num_Phi .and. ( my_id == 0 ) ) then
+    call readProf(num_Phi_x, num_Phi_y0, num_Phi_len, Phi_file) !read this function
+    call check_num_prof(num_Phi, num_Phi_x, num_Phi_y0, num_Phi_len, 'Phi', check_positive=.false.)
+    Phi_1 = num_Phi_y0(num_Phi_len)
+    Phi_0 = num_Phi_y0(1)
+    num_phi_y0 = num_phi_y0 - phi_1
+  end if
   
   contains
   
