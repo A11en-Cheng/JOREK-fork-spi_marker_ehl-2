@@ -8,6 +8,7 @@ use data_structure
 use phys_module
 use mod_import_restart
 use mod_interp
+use basis_at_gaussian, only: initialise_basis
 implicit none
 
 type (type_node_list)    :: node_list
@@ -51,7 +52,7 @@ write(*,*) 'jorek2vtk_3d'
 ! --- Initialise input parameters and read the input namelist.
 my_id     = 0
 call initialise_parameters(my_id, "__NO_FILENAME__")
-
+call initialise_basis()
 ! --- Preset parameters
 nsub            = 5        		! Number of subdivisions of the cubic finite elements into linear pieces
 without_n0_mode = .false.  		! If true, do not include the n=0 mode (i_tor=1)

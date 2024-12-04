@@ -22,7 +22,7 @@ contains
     use mod_elt_matrix,           only : element_matrix
     use mod_elt_matrix_fft,       only : element_matrix_fft
     use mpi_mod
-
+	
     ! --- Routine parameters
     type (type_element),              intent(inout)  :: element
     type (type_node),                 intent(inout)  :: nodes(n_vertex_max)
@@ -78,6 +78,7 @@ contains
         R_xpoint, Z_xpoint, thread_struct(omp_tid)%ELM, thread_struct(omp_tid)%RHS, omp_tid,       &
         i_tor_min, i_tor_max, aux_nodes)
     endif
+    
     
     ! --- Apply sheath boundary conditions at the targets
     if (bc_natural_open) then
@@ -341,8 +342,6 @@ subroutine construct_matrix(mhd_sim, local_elms, n_local_elms, a_mat, rhs_vec, h
   integer, allocatable              :: i_harm(:)
   integer                           :: comm, ierr, counts
   
-
-
   ! --- Timing call
   call r3_info_begin (r3_info_index_0, 'construct_matrix')
   
@@ -449,7 +448,7 @@ subroutine construct_matrix(mhd_sim, local_elms, n_local_elms, a_mat, rhs_vec, h
   !$omp           l,index_kl,ilarge2,iv2,vertex,direction,inode2,omp_nthreads,omp_tid,                     &
   !$omp           i_father,element_father, nodes_father, inode_father, node_out, ivertex, iorder,          &
   !$omp           ivar, itor, jvertex, jorder, jvar, jtor, random_element, n_var_reduced, v1, v2, im,      &
-  !$omp           index_ij_model400_e, index_kl_model400_e,  tmp_rhs, tmp_elm, tmp_elm_v2_8,    &
+  !$omp           index_ij_model400_e, index_kl_model400_e,  tmp_rhs, tmp_elm, tmp_elm_v2_8,               &
   !$omp           i_v, i_harm                                                                              )
 
 ! --- omp id

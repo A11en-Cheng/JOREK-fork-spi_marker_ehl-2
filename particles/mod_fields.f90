@@ -17,13 +17,15 @@ module mod_fields
     logical                              :: static=.false. !< if true do not time interpolate
     logical                              :: flag_zero_dpsidt=.false. !< if true, P_time(1) = dpsi/dt = 0
   contains
-    procedure(interp_PRZ), deferred, public   :: interp_PRZ
-    procedure(interp_PRZ_2), deferred, public :: interp_PRZ_2
+    procedure(interp_PRZ), deferred, public    :: interp_PRZ
+    procedure(interp_PRZ_2), deferred, public  :: interp_PRZ_2
+    procedure(interp_PRZP_1), deferred, public :: interp_PRZP_1
     procedure, public :: calc_NeTe
     procedure, public :: calc_NeTe_imp
     procedure, public :: calc_NjTj
     procedure, public :: calc_EBpsiU
     procedure, public :: calc_VBpsiU
+    procedure, public :: calc_vvector
     procedure, public :: calc_F_profile
     procedure, public :: calc_gyro_average_E
     procedure, public :: calc_Qin, calc_Qin_analytic, check_consistency_Qin
@@ -66,6 +68,18 @@ module mod_fields
       real(kind=8), dimension(n_v), intent(out) :: P_ss, P_st, P_tt, P_sphi, P_tphi
       real(kind=8), dimension(n_v), intent(out) :: P_stime, P_ttime
     end subroutine interp_PRZ_2
+    !> Interpolate a variable at s, t, phi in i_elm, returning first
+    !> derivatives of the variable and of space
+    pure subroutine interp_PRZP_1(this, time, i_elm, i_v, n_v, s, t, phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi)
+      import fields_base
+      class(fields_base),  intent(in)  :: this
+      real*8,                   intent(in)  :: time !< Time at which to calculate this variable
+      integer,                  intent(in)  :: i_elm
+      integer,                  intent(in)  :: n_v, i_v(n_v)
+      real*8,                   intent(in)  :: s, t, phi
+      real*8,                   intent(out) :: P(n_v), P_s(n_v), P_t(n_v), P_phi(n_v), P_time(n_v)
+      real*8,                   intent(out) :: R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi
+    end subroutine interp_PRZP_1
   end interface
 
 contains
@@ -75,6 +89,7 @@ pure subroutine calc_EBpsiU(fields, time, i_elm, st, phi, E, B, psi, U)
   use phys_module, only: F0, mode, central_mass, central_density
   use constants, only: mu_zero, mass_proton
   use mod_coordinate_transforms, only: transform_derivatives_st_to_RZ
+  use mod_chi
   ! Routine parameters
   class(fields_base), intent(in) :: fields
   real*8, intent(in)  :: time
@@ -96,10 +111,11 @@ pure subroutine calc_EBpsiU(fields, time, i_elm, st, phi, E, B, psi, U)
   real*8             :: P(2), P_s(2), P_t(2), P_phi(2), P_time(2) ! Placeholder for evaluating variables and derivatives locally
 #endif
   ! Values
-  real*8             :: R, R_s, R_t, Z, Z_s, Z_t
+  real*8             :: R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi
   ! Others
   real*8             :: inv_st_jac, R_inv
-  real*8             :: psi_R, psi_Z, U_R, U_Z, U_phi, t_norm
+  real*8             :: psi_R, psi_Z, psi_phi, U_R, U_Z, U_phi, t_norm
+  real*8, dimension(0:n_order-1,0:n_order-1,0:n_order-1) :: chi
 
   t_norm  = sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
 
@@ -137,16 +153,22 @@ pure subroutine calc_EBpsiU(fields, time, i_elm, st, phi, E, B, psi, U)
   B=[(A3_Z-AZ_p)*R_inv, (AR_p-A3_R)*R_inv, AZ_R-AR_Z + Fprof*R_inv]
   E=[-AR_t, -AZ_t, -R_inv*A3_t]
 #else
+#if STELLARATOR_MODEL
+  call fields%interp_PRZP_1(time, i_elm, i_var, 2, st(1), st(2), phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi)
+#else
+  R_phi = 0.0; Z_phi = 0.0
   call fields%interp_PRZ(time, i_elm, i_var, 2, st(1), st(2), phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, Z, Z_s, Z_t)
+#endif
   ! Calculate the derivatives to R and Z
 
   R_inv = 1.d0/R
   inv_st_jac = 1.d0/(R_s * Z_t - R_t * Z_s)
   psi_R    = (  P_s(1) * Z_t - P_t(1) * Z_s ) * inv_st_jac
   psi_Z    = (- P_s(1) * R_t + P_t(1) * R_s ) * inv_st_jac
+  psi_phi  = P_phi(1) - R_phi*psi_R - Z_phi*psi_Z
   U_R      = (  P_s(2) * Z_t - P_t(2) * Z_s ) * inv_st_jac
   U_Z      = (- P_s(2) * R_t + P_t(2) * R_s ) * inv_st_jac
-  U_phi    = P_phi(2)
+  U_phi    = P_phi(2) - R_phi*U_R - Z_phi*U_Z
 
   ! Update psi and U
   psi = P(1)
@@ -155,6 +177,16 @@ pure subroutine calc_EBpsiU(fields, time, i_elm, st, phi, E, B, psi, U)
   ! Set dpsi/dt to 0 if flag is true
   if(fields%flag_zero_dpsidt) P_time(1) = 0.d0
 
+#if STELLARATOR_MODEL
+  chi = get_chi(R,Z,phi,fields%node_list,fields%element_list,i_elm,st(1),st(2))
+
+  B = (/ chi(1,0,0)      + (psi_Z*chi(0,0,1) - psi_phi*chi(0,1,0))/(F0*R), &
+         chi(0,1,0)      - (psi_R*chi(0,0,1) - psi_phi*chi(1,0,0))/(F0*R), &
+         chi(0,0,1)/R    + (psi_R*chi(0,1,0) - psi_Z * chi(1,0,0))/F0         /)
+  
+  E     = [-U_R, -U_Z, -U_phi*R_inv]/t_norm
+  E     = E - P_time(1)/F0*(/ chi(1,0,0), chi(0,1,0), chi(0,0,1)*R_inv /) 
+#else
   ! Calculate the magnetic field (see http://jorek.eu/wiki/doku.php?id=reduced_mhd)
   B     = [+psi_Z, -psi_R, F0] * R_inv
 
@@ -162,6 +194,7 @@ pure subroutine calc_EBpsiU(fields, time, i_elm, st, phi, E, B, psi, U)
   ! See http://jorek.eu/wiki/doku.php?id=u_phi
   E     = [-F0*U_R, -F0*U_Z, -F0*U_phi*R_inv]/t_norm
   E(3)  = E(3) - R_inv*P_time(1) ! because this is not normalized with t_norm
+#endif
 
 #endif
 
@@ -454,7 +487,6 @@ pure subroutine calc_gyro_average_E(fields, time, particles, n_phases, E_average
   type(particle_kinetic_leapfrog),intent(in) :: particles(n_phases)
   integer, intent(in)                        :: n_phases     ! the number of points used in the gyro orbit average
   real*8, intent(inout)                      :: E_average(3) !< Electric field [V/m]
-
   ! Internal parameters
   integer, parameter :: i_var(1) = [2]
   real*8             :: P(1), P_s(1), P_t(1), P_phi(1), P_time(1) ! Placeholder for evaluating variables and derivatives locally
@@ -506,6 +538,60 @@ pure subroutine calc_gyro_average_E(fields, time, particles, n_phases, E_average
   E_average = E_average / real(n_average,8)
 
 end subroutine calc_gyro_average_E
+
+!> Calculates the plasma velocity vector
+!the sum of vpar v_ExB
+! May be To do: add diamagnetic drift component.
+subroutine calc_vvector(fields, time, i_elm, st, phi, vvector) 
+use phys_module, only: F0, mode, central_mass, central_density
+use constants, only: mu_zero, mass_proton
+use mod_coordinate_transforms, only: transform_derivatives_st_to_RZ
+! Routine parameters
+class(fields_base), intent(in) :: fields
+real*8, intent(in)  :: time
+integer, intent(in) :: i_elm !< JOREK element index
+real*8, intent(in)  :: st(2) !< element-local coordinates
+real*8, intent(in)  :: phi !< toroidal angle
+! real*8, intent(out) :: E(3) !< Electric field [V/m]
+! real*8, intent(out) :: B(3) !< Magnetic field [T]
+! real*8, intent(out) :: psi !< psi in JOREK units
+! real*8, intent(out) :: u !< velocity stream function in m/s
+real*8, intent(out) :: vvector(3) !v [v_R, v_Z, v_phi] in m/s
+! Internal parameters
+integer, parameter :: i_var(3) = [1,2,7]
+real*8             :: P(3), P_s(3), P_t(3), P_phi(3), P_time(3) ! Placeholder for evaluating variables and derivatives locally
+! Values
+real*8             :: R, R_s, R_t, Z, Z_s, Z_t
+! Others
+real*8             :: inv_st_jac, R_inv
+real*8             :: psi_R, psi_Z, U_R, U_Z, U_phi, t_norm
+real*8             :: vpar, v_R, v_Z, v_phi
+t_norm  = sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
+
+! Interpolate the fields to get psi and U at the current position (and the
+! changes u_n - u(n-1))
+call fields%interp_PRZ(time, i_elm, i_var, 3, st(1), st(2), phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, Z, Z_s, Z_t)
+
+R_inv = 1.d0/R
+inv_st_jac = 1.d0/(R_s * Z_t - R_t * Z_s)
+
+! Calculate the derivatives to R and Z
+psi_R    = (  P_s(1) * Z_t - P_t(1) * Z_s ) * inv_st_jac
+psi_Z    = (- P_s(1) * R_t + P_t(1) * R_s ) * inv_st_jac
+U_R      = (  P_s(2) * Z_t - P_t(2) * Z_s ) * inv_st_jac
+U_Z      = (- P_s(2) * R_t + P_t(2) * R_s ) * inv_st_jac
+U_phi    = P_phi(2)
+
+! Calculate the velocity vector (see http://jorek.eu/wiki/doku.php?id=reduced_mhd)
+vpar  = P(3)
+v_R   = -R * U_Z + vpar * R_inv *psi_Z
+v_Z   = R * U_R - vpar * R_inv *psi_R
+v_phi = F0 * vpar * R_inv
+
+vvector = [v_R, v_Z, v_phi] / t_norm
+
+end subroutine calc_vvector
+
 
 pure function rot_tmp(x,A,dA) result(rotA)
   implicit none

@@ -51,7 +51,7 @@ integer   :: j, seed, i_rng, n_stream
 ! For live updating the rhs of the projection
 real*8  :: R_g, Z_g, R_s, R_t, Z_s, Z_t, xjac, HZ(n_tor), HH(4,4), HH_s(4,4), HH_t(4,4)
 integer :: i_tor, index_lm, i_elm_temp
-logical :: use_cx, use_ionisation, use_sputtering
+logical :: use_kn_cx, use_kn_ionisation, use_kn_sputtering
 
 ! Start up MPI, jorek
 call sim%initialize(num_groups=1)
@@ -59,9 +59,9 @@ call sim%initialize(num_groups=1)
 n_particles_local = int(n_particles/sim%n_cpu) 
 timesteps         = tstep_particles
 
-use_cx         = .false.
-use_ionisation = .true.
-use_sputtering = .false.
+use_kn_cx         = .false.
+use_kn_ionisation = .true.
+use_kn_sputtering = .false.
 
 ! Set up the field reader
 fieldreader = event(read_jorek_fields_interp_linear(basename='jorek', i=-1))
@@ -70,7 +70,7 @@ call with(sim, fieldreader)
 ! Read Open ADAS data
 adas = read_adf11(sim%my_id,'12_h')
 
-if (use_sputtering) then  
+if (use_kn_sputtering) then  
   n_reflect = int(n_particles * 2.d-3)
   D_sputter_source = initialise_sputtering(sim%fields%node_list, sim%fields%element_list, n_reflect)
 endif
@@ -173,7 +173,7 @@ events = [ new_event_ptr(jorek_feedback,   start = sim%time),            &
 jorek_stepper%extra_event => events(1)
 
 call main_particle_loop(jorek_stepper, jorek_feedback, project_density, timesteps, &
-                        use_ionisation, use_cx, use_sputtering)
+                        use_kn_ionisation, use_kn_cx, use_kn_sputtering)
 
 call sim%finalize
 
@@ -181,7 +181,7 @@ contains
 
 !================================================================================================
 subroutine main_particle_loop(jorek_stepper, jorek_feedback, project_density, timesteps, &
-                              use_ionisation, use_cx, use_sputtering)
+                              use_kn_ionisation, use_kn_cx, use_kn_sputtering)
 !================================================================================================
 use particle_tracer
 use mod_particle_diagnostics
@@ -203,7 +203,7 @@ implicit none
 real*8, parameter  :: binding_energy = 2.18d-18 ! ionization energy of a hydrogen atom [J] (= 13.6 eV)
 
 real*8, intent(in) :: timesteps
-logical            :: use_ionisation, use_cx, use_sputtering
+logical            :: use_kn_ionisation, use_kn_cx, use_kn_sputtering
 
 type(projection), target                          :: jorek_feedback, project_density
 type(jorek_timestep_action), target               :: jorek_stepper
@@ -233,7 +233,7 @@ E_norm   = 1.5d0 / MU_ZERO                                      ! E_SI   = E_nor
 M_norm   = rho_norm * v_norm                                    ! momentum normalisation
 
 if (sim%my_id .eq. 0) then
-  if (use_cx) then
+  if (use_kn_cx) then
     write(*,*) ' including charge exchange'
   else
     write(*,*) ' NOT including charge exchange'
@@ -316,7 +316,7 @@ do while (.not. sim%stop_now)
     !$omp shared(sim, particles, n_particles, n_steps, timesteps, rng, particle_start_time, &
 #endif
     !$omp        rho_norm, t_norm, v_norm, E_norm, M_norm, N_norm,                          &
-    !$omp        use_cx, use_ionisation, use_sputtering,                                    &
+    !$omp        use_kn_cx, use_kn_ionisation, use_kn_sputtering,                                    &
     !$omp        CENTRAL_DENSITY, CENTRAL_MASS)                                             &
     !$omp private(i_rng, i,j,k,l,m, t, E, B, psi, U, rz_old, st_old,                        &
     !$omp         i_elm_old, n_e, T_e, ion_rate, ion_prob, ion_ran, ion_source, ion_energy, kinetic_energy,& 
@@ -346,7 +346,7 @@ do while (.not. sim%stop_now)
         ion_source = 0.d0
         ion_energy = 0.d0
 
-        if (use_ionisation) then
+        if (use_kn_ionisation) then
        
           call sim%groups(1)%ad%SCD%interp(int(particles(j)%q), log10(n_e), log10(T_e), ion_rate) ! [m^3/s]
         
@@ -375,7 +375,7 @@ do while (.not. sim%stop_now)
 
           ion_energy     = kinetic_energy !- binding_energy
 
-        endif ! use_ionisation
+        endif ! use_kn_ionisation
 
         ! Charge Exchange
         ! It is assumed that we will have a exchange between hydrogen isotopes
@@ -384,7 +384,7 @@ do while (.not. sim%stop_now)
         cx_source = 0.d0
         cx_energy = 0.d0
 
-        if (use_cx) then
+        if (use_kn_cx) then
   
           call sim%groups(1)%ad%CCD%interp(int(particles(j)%q+1), log10(n_e), log10(T_e), CX_rate) ! [m^3/s]
 

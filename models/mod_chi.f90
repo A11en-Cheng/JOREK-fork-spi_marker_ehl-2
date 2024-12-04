@@ -230,7 +230,7 @@ module mod_chi
   !!
   !! This routine will call get_chi_domm and depending on compile time parameters either add the correction term
   !! get_chi_corr to the vacuum field, or keep the representation as the Dommaschk potentials alone
-  function get_chi(R,z,phi,node_list,element_list,i_elm,s,t,max_ord)
+  pure function get_chi(R,z,phi,node_list,element_list,i_elm,s,t,max_ord)
     use data_structure,     only: type_node_list, type_element_list
     implicit none
     real*8,  intent(in)                   :: R, z, phi
@@ -262,7 +262,7 @@ module mod_chi
   !!
   !! If this function is called from a tokamak model, the routine returns the dominant background toroidal field,
   !! where F0 is assumed to be defined using a RH coordinate system.
-  function get_chi_domm(R,z,phi,max_ord)
+  pure function get_chi_domm(R,z,phi,max_ord)
     implicit none
     real*8,  intent(in)                   :: R, z, phi
     integer, optional, intent(in)         :: max_ord
@@ -336,7 +336,7 @@ module mod_chi
   
   !>  This function returns a correction to the vacuum scalar magnetic potential (chi) and its derivatives such 
   !!  that n.grad(chi) on the simulation boundary is equal to 0
-  function get_chi_corr(node_list, element_list, i_elm, s, t, phi)
+  pure function get_chi_corr(node_list, element_list, i_elm, s, t, phi)
     use phys_module,        only: mode_coord
     use data_structure,     only: type_node_list, type_element_list
     use mod_interp,         only: interp_RZP, interp_gvec

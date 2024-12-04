@@ -2,11 +2,35 @@
 !> and recombination probabilities of particles in a specific time
 module mod_ionisation_recombination
 use mod_openadas
-implicit none
-private
-public new_charge
-public fields_interp_ne_Te
+use mod_parameters, only : n_vertex_max, n_elements_max, n_order,n_nodes_max
+use nodes_elements
+use data_structure, only : type_node, type_element
 
+
+
+  implicit none
+
+    type (type_element)      :: element
+ type (type_node)         :: nodes(n_vertex_max)
+  
+  private
+  public rec_rate_global
+  public rec_rate_local 
+  public rec_mom_local
+  public rec_energy_local
+  public rec_v_R
+  public rec_v_Z  
+  public rec_v_phi
+  
+  public new_charge
+  public fields_interp_ne_Te
+  
+  real*8, dimension(n_vertex_max, n_order+1, n_nodes_max) :: rec_rate_global
+  real*8, dimension(n_elements_max) :: rec_rate_local, rec_mom_local, rec_energy_local
+  real*8, dimension(n_elements_max) :: rec_v_R, rec_v_Z, rec_v_phi  
+
+
+  
 contains
 
 !> Calculate new charge state at a specific density, temperature and timestep

@@ -74,7 +74,7 @@ contains
 function new_jorek_timestep_action(auxiliary_node_list) result(new)
   type(jorek_timestep_action) :: new
   type(type_node_list), intent(in), target,  optional :: auxiliary_node_list
-!  if (present(auxiliary_node_list)) new%auxiliary_node_list => auxiliary_node_list
+  if (present(auxiliary_node_list)) new%auxiliary_node_list => auxiliary_node_list
   new%istep = 1
   new%name = "JOREK timestep"
   new%log = .true.
@@ -205,6 +205,7 @@ subroutine setup_solvers(this, sim)
   id_elements = sim%my_id
 
   call tr_allocatep(this%local_elms,1,sim%fields%element_list%n_elements,"local_elms",CAT_FEM)
+
 
   this%a_mat%comm = MPI_COMM_WORLD
   
@@ -484,7 +485,7 @@ subroutine do_jorek_timestep(this, sim, ev)
   
   endif ! myid = 0
 
-  call int3d_new(sim%my_id, sim%fields%node_list, sim%fields%element_list, bnd_node_list, bnd_elm_list, exprs_all_int, res, 1, aux_node_list=aux_node_list)
+  call int3d_new(sim%my_id, sim%fields%node_list, sim%fields%element_list, bnd_node_list, bnd_elm_list, exprs_all_int, res, 1, aux_node_list=this%auxiliary_node_list)
 
   if (sim%my_id .eq. 0 ) then
     ! --- Output energies and growth_rates to text files during the code run

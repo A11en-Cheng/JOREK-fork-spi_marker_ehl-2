@@ -109,7 +109,7 @@ real*8     :: t_norm
 !   -Ionization
 real*8     :: Sion_T, dSion_dT                                ! Ionization rate and its derivative wrt. temperature
 real*8     :: coef_ion_1, coef_ion_2, coef_ion_3, S_ion_puiss ! Ionization rate parameters
-real*8     :: ksiion                                          ! Ionization energy
+real*8     :: ksi_ion_norm                                          ! Ionization energy
 !   -Recombination
 real*8     :: Srec_T, dSrec_dT                                ! Recombination rate and its derivative wrt. temperature
 real*8     :: coef_rec_1                                      ! Recombination rate parameters
@@ -759,7 +759,7 @@ do i=1,n_vertex_max
           ! --- Normalisation of the ionization energy cost for Deuterium
           !------------------------------------------- 
       
-          ksiion = central_density * 1.d20 * ksi_ion
+          ksi_ion_norm = central_density * 1.d20 * ksi_ion
       
           !--------------------------------------------------------
           ! --- Source of neutrals, e.g. from MGI/SPI
@@ -1044,7 +1044,7 @@ do i=1,n_vertex_max
                        - ZK_par_num * (v_ps0_x  * ps0_y - v_ps0_y  * ps0_x)                                            &
                                     * (T0_ps0_x * ps0_y - T0_ps0_y * ps0_x)               * xjac * tstep * factor(6, 9)&  ! Hyper paral. diffusitivity
 
-                       - v * BigR * ksiion * r0_corr * rn0_corr * Sion_T                  * xjac * tstep * factor(6,10)& ! Energy sink by ionization
+                       - v * BigR * ksi_ion_norm * r0_corr * rn0_corr * Sion_T                  * xjac * tstep * factor(6,10)& ! Energy sink by ionization
 
 !===================== Additional terms from friction terms============
                        + v * BigR * ((GAMMA - 1.)/2.) * vpar0**2 * BB2 * (r0_corr*rn0*Sion_T) * xjac * tstep * factor(6,11)& ! Friction
@@ -1702,7 +1702,7 @@ do i=1,n_vertex_max
                             + v * rho * GAMMA * T0 * (vpar0_s * ps0_t - vpar0_t * ps0_s)        * theta * tstep &
                             + v * rho * GAMMA * T0 * F0 / BigR * vpar0_p                 * xjac * theta * tstep &
 
-                           + v * BigR * rho * rn0_corr * ksiion * Sion_T                      * xjac * theta * tstep &
+                           + v * BigR * rho * rn0_corr * ksi_ion_norm * Sion_T                      * xjac * theta * tstep &
                            + v * BigR * rho * rn0_corr * LradDrays_T                          * xjac * theta * tstep &
                            + v * BigR * rho * 2d0 * r0_corr * LradDcont_T                * xjac * theta * tstep &
                            + v * BigR * rho * frad_bg                                    * xjac * theta * tstep &
@@ -1763,7 +1763,7 @@ do i=1,n_vertex_max
 
                             -v * T * (gamma-1.d0) * deta_dT_ohm * (zj0 / BigR)**2.d0 * BigR * xjac * theta * tstep &
 
-                            + v * BigR * r0_corr * rn0_corr * ksiion * dSion_dT * T         * xjac * theta * tstep &
+                            + v * BigR * r0_corr * rn0_corr * ksi_ion_norm * dSion_dT * T         * xjac * theta * tstep &
 
                             + v * BigR * T * r0_corr * rn0_corr * dLradDrays_dT             * xjac * theta * tstep &
                             + v * BigR * T * r0_corr * r0_corr  * dLradDcont_dT             * xjac * theta * tstep &
@@ -1837,7 +1837,7 @@ do i=1,n_vertex_max
 
                   amat_n(6,7) = + v * r0 * GAMMA * T0 * F0 / BigR * vpar_p          * xjac * theta * tstep
 
-                  amat(6,8) = + v * BigR * r0_corr * rhon * ksiion * Sion_T         * xjac * theta * tstep &
+                  amat(6,8) = + v * BigR * r0_corr * rhon * ksi_ion_norm * Sion_T         * xjac * theta * tstep &
                               + v * BigR * rhon * r0_corr * LradDrays_T             * xjac * theta * tstep & 
 !===================== Additional terms from friction terms============
                               - v * BigR * ((GAMMA - 1.)/2.) * vpar0**2 * BB2 * (r0_corr*rhon*Sion_T) * xjac * theta * tstep &

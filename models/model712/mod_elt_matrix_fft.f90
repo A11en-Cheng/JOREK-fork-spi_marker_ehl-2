@@ -341,7 +341,7 @@ real*8     :: Te_eV                                           ! Electron tempera
 !   -Ionization
 real*8     :: Sion_T, dSion_dT                                ! Ionization rate and its derivative wrt. temperature
 real*8     :: coef_ion_1, coef_ion_2, coef_ion_3, S_ion_puiss ! Ionization rate parameters
-real*8     :: ksiion                                          ! Ionization energy
+real*8     :: ksi_ion_norm                                          ! Ionization energy
 !   -Recombination
 real*8     :: Srec_T, dSrec_dT                                ! Recombination rate and its derivative wrt. temperature
 real*8     :: coef_rec_1                                      ! Recombination rate parameters
@@ -1195,7 +1195,7 @@ do i=1,n_vertex_max
           Te_eV = Te0/(EL_CHG*MU_ZERO*central_density*1.d20)
 
           ! --- Normalisation of the ionization energy cost for Deuterium
-          ksiion = central_density * 1.d20 * ksi_ion
+          ksi_ion_norm = central_density * 1.d20 * ksi_ion
 
           ! --- Ionization rate for Deuterium
           ! --- (see Wiki for more info: http://jorek.eu/wiki/doku.php?id=model500_501_555#ionization_rate_for_deuterium)
@@ -1569,7 +1569,7 @@ do i=1,n_vertex_max
                              - ZKe_prof * gradTe_gradVstar__p                                  &
                              - (ZKe_par_T-ZKe_prof) * BgradVstar__p * BgradTe / BB2            &
                              + v * dTe_i                                                       &
-                             - v * ksiion * rho0_corr * rhon0_corr * Sion_T                    &
+                             - v * ksi_ion_norm * rho0_corr * rhon0_corr * Sion_T                    &
                              + v * (gamma-1.0d0) * eta_T_ohm * JJ2                             &
                              !+ v * (gamma-1.d0) * eta_T_ohm * (zj0 / R)**2.d0                 &
                              - v * rho0_corr * rhon0_corr * LradDrays_T                        &
@@ -2937,7 +2937,7 @@ do i=1,n_vertex_max
 
                   Qjac_p (var_Te,var_rho) = + v * ( - rho * UgradTe - Te0 * UgradRho_rho__p  - gamma * (rho*Te0) * divU ) &
                                             + v * ddTe_i_drho                                                             &
-                                            - v * ksiion * rho * rhon0_corr * Sion_T                                      &
+                                            - v * ksi_ion_norm * rho * rhon0_corr * Sion_T                                      &
                                             - v *       rho * rhon0_corr * LradDrays_T                                    &
                                             - v * 2.0 * rho * rho0_corr  * LradDcont_T                                    &
                                             - v *       rho * frad_bg
@@ -2949,7 +2949,7 @@ do i=1,n_vertex_max
                                             - (ZKe_par_T-ZKe_prof) * BgradVstar__p * BgradTe_Te__p / BB2                &
                                             - (dZKe_par_dT*Te    ) * BgradVstar__p * BgradTe       / BB2                &
                                             + v * ddTe_i_dTe                                                            &
-                                            - v * ksiion * rho0_corr * rhon0_corr * dSion_dT * Te                       &
+                                            - v * ksi_ion_norm * rho0_corr * rhon0_corr * dSion_dT * Te                       &
                                             - v * rho0_corr * rhon0_corr * dLradDrays_dT * Te                           &
                                             - v * rho0_corr * rho0_corr  * dLradDcont_dT * Te                           &
                                             - v * rho0_corr * dfrad_bg_dT * Te                                          &
@@ -2965,7 +2965,7 @@ do i=1,n_vertex_max
 
                   Qjac_p (var_Te,var_Ti)  = + v * ddTe_i_dTi
 
-                  Qjac_p (var_Te,var_rhon)= - v * ksiion * rho0_corr * rhon * Sion_T &
+                  Qjac_p (var_Te,var_rhon)= - v * ksi_ion_norm * rho0_corr * rhon * Sion_T &
                                             - v * rho0_corr * rhon * LradDrays_T
 
                   !###################################################################################################

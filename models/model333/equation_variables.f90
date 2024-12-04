@@ -23,7 +23,7 @@ module equation_variables
   real*8 	:: K_prof, K_par, dK_par
   
   ! --- Coefficients for model500 
-  real*8 	:: Dn0x, Dn0y, Dn0p, S_ion, S_ion_T, phi, ksiion
+  real*8 	:: Dn0x, Dn0y, Dn0p, S_ion, S_ion_T, phi, ksi_ion_norm
   
   ! --- Hyper diffusivities and Taylor Galerkin stabilisation
   real*8 	:: eta_numm, visco_numm, visco_par_numm, D_perp_numm, K_perp_numm
@@ -113,7 +113,7 @@ module equation_variables
   !$omp 	visco_parr,															&
   !$omp 	D_prof,																&
   !$omp 	K_prof, K_par, dK_par,														&
-  !$omp 	Dn0x, Dn0y, Dn0p, S_ion, S_ion_T, phi, ksiion,											&
+  !$omp 	Dn0x, Dn0y, Dn0p, S_ion, S_ion_T, phi, ksi_ion_norm,											&
   !$omp 	eta_numm, visco_numm, visco_par_numm, D_perp_numm, K_perp_numm,									&
   !$omp         TG_num1, TG_num2, TG_num5, TG_num6, TG_num7, TG_num8,										&
   !$omp         tau_IC, W_dia, W_dia_rho, W_dia_T,												&

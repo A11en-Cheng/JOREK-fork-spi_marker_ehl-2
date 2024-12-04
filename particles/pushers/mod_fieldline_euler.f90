@@ -140,7 +140,7 @@ subroutine compute_field_line_rhs(fields,n_variables, &
   call find_RZ_nearby(fields%node_list,fields%element_list,solution_old(1), &
        solution_old(2),real_parameters(1),real_parameters(2),                  &
        int_parameters(1),solution(1),solution(2),st_new(1),                    &
-       st_new(2),i_elm_new,ifail)
+       st_new(2),i_elm_new,ifail,solution_old(3))
 
   !> compute required fields
   if(i_elm_new .gt. 0) then
@@ -186,7 +186,7 @@ subroutine field_line_runge_kutta_fixed_dt_push_jorek(fields, particle, t, dt)
        fields%element_list,particle%x(1),particle%x(2),       &
        particle%st(1),particle%st(2),particle%i_elm,          &
        solution_new(1),solution_new(2),st_new(1),st_new(2),   &
-       i_elm_new,ifail)
+       i_elm_new,ifail,solution_new(3))
 
   !> overwrite GC fields
   particle%x     = solution_new

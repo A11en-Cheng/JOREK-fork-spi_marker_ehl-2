@@ -434,7 +434,8 @@ subroutine do_count_action(this, sim, ev)
   type(event), intent(inout), optional :: ev
   integer :: i_group, n_alive, n_alive_total, ierr
   real*8 :: w_alive, w_alive_total
-
+  
+  !write(*,*) "Allocation counter check", allocated(sim%groups(1)%particles)
   ! Count the number of alive simulation particles in each group
   do i_group=1,size(sim%groups,1)
     if (allocated(sim%groups(i_group)%particles)) then

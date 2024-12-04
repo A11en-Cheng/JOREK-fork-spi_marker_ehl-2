@@ -1,5 +1,6 @@
 module mod_neighbours
   use data_structure
+  use mod_element_rtree, only: get_vertex_pos_in_rtree_plane
   implicit none
   private
   public :: neighbours, update_neighbours
@@ -55,10 +56,13 @@ pure function node_same_pos(node_list, i1, i2) result(same)
   integer, intent(in) :: i1, i2
   logical :: same
   real*8, parameter :: tol=1.d-8
+  real*8 :: pos1(2), pos2(2)
   if (i1 .eq. i2) then
     same = .true.
   else
-    if (norm2(node_list%node(i1)%x(1,1,1:2)-node_list%node(i2)%x(1,1,1:2)) .lt. tol) then
+    pos1 = get_vertex_pos_in_rtree_plane(node_list%node(i1)%x(1:n_coord_tor,1,1:2))
+    pos2 = get_vertex_pos_in_rtree_plane(node_list%node(i2)%x(1:n_coord_tor,1,1:2))
+    if (norm2(pos1-pos2) .lt. tol) then
       same = .true.
     else
       same = .false.
@@ -216,6 +220,7 @@ integer                  :: inb_i, inb_j, i, j, k, iv1, iv2
 integer                  :: i_elm, j_elm, i_node1, i_node2
 real*8                   :: s_i, t_i, R_i, Rs_i, Rt_i, Rst_i, Rss_i, Rtt_i, Z_i, Zs_i, Zt_i, Zst_i,Zss_i,Ztt_i
 real*8                   :: s_j, t_j, R_j, Rs_j, Rt_j, Rst_j, Rss_j, Rtt_j, Z_j, Zs_j, Zt_j, Zst_j,Zss_j,Ztt_j
+real*8                   :: pos1(2), pos2(2)
 integer, dimension(:), allocatable :: i_nearby
 real*8 :: t0, t1, t2
 
@@ -244,7 +249,7 @@ end if
 
 call cpu_time(t1)
 
-!$omp parallel default(none) private(i,k,j,i_node1,i_node2,inb_i,inb_j,i_nearby, iv1, iv2) shared(element_list,node_list)
+!$omp parallel default(none) private(i,k,j,i_node1,i_node2,inb_i,inb_j,i_nearby, iv1, iv2, pos1, pos2) shared(element_list,node_list)
 !$omp do
 do i=1, element_list%n_elements
   element_list%element(i)%neighbours(:) = 0
@@ -269,10 +274,12 @@ do i=1, element_list%n_elements
     if (element_list%element(i)%neighbours(j) .le. 0) then
       iv1 = element_list%element(i)%vertex(j)
       iv2 = element_list%element(i)%vertex(mod(j,4)+1)
+      pos1 = get_vertex_pos_in_rtree_plane(node_list%node(iv1)%x(1:n_coord_tor,1,1:2))
+      pos2 = get_vertex_pos_in_rtree_plane(node_list%node(iv2)%x(1:n_coord_tor,1,1:2))
       if ((node_list%node(iv1)%boundary .ne. 0) .and. (node_list%node(iv2)%boundary .ne.0) ) then
         ;     ! this is a boundary, should not have a neighbour
-      elseif ((sqrt( (node_list%node(iv1)%x(1,1,1) - node_list%node(iv2)%x(1,1,1))**2 &
-                    +(node_list%node(iv1)%x(1,1,2) - node_list%node(iv2)%x(1,1,2))**2) .lt. 1d-8) ) then
+      elseif ((sqrt( (pos1(1) - pos2(1))**2 &
+                    +(pos1(2) - pos2(2))**2) .lt. 1d-8) ) then
         ;     ! these two corners of the element are coinciding, thus no neighbour
       else
         write(*,*) 'ERROR neighbours : ',i,j,element_list%element(i)%neighbours(j)

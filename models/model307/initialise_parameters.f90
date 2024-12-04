@@ -52,6 +52,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 tokamak_device,                                     &
                 F0,gamma_sheath,gamma_stangeby, density_reflection, &
                 mach_one_bnd_integral, Vpar_smoothing,              &
+                deuterium_adas, old_deuterium_atomic,               &
                 Vpar_smoothing_coef,                                &
                 zjz_0, zjz_1, zj_coef,                              &
                 rho_0, rho_1, rho_coef,                             &
@@ -60,21 +61,21 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 ZK_par, ZK_par_max, ZK_perp, D_par, D_perp,         &
                 particlesource, heatsource, tauIC, Wdia,            &
                 eta_num, visco_num, visco_par_num, D_perp_num,      &
-                ZK_perp_num,                                        &
+                ZK_perp_num, Dn_perp_num,                           &
                 pellet_amplitude, pellet_R, pellet_Z, pellet_phi,   &
                 pellet_radius, pellet_sig, pellet_length,           &
                 pellet_psi, pellet_delta_psi, pellet_density,       &
                 pellet_velocity_R, pellet_velocity_Z, pellet_theta, &
                 pellet_ellipse,                                     &
                 central_density, central_mass,                      &
-		pellet_particles, use_pellet,                       &
+                pellet_particles, use_pellet,                       &
                 ellip,tria_u,tria_l,quad_u,quad_l,                  &
                 xampl,xwidth,xsig,xtheta,xshift,xleft, xpoint,      &
                 forceSDN,                                           &
                 xcase, SDN_threshold, D_perp_file, ZK_perp_file,    &
                 rho_file, T_file, ffprime_file, rot_file,           &
                 normalized_velocity_profile,                        &
-                freeboundary_equil, freeboundary,  freeb_change_indices, &
+                freeboundary_equil,freeboundary,freeb_change_indices, &
                 resistive_wall,                                     &
                 wall_resistivity, wall_resistivity_fact,            &
                 bc_natural_open,                                    &
@@ -148,15 +149,19 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 nsubstep_particles, restart_particles,              &
                 filter_perp,    filter_hyper,    filter_par,        &
                 filter_perp_n0, filter_hyper_n0, filter_par_n0,     &
-                use_cx, use_sputtering, use_ionisation,             &
+                use_kn_cx, use_kn_sputtering, use_kn_ionisation,             &
                 use_ncs, use_pcs, use_ccs, use_pcs_full, use_rcs,   &
+                restart_particles,                                  &
+                use_kn_recombination, use_kn_puffing,use_kn_line_radiation,  &
+                puff_rate, r_valve, R_valve_loc, Z_valve,           &
+                R_valve_loc2, Z_valve2, n_puff,                     &
                 cte_current_FB_fact, Z_xpoint_limit,                &
                 CARIDDI_mode, use_newton, maxNewton, gamma_Newton,  &
                 alpha_Newton, vacuum_min, strumpack_matching,       &        
                 xpoint_search_tries, export_aux_node_list,          &
                 bgf_rpolar, bgf_tht,                                &
                 use_puffing, fueling_rate, valve_r,                 &
-                R_valve_loc, Z_valve_loc, PHI_valve_loc,            &
+                R_valve_loc, Z_laser_loc, PHI_laser_loc,            &
                 initial_E, puffing_direction, puffing_timestep,     &
                 puff_starttime, puffingtime,                        &
                 phys_particles_puff 

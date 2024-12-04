@@ -364,7 +364,7 @@ real*8     :: Te_eV                                           ! Electron tempera
 !   -Ionization
 real*8     :: Sion_T, dSion_dT                                ! Ionization rate and its derivative wrt. temperature
 real*8     :: coef_ion_1, coef_ion_2, coef_ion_3, S_ion_puiss ! Ionization rate parameters
-real*8     :: ksiion                                          ! Ionization energy
+real*8     :: ksi_ion_norm                                          ! Ionization energy
 !   -Recombination
 real*8     :: Srec_T, dSrec_dT                                ! Recombination rate and its derivative wrt. temperature
 real*8     :: coef_rec_1                                      ! Recombination rate parameters
@@ -1946,7 +1946,7 @@ do i=1,n_vertex_max
               if(with_neutrals)then
                 Qvec_p(var_Te) = Qvec_p(var_Te) &
                                + v * power_dens_teleport_ju                   &                        
-                               - v * ksiion * rho0_corr * rhon0_corr * Sion_T &
+                               - v * ksi_ion_norm * rho0_corr * rhon0_corr * Sion_T &
                                - v * rho0_corr * rhon0_corr * LradDrays_T &
                                - v * rho0_corr * rho0_corr  * LradDcont_T &
                                - v * rho0_corr * frad_bg
@@ -2002,7 +2002,7 @@ do i=1,n_vertex_max
                 Qvec_p(var_T) = Qvec_p(var_T)                                      &
                               + v * (gamma-1.d0) * 0.5d0 * vv2 * source_neutral    &
                               + v * power_dens_teleport_ju                         &
-                              - v * ksiion * rho0_corr * rhon0_corr * Sion_T       &                              
+                              - v * ksi_ion_norm * rho0_corr * rhon0_corr * Sion_T       &                              
                               - v * rho0_corr * rhon0_corr * LradDrays_T           &
                               - v * rho0_corr * rho0_corr  * LradDcont_T           &
                               - v * rho0_corr * frad_bg
@@ -3910,19 +3910,19 @@ do i=1,n_vertex_max
 
                    if(with_neutrals)then
                       Qjac_p (var_Te,var_rho) = Qjac_p (var_Te,var_rho) &
-                                                - v * ksiion * rho * rhon0_corr * Sion_T                                  &
+                                                - v * ksi_ion_norm * rho * rhon0_corr * Sion_T                                  &
                                                 - v *       rho * rhon0_corr * LradDrays_T                                &
                                                 - v * 2.0 * rho * rho0_corr  * LradDcont_T                                &
                                                 - v *       rho * frad_bg
 
                       Qjac_p (var_Te,var_Te)  = Qjac_p (var_Te,var_Te) &
-                                                - v * ksiion * rho0_corr * rhon0_corr * dSion_dT * Te                     &
+                                                - v * ksi_ion_norm * rho0_corr * rhon0_corr * dSion_dT * Te                     &
                                                 - v * rho0_corr * rhon0_corr * dLradDrays_dT * Te                         &
                                                 - v * rho0_corr * rho0_corr  * dLradDcont_dT * Te                         &
                                                 - v * rho0_corr * dfrad_bg_dT * Te
 
                       Qjac_p (var_Te,var_rhon)= Qjac_p (var_Te,var_rhon)                 &
-                                                - v * ksiion * rho0_corr * rhon * Sion_T &
+                                                - v * ksi_ion_norm * rho0_corr * rhon * Sion_T &
                                                 - v * rho0_corr * rhon * LradDrays_T
                     endif
                     
@@ -4189,19 +4189,19 @@ do i=1,n_vertex_max
 
                     if(with_neutrals)then
                       Qjac_p (var_T,var_rho) = Qjac_p (var_T,var_rho) &
-                                             - v * ksiion * rho * rhon0_corr * Sion_T                                  &
+                                             - v * ksi_ion_norm * rho * rhon0_corr * Sion_T                                  &
                                              - v *       rho * rhon0_corr * LradDrays_T                                &
                                              - v * 2.0 * rho * rho0_corr  * LradDcont_T                                &
                                              - v *       rho * frad_bg
 
                       Qjac_p (var_T,var_T)  = Qjac_p (var_T,var_T) &
-                                            - v * ksiion * rho0_corr * rhon0_corr * dSion_dT * T                     &
+                                            - v * ksi_ion_norm * rho0_corr * rhon0_corr * dSion_dT * T                     &
                                             - v * rho0_corr * rhon0_corr * dLradDrays_dT * T                         &
                                             - v * rho0_corr * rho0_corr  * dLradDcont_dT * T                         &
                                             - v * rho0_corr * dfrad_bg_dT * T
 
                       Qjac_p (var_T,var_rhon)= Qjac_p (var_T,var_rhon)                 &
-                                             - v * ksiion * rho0_corr * rhon * Sion_T  &
+                                             - v * ksi_ion_norm * rho0_corr * rhon * Sion_T  &
                                              - v * rho0_corr * rhon * LradDrays_T
                     endif
 
@@ -4866,7 +4866,7 @@ subroutine neutrals_modeling()
    ! --- Electron temperature in eV
    Te_eV = Te0/(EL_CHG*MU_ZERO*central_density*1.d20)
    ! --- Normalisation of the ionization energy cost for Deuterium
-   ksiion = central_density * 1.d20 * ksi_ion
+   ksi_ion_norm = central_density * 1.d20 * ksi_ion
 
    ! --- Ionization rate for Deuterium
    ! --- (see Wiki for more info: http://jorek.eu/wiki/doku.php?id=model500_501_555#ionization_rate_for_deuterium)
@@ -5406,7 +5406,7 @@ subroutine calculate_sc_quantities()
       if(with_neutrals)then
         src_pi  = src_pi + (gamma-1.d0) * 0.5d0 * vv2 * source_neutral
         src_pe  = src_pe +                                        &
-                -  ksiion * rho0_corr * rhon0_corr * Sion_T       &
+                -  ksi_ion_norm * rho0_corr * rhon0_corr * Sion_T       &
                 -  rho0_corr * rhon0_corr * LradDrays_T           &
                 -  rho0_corr * rho0_corr  * LradDcont_T
         s_p     = (Ti0 + Te0) * src_rho + src_pi + src_pe + Ti0 * src_rhon
@@ -5426,7 +5426,7 @@ subroutine calculate_sc_quantities()
       if(with_neutrals)then
         src_p =  src_p                                          &
               +  (gamma-1.d0) * 0.5d0 * vv2 * source_neutral    &
-              -  ksiion * rho0_corr * rhon0_corr * Sion_T       &
+              -  ksi_ion_norm * rho0_corr * rhon0_corr * Sion_T       &
               -  rho0_corr * rhon0_corr * LradDrays_T           &
               -  rho0_corr * rho0_corr  * LradDcont_T
         s_p   = T0 * src_rho + src_p + 0.5d0 * T0 * src_rhon
@@ -5534,7 +5534,7 @@ res = 0.d0
      if(with_neutrals)then
        res(var_Ti) = res(var_Ti) - (gamma-1.d0) * 0.5d0 * vv2 * source_neutral
        res(var_Te) = res(var_Te) -  power_dens_teleport_ju                 &
-                                 + ksiion * rho0_corr * rhon0_corr * Sion_T &
+                                 + ksi_ion_norm * rho0_corr * rhon0_corr * Sion_T &
                                  + rho0_corr * rhon0_corr * LradDrays_T     &
                                  + rho0_corr * rho0_corr  * LradDcont_T     &
                                  + rho0_corr * frad_bg
@@ -5561,7 +5561,7 @@ res = 0.d0
     if(with_neutrals)then
        res(var_T) = res(var_T) -  (gamma-1.d0) * 0.5d0 * vv2 * source_neutral &
                                - power_dens_teleport_ju                      &
-                               + ksiion * rho0_corr * rhon0_corr * Sion_T    &
+                               + ksi_ion_norm * rho0_corr * rhon0_corr * Sion_T    &
                                + rho0_corr * rhon0_corr * LradDrays_T        &
                                + rho0_corr * rho0_corr  * LradDcont_T        &
                                + rho0_corr * frad_bg 
@@ -6322,13 +6322,13 @@ res_jac__p = 0.d0 ; res_jac__n = 0.d0 ; res_jac__nn = 0.d0
                                     - (gamma-1.d0) * 0.5d0 * vv2_Up * source_neutral
 
       res_jac__p(var_Te, var_Te)  = res_jac__p(var_Te, var_Te) &
-                                  +   ksiion * rho0_corr * rhon0_corr * dSion_dT * Te &
+                                  +   ksi_ion_norm * rho0_corr * rhon0_corr * dSion_dT * Te &
                                   +   rho0_corr * rhon0_corr * dLradDrays_dT * Te    &
                                   +   rho0_corr * rho0_corr  * dLradDcont_dT * Te    &
                                   +   rho0_corr * dfrad_bg_dT * Te
 
       res_jac__p(var_Te, var_rhon)= res_jac__p(var_Te, var_rhon) &
-                                  +   ksiion * rho0_corr * rhon * Sion_T &
+                                  +   ksi_ion_norm * rho0_corr * rhon * Sion_T &
                                   +   rho0_corr * rhon * LradDrays_T
     endif
 
@@ -6466,18 +6466,18 @@ res_jac__p = 0.d0 ; res_jac__n = 0.d0 ; res_jac__nn = 0.d0
 
     if(with_neutrals)then
       res_jac__p(var_T, var_rho) =  res_jac__p(var_T, var_rho)                  &
-                                     + ksiion * rho * rhon0_corr * Sion_T       &
+                                     + ksi_ion_norm * rho * rhon0_corr * Sion_T       &
                                      + rho * rhon0_corr * LradDrays_T           &
                                      + 2.d0 * rho * rho0_corr  * LradDcont_T    &
                                      + rho * frad_bg 
 
       res_jac__p(var_T, var_T) =  res_jac__p(var_T, var_T)                            &
-                                     + ksiion * rho0_corr * rhon0_corr * dSion_dT * T &
+                                     + ksi_ion_norm * rho0_corr * rhon0_corr * dSion_dT * T &
                                      + rho0_corr * rhon0_corr * dLradDrays_dT * T     &
                                      + rho0_corr * rho0_corr  * dLradDcont_dT * T     &
                                      + rho0_corr * dfrad_bg_dT * T
 
-      res_jac__p(var_T, var_rhon)=   + ksiion * rho0_corr * rhon * Sion_T  &
+      res_jac__p(var_T, var_rhon)=   + ksi_ion_norm * rho0_corr * rhon * Sion_T  &
                                      + rho0_corr * rhon * LradDrays_T
     endif
 

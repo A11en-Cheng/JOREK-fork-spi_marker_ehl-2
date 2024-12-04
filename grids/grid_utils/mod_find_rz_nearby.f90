@@ -39,7 +39,7 @@ contains
 !! In that case, ifail=2:5 is returned.
 !! If ifail=-1 the particle is lost
 subroutine find_RZ_nearby(node_list, element_list, R_old, Z_old, s_old, t_old, i_elm_old, &
-        R_new, Z_new, s_new, t_new, i_elm_new, ifail)
+        R_new, Z_new, s_new, t_new, i_elm_new, ifail, phi)
 use data_structure
 use mod_neighbours
 use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
@@ -55,22 +55,39 @@ real*8,                   intent(out)   :: s_new, t_new !< The found new coordin
 integer,                  intent(out)   :: i_elm_new
 integer,                  intent(out)   :: ifail !< if ifail = -1 the position could not be found in the grid.
 !< ifail > 0 indicates various other cases
+real*8, optional,         intent(in)    :: phi
 
 !> Accuracy defaults (tolerances are squared!, units of element size)
 real*8,  parameter :: element_tolerance   = 1.d-24 !< Tolerance for finding a position inside an element
 integer, parameter :: newton_iter_max     = 8 !< Number of iterations to try
 
 !> Internal variables
+real*8  :: p              
 integer :: newton_iter_number, i_elm_tmp
-real*8 :: inv_st_jac_det, R_s, R_t, Z_s, Z_t
-real*8 :: st_step(2), x_step(2), x_tmp(2), st_new(2), x_new(2) ! x_step = (R,Z) of trial position
-real*8 :: err2, err2_old, dist(2), fact
+real*8  :: inv_st_jac_det, R_s, R_t, Z_s, Z_t
+real*8  :: st_step(2), x_step(2), x_tmp(2), st_new(2), x_new(2) ! x_step = (R,Z) of trial position
+real*8  :: err2, err2_old, dist(2), fact
 
 ! Check if element is valid
 if (i_elm_old .lt. 1 .or. i_elm_old .gt. element_list%n_elements) then
+#if STELLARATOR_MODEL
+  write(*,*) "ERROR: find_RZ is not implemented for stellarators"
+  stop
+#else
   call find_RZ(node_list,element_list,R_new,Z_new,x_step(1),x_step(2),i_elm_new,s_new,t_new,ifail)
   return
+#endif
 end if
+
+if (present(phi)) then
+  p = phi
+else
+#if STELLARATOR_MODEL
+  write(*,*) "Toroidal angle phi must be defined for stellarator models"
+  stop
+#endif
+  p = 0.0
+endif
 
 ! Setup initial values
 x_step = [R_old,Z_old] ! start at the current position
@@ -78,7 +95,7 @@ i_elm_new = i_elm_old ! start in the current element
 st_new = [s_old,t_old] ! start at the old position
 x_new = [R_new,Z_new]
 ! Find the jacobian at the current s and t position
-call try_interp(node_list,element_list,i_elm_new,st_new,x_step,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
+call try_interp(node_list,element_list,i_elm_new,st_new,p,x_step,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
 err2 = dot_product(x_step-x_new,x_step-x_new)
 ifail=0
 
@@ -100,18 +117,23 @@ do newton_iter_number = 1, newton_iter_max
   if (fact .ge. 1.d0-1d-12) then
     st_new = st_new + st_step/fact
 #ifdef DEBUG
-    call try_interp(node_list,element_list,i_elm_new,st_new,x_tmp,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
+    call try_interp(node_list,element_list,i_elm_new,st_new,p,x_tmp,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
 #endif
     i_elm_tmp = i_elm_new
     call coord_in_neighbour(node_list,element_list,i_elm_tmp,i_elm_new,st_new)
     if (i_elm_new .lt. 0) then
+#if STELLARATOR_MODEL
+      write(*,*) "ERROR: find_RZ is not implemented for stellarators"
+      stop
+#else
       call find_RZ(node_list,element_list,x_new(1),x_new(2),x_step(1),x_step(2),i_elm_new,s_new,t_new,ifail)
       if (ifail .ne. 0) i_elm_new = 0
+#endif
     end if
     if (i_elm_new .eq. 0) then ! No element on that side, particle is lost
       i_elm_new = - i_elm_tmp ! Save position of particle
       ! Calculate new R and Z in x_new
-      call try_interp(node_list,element_list,i_elm_tmp,st_new,x_new,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
+      call try_interp(node_list,element_list,i_elm_tmp,st_new,p,x_new,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
       ! Set new element-local coordinates for the point on the axis
       s_new = st_new(1)
       t_new = st_new(2)
@@ -119,7 +141,7 @@ do newton_iter_number = 1, newton_iter_max
       return
     end if
 
-    call try_interp(node_list,element_list,i_elm_new,st_new,x_step,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
+    call try_interp(node_list,element_list,i_elm_new,st_new,p,x_step,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
 #ifdef DEBUG 
     if (norm2(x_step-x_tmp) .gt. 1d-8) then
       !write(*,*) "ERROR on element edge crossing", x_step, x_tmp, norm2(x_step-x_tmp), &
@@ -131,7 +153,7 @@ do newton_iter_number = 1, newton_iter_max
 #endif
   else
     st_new = st_new + st_step
-    call try_interp(node_list,element_list,i_elm_new,st_new,x_step,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
+    call try_interp(node_list,element_list,i_elm_new,st_new,p,x_step,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
   end if
   err2 = dot_product(x_step-x_new,x_step-x_new)
   s_new = st_new(1)
@@ -142,36 +164,48 @@ enddo
 
 
 if (ieee_is_nan(err2)) then
+#if STELLARATOR_MODEL
+  write(*,*) "ERROR: find_RZ is not implemented for stellarators"
+  stop
+#else
   !write(*,*) "WARNING: NaN encountered after newton iteration, using find_RZ"
   call find_RZ(node_list,element_list,x_new(1),x_new(2),x_step(1),x_step(2),i_elm_new,s_new,t_new,ifail)
   if (ifail .eq. 0) ifail=2
   return
+#endif
 endif
 if (newton_iter_number .gt. newton_iter_max) then
+#if STELLARATOR_MODEL
+  write(*,*) "ERROR: find_RZ is not implemented for stellarators"
+  stop
+#else
   !write(*,"(A,i4,A,i5,A,2g14.6,A,3g14.6)") "WARNING: iteration for st did not converge after", newton_iter_max, " tries in element ", i_elm_new, &
   !" using find_RZ", x_new, "err2(old)/convergence: ", err2, err2_old, err2_old/err2
     !write(*,"(A,2g16.8)") "Find_RZ at ", x_new
   call find_RZ(node_list,element_list,x_new(1),x_new(2),x_step(1),x_step(2),i_elm_new,s_new,t_new,ifail)
   if (ifail .eq. 0) ifail=3
   return
+#endif
 endif
 end subroutine find_RZ_nearby
 
 
 !> Auxiliary subroutine for find_RZ_nearby
-pure subroutine try_interp(node_list,element_list,i_elm,st,x,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
+pure subroutine try_interp(node_list,element_list,i_elm,st,p,x,R_s,R_t,Z_s,Z_t,inv_st_jac_det)
 use data_structure
 use mod_interp
 implicit none
 !> Input parameters
 type (type_node_list),    intent(in)    :: node_list
 type (type_element_list), intent(in)    :: element_list
-real*8,                   intent(in)    :: st(2)
+real*8,                   intent(in)    :: st(2), p
 integer,                  intent(in)    :: i_elm
 real*8,                   intent(out)   :: x(2), R_s, R_t, Z_s, Z_t, inv_st_jac_det
+
+real*8 :: R_p, Z_p
 real*8 :: jac
 
-call interp_RZ(node_list,element_list,i_elm,st(1),st(2),x(1),R_s,R_t,x(2),Z_s,Z_t)
+call interp_RZP(node_list,element_list,i_elm,st(1),st(2),p,x(1),R_s,R_t,R_p,x(2),Z_s,Z_t,Z_p)
 ! Guard against the determinant being close to zero
 jac = R_s * Z_t - R_t * Z_s
 if (abs(jac) .lt. 1d-8) then

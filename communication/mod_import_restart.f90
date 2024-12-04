@@ -29,6 +29,9 @@ subroutine import_restart(node_list, element_list, filename, format_rst, ierr, n
   type (type_bnd_element_list)           :: bnd_elm_list    
   type (type_bnd_node_list)              :: bnd_node_list 
 
+  ! Initialise basis functions before element tree is populated
+  call initialise_basis()
+  
   if ( rst_hdf5 == 0 ) then
     write(*,*) " Restart from BINARY file " // trim(filename) // '.rst'
     if(present(aux_node_list)) then 

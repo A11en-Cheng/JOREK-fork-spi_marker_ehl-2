@@ -140,7 +140,7 @@ if (my_id == 0) then
         endif
       endif
     else
-      ES%psi_bnd = 0.d0
+      ES%psi_bnd = ES%psi_lim
     endif
 
     if (.not. xpoint) then

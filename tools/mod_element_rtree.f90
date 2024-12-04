@@ -70,15 +70,19 @@ subroutine nearby_elements(node_list, element_list, i_elm, i_nearby)
   integer, dimension(:), allocatable, intent(out) :: i_nearby
   integer(C_int), dimension(:), allocatable       :: i_nearby_C
 
-  integer, dimension(n_vertex_max) :: vertices
+  real*8, dimension(n_vertex_max, 2) :: vertices
   real(C_DOUBLE) :: minx, miny, maxx, maxy
   integer(C_INT) :: num_elements
+  integer :: iv
 
-  vertices = element_list%element(i_elm)%vertex(:)
-  minx = real(minval(node_list%node(vertices)%x(1,1,1)) - 1d-6, kind=C_DOUBLE)
-  maxx = real(maxval(node_list%node(vertices)%x(1,1,1)) + 1d-6, kind=C_DOUBLE)
-  miny = real(minval(node_list%node(vertices)%x(1,1,2)) - 1d-6, kind=C_DOUBLE)
-  maxy = real(maxval(node_list%node(vertices)%x(1,1,2)) + 1d-6, kind=C_DOUBLE)
+  do iv=1,n_vertex_max
+     vertices(iv,:) = get_vertex_pos_in_rtree_plane(node_list%node(element_list%element(i_elm)%vertex(iv))%x(1:n_coord_tor,1,1:2))
+  enddo
+
+  minx = real(minval(vertices(:,1)) - 1d-6, kind=C_DOUBLE)
+  maxx = real(maxval(vertices(:,1)) + 1d-6, kind=C_DOUBLE)
+  miny = real(minval(vertices(:,2)) - 1d-6, kind=C_DOUBLE)
+  maxy = real(maxval(vertices(:,2)) + 1d-6, kind=C_DOUBLE)
 
   num_elements = int(num_elements_in_rect(minx, miny, maxx, maxy))
   allocate(i_nearby(num_elements),i_nearby_C(num_elements))
@@ -118,5 +122,20 @@ subroutine elements_containing_point(R, Z, i_elms)
   num_elements = int(elements_in_rect(minx, miny, maxx, maxy, i_nearby_C))
   i_elms = int(i_nearby_C(1:num_elements))
 end subroutine elements_containing_point
+
+
+pure function get_vertex_pos_in_rtree_plane(x) result(pos)
+  use phys_module, only: i_plane_rtree
+  use basis_at_gaussian, only: HZ_coord
+  implicit none
+
+  real*8, intent(in)    :: x(n_coord_tor, 2)
+  real*8   :: pos(2)
+  integer  :: i
+
+  do i=1,2
+    pos(i) = sum(x(1:n_coord_tor,i)*HZ_coord(1:n_coord_tor, i_plane_rtree))
+  end do
+end function get_vertex_pos_in_rtree_plane
 
 end module mod_element_rtree

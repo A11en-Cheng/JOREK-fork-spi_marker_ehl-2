@@ -82,9 +82,9 @@ call with(sim, counter)
 select type (particles => sim%groups(1)%particles)
 type is (particle_kinetic_leapfrog)
 if (sim%my_id .eq. 0) then
-  write(*,*) "use_ionisation:         ", use_ionisation
-  write(*,*) "use_cx:                 ", use_cx
-  write(*,*) "use_sputtering:         ", use_sputtering
+  write(*,*) "use_kn_ionisation:         ", use_kn_ionisation
+  write(*,*) "use_kn_cx:                 ", use_kn_cx
+  write(*,*) "use_kn_sputtering:         ", use_kn_sputtering
   write(*,*) "use_ncs:                ", use_ncs
   write(*,*) "use_ccs:                ", use_ccs
   write(*,*) "use_pcs:                ", use_pcs
@@ -106,7 +106,7 @@ endif
    !$omp shared(sim, particles, n_steps, timesteps, rng, particle_start_time, &
 #endif
    !$omp        rho_norm, t_norm, v_norm, E_norm, M_norm, N_norm, &
-   !$omp        use_cx, use_ionisation, use_sputtering, use_ncs, use_ccs, use_pcs, &
+   !$omp        use_kn_cx, use_kn_ionisation, use_kn_sputtering, use_ncs, use_ccs, use_pcs, &
    !$omp        jorek_feedback, CENTRAL_DENSITY, CENTRAL_MASS) &
    !$omp private(particle_tmp, i_rng, i,j,k,l,m, t, E, B, psi, U, rz_old, st_old, &
    !$omp         i_elm_old, i_elm, n_e, T_e, ion_rate, ion_prob, ion_ran, ion_source, ion_energy, kinetic_energy,& 
@@ -140,7 +140,7 @@ endif
 
        !< Ionisation block
 
-       if (use_ionisation) then
+       if (use_kn_ionisation) then
 
           call sim%fields%calc_NeTe(t, particle_tmp%i_elm, particle_tmp%st, particle_tmp%x(3), n_e, T_e)
 
@@ -172,7 +172,7 @@ endif
 
           ion_energy     = kinetic_energy !- binding_energy
 
-        endif ! use_ionisation
+        endif ! use_kn_ionisation
 
         !< Charge Exchange
         !< It is assumed that we will have a exchange between hydrogen isotopes
@@ -181,7 +181,7 @@ endif
         cx_source = 0.d0
         cx_energy = 0.d0
 
-        if (use_cx) then
+        if (use_kn_cx) then
   
           call sim%groups(1)%ad%CCD%interp(int(particle_tmp%q+1), log10(n_e), log10(T_e), CX_rate) ! [m^3/s]
 
@@ -213,7 +213,7 @@ endif
         particle_source = 0.d0 
         velocity_par_source = 0.d0
 
-        if (use_ionisation .or. use_cx) then
+        if (use_kn_ionisation .or. use_kn_cx) then
           energy_source       = ion_source * ion_energy + cx_source * cx_energy
           
           particle_source     = ion_source * sim%groups(1)%mass * ATOMIC_MASS_UNIT
@@ -327,7 +327,7 @@ endif
 
   deallocate(feedback_rhs)
 
-  ! if (use_ionisation) then
+  ! if (use_kn_ionisation) then
   !   call MPI_REDUCE(n_lost_ion, n_lost_ion_all, 1, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
   !   if (sim%my_id .eq. 0) write(*,*) " Lost particles at t due to ionisation: ", sim%time, n_lost_ion_all
   ! end if 

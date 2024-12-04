@@ -22,9 +22,9 @@ use phys_module, only: ns_R, ns_Z, ns_phi, ns_radius, ns_amplitude
 use phys_module, only: tstep, imp_type, imp_adas, imp_cor, adas_dir, xtime_radiation, xtime_rad_power, nout
 use phys_module, only: xtime_E_ion, xtime_E_ion_power, index_main_imp, n_adas
 use phys_module, only: CENTRAL_MASS, CENTRAL_DENSITY
-use phys_module, only: use_puffing, fueling_rate, valve_r, R_valve_loc, Z_valve_loc, PHI_valve_loc,   &
+use phys_module, only: use_puffing, fueling_rate, valve_r, R_laser_loc, Z_laser_loc, PHI_laser_loc,   &
                        initial_E, puffing_direction, puffing_timestep, puff_starttime, puffingtime, &
-                       use_sputtering, phys_particles_puff
+                       phys_particles_puff
 use constants,   only: MU_ZERO, MASS_PROTON, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
 
 use mod_particle_sputtering, only: particle_sputter, sample_fluid_particle_energy
@@ -77,24 +77,10 @@ timesteps         = tstep_particles
 call init_imp_adas(sim%my_id)
 
 !use_puffing    = .true. 
-! use_cx         = .false.
-! use_ionisation = .true.
-! use_sputtering = .false.
 
 ! Set up the field reader
 fieldreader = event(read_jorek_fields_interp_linear(basename='jorek', i=-1))
 call with(sim, fieldreader)
-
-!if (use_sputtering) then  
-!  n_reflect = int(n_particles * 2.d-3)
-!  D_sputter_source = initialise_sputtering(sim%fields%node_list, sim%fields%element_list, n_reflect)
-!endif
-
-!r_valve     = .005d0
-!R_valve_loc = 2.07!2.6!2.1 !< for JET test !1.98991!2.58888  or 1.98991
-!Z_valve     = 0.d0!-1.86 !-1.0!-1.75 !-0.550736!1.86579   or -0.550736
-!phi_valve   = 0.d0!
-!puffing_timestep = 1.d-6
 
 physical_particles = phys_particles_puff
 weight = physical_particles/n_particles
@@ -105,11 +91,11 @@ if (use_puffing) then
   n_puffing_times = int(puffingtime/puffing_timestep)
   n_puff = n_particles_local / n_puffing_times
   gas_puff = laser_puffing(n_puff, fueling_rate/(real(sim%n_cpu,8)), &
-                           valve_r, R_valve_loc, Z_valve_loc, phi=PHI_valve_loc)
+                           valve_r, R_laser_loc, Z_laser_loc, phi=PHI_laser_loc)
   if (puff_starttime .eq. 0.d0) puff_starttime = sim%time
 else
   n_puff = 0.d0
-  gas_puff = laser_puffing(n_puff, 5d20, valve_r, R_valve_loc, Z_valve_loc)
+  gas_puff = laser_puffing(n_puff, 5d20, valve_r, R_laser_loc, Z_laser_loc)
   puff_starttime = huge(0.d0)
 end if
 

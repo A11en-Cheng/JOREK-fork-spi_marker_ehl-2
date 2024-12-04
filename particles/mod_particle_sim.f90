@@ -57,8 +57,9 @@ subroutine initialize(sim,num_groups,skip_jorek2help,my_id,n_cpu,do_jorek_init_i
   use mod_mpi_tools,     only: init_mpi_threads
   use mod_mpi_tools,     only: get_mpi_wtime
   use mod_parameters,    only: n_tor, n_period
-  use phys_module,       only: mode
+  use phys_module,       only: mode, domm
   use basis_at_gaussian, only: initialise_basis
+  use mod_chi,           only: init_chi_basis
   use data_structure,    only: init_threads, nbthreads
   !$ use omp_lib
   class(particle_sim), intent(inout) :: sim
@@ -103,6 +104,9 @@ subroutine initialize(sim,num_groups,skip_jorek2help,my_id,n_cpu,do_jorek_init_i
 
     ! Initialise the gaussian points at basis functions
     call initialise_basis
+
+    ! --- Initialize basis functions for the Dommaschk potentials
+    if (domm) call init_chi_basis()
   endif
 end subroutine
 

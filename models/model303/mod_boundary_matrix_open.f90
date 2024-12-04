@@ -46,7 +46,7 @@ real*8     :: R_inside, Z_inside, R_mid, Z_mid, R_cnt, Z_cnt, normal(2), normal_
 real*8     :: normal_sign, normal_sign3
 
 real*8     :: v, v_x, v_y, v_s, v_p, v_ss, v_xx, v_yy, v_xs, v_ys
-real*8     :: ps0, ps0_s, ps0_t, ps0_x, ps0_y, Vpar0, r0, T0, r0_corr, T0_corr, cs0  
+real*8     :: ps0, ps0_s, ps0_t, ps0_x, ps0_y, Vpar0, r0, T0, r0_corr, T0_corr,T0_corr_sqrt, cs0  
 real*8     :: psi, psi_s, psi_t, vpar, rho,  T, cs_T
 real*8     :: amat_51, amat_55, amat_57,amat_61, amat_65, amat_66, amat_67, amat_76, amat_77, element_size_ij, element_size_kl
 real*8     :: element_size_perp, grad_t(2), factor_cs_bnd_integral
@@ -189,10 +189,11 @@ do ms=1, n_gauss
     T0    = eq_g(mp,6,ms)
     Vpar0 = eq_g(mp,7,ms)
 
-    T0_corr = corr_neg_temp1(T0)
-    r0_corr = corr_neg_dens(r0)
+    T0_corr = T0 ! Not correcting temperature improves numerical stability at the boundary
+    T0_corr_sqrt = max(T0,1.d-6)! force above 0 for calculating sound speed
+    r0_corr = r0 !
 
-    cs0   = sqrt(gamma*T0_corr)
+    cs0   = sqrt(gamma*T0_corr_sqrt)
 
     Btot = sqrt(F0**2 + ps0_x**2 + ps0_y**2) / BigR
 

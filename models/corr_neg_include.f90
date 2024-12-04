@@ -194,7 +194,6 @@ real*8 function d2corr_neg_temp_dT21(val)
 	L2 = T_1 * corr_neg_temp_coef(2)
   endif
 
-
   d2corr_neg_temp_dT21 = 0.
   if ( val < L1 + L2 ) d2corr_neg_temp_dT21 = exp( (val-(L1+L2)) / L2 ) / L2
 
@@ -224,7 +223,6 @@ real*8 function d2corr_neg_temp_dT22(val, coef)
 	L2 = T_1 * coef(2)
   endif
   
-
   d2corr_neg_temp_dT22 = 0.
   if ( val < L1 + L2 ) d2corr_neg_temp_dT22 = exp( (val-(L1+L2)) / L2 ) / L2
 
@@ -274,7 +272,6 @@ real*8 function corr_neg_dens1(val)
 	L2 = rho_1 * corr_neg_dens_coef(2)
   endif
   
-
   corr_neg_dens1 = val
   if ( val < L1 + L2 ) corr_neg_dens1 = L1 + L2 * exp( (val-(L1+L2)) / L2 )
 
@@ -304,7 +301,6 @@ real*8 function corr_neg_dens2(val, coef)
 	L2 = rho_1 * coef(2)
   endif  
   
-
   corr_neg_dens2 = val
   if ( val < L1 + L2 ) corr_neg_dens2 = L1 + L2 * exp( (val-(L1+L2)) / L2 )
 
@@ -382,7 +378,6 @@ real*8 function dcorr_neg_dens_drho2(val, coef)
 	L1 = rho_1 * coef(1)
 	L2 = rho_1 * coef(2)
   endif  
-
 
   dcorr_neg_dens_drho2 = 1.
   if ( val < L1 + L2 ) dcorr_neg_dens_drho2 = exp( (val-(L1+L2)) / L2 )

@@ -38,6 +38,7 @@ type, extends(fields_base) :: jorek_fields_interp_linear
   contains
     procedure :: interp_PRZ => do_interp_PRZ_1
     procedure :: interp_PRZ_2 => do_interp_PRZ_2
+    procedure :: interp_PRZP_1 => do_interp_PRZP_1
 end type jorek_fields_interp_linear
 contains
 
@@ -184,6 +185,56 @@ pure subroutine do_interp_PRZ_2(this,time,i_elm,i_v,n_v,s,t,phi, &
  endif
  
 end subroutine do_interp_PRZ_2
+
+
+!> Interpolate a variable at a specific position (with phi), with first derivatives only, including phi derivatives
+pure subroutine do_interp_PRZP_1(this, time, i_elm, i_v, n_v, s, t, phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi)
+  use mod_interp
+  use constants, only: mu_zero, mass_proton
+  use phys_module, only: tstep, central_mass, central_density
+  use mod_linear, only: linear_interp_differentials
+  use mod_linear, only: linear_interp_differentials_dt
+  class(jorek_fields_interp_linear),  intent(in)  :: this
+  real*8,                   intent(in)  :: time !< Time at which to calculate this variable
+  integer,                  intent(in)  :: i_elm
+  integer,                  intent(in)  :: n_v, i_v(n_v)
+  real*8,                   intent(in)  :: s, t, phi
+  real*8,                   intent(out) :: P(n_v), P_s(n_v), P_t(n_v), P_phi(n_v), P_time(n_v)
+  real*8,                   intent(out) :: R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi
+
+  real*8                 :: df, dt
+  real*8, dimension(n_v) :: Pd, Pd_s, Pd_t, Pd_phi
+  real*8                 :: t_jorek
+  
+  ! JOREK time step in seconds
+  t_jorek = tstep*sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20)
+
+  P_time = 0.d0
+  
+  !> interpolate values
+  call interp_PRZP(this%node_list,this%element_list,i_elm,i_v,n_v,s,t,phi,P,P_s,P_t,P_phi,R,R_s,R_t,R_phi,Z,Z_s,Z_t,Z_phi)
+
+  !> interpolate differentials
+  if(t_jorek .gt. 0.d0) then
+    call interp_PRZP(this%node_list,this%element_list,i_elm,i_v,n_v,s,t,phi, &
+      Pd,Pd_s,Pd_t,Pd_phi,R,R_s,R_t,R_phi,Z,Z_s,Z_t,Z_phi,deltas=.true.)
+    if(abs(this%time_now-this%time_prev) .gt. 1d-10 .and. .not. this%static) then
+      !> compute time fraction df
+      dt = 1.d0/(this%time_now - this%time_prev)
+      df = (this%time_now - time)*dt
+      !> apply linear interpolation
+      P     = linear_interp_differentials(n_v,P,Pd,df)
+      P_s   = linear_interp_differentials(n_v,P_s,Pd_s,df)
+      P_t   = linear_interp_differentials(n_v,P_t,Pd_t,df)
+      P_phi = linear_interp_differentials(n_v,P_phi,Pd_phi,df)
+    else
+      dt = 1.d0/t_jorek
+    endif
+    !> compute time derivative
+    P_time = linear_interp_differentials_dt(n_v,Pd,dt) 
+  endif
+
+end subroutine do_interp_PRZP_1
 
 !> Constructor to allow for optional and default variables
 function new_read_jorek_fields_interp_linear(basename, i, rst_format, stop_at_end,mode_divisor) result(new)

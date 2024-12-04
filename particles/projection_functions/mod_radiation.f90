@@ -8,7 +8,7 @@ use mod_particle_types, only: particle_get_q, particle_base, particle_marker
 use mod_ionisation_recombination, only: fields_interp_ne_Te
 implicit none
 private
-public proj_Lz, proj_Lz_equil, get_Lz
+public proj_Lz, proj_Lz_equil, proj_PLT, get_Lz
 
 contains
 
@@ -145,5 +145,28 @@ function proj_Lz_equil(sim, group, particle) result(P_rad)
 
   P_rad = coronal_Prad(sim%groups(group)%ad, log_n_e, log_T_e, fractions)
 end function proj_Lz_equil
+
+
+!> for neutrals we cannot use proj_Lz because PRB is not a moment of the neutral particles
+function proj_PLT(sim, group, particle) 
+  type(particle_sim), intent(in) :: sim
+  integer, intent(in) :: group
+  class(particle_base), intent(in) :: particle
+  real*8 :: proj_PLT, PLT
+  real*8 :: n_e, T_e, log_T_e, log_n_e
+  integer :: q
+
+  ! Calculate local temperature, density
+  call sim%fields%calc_NeTe(sim%time, particle%i_elm, particle%st, particle%x(3), n_e, T_e)
+  log_T_e = log10(T_e)
+  log_n_e = log10(n_e)
+
+  q = particle_get_q(particle)
+  ! From here on out we have a q
+  PLT = sim%groups(group)%ad%PLT%interp_linear(q, log_n_e, log_T_e)
+  proj_PLT      = (PLT) * n_e
+
+end function proj_PLT
+
 
 end module mod_radiation

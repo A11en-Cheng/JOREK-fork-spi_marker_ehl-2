@@ -46,7 +46,7 @@ real*8     :: R_inside, Z_inside, R_mid, Z_mid, R_cnt, Z_cnt, normal(2), normal_
 real*8     :: normal_sign, normal_sign3
 
 real*8     :: v, v_x, v_y, v_s, v_p, v_ss, v_xx, v_yy, v_xs, v_ys
-real*8     :: ps0, ps0_s, ps0_t, ps0_x, ps0_y, Vpar0, r0_corr, T0_corr, cs0  
+real*8     :: ps0, ps0_s, ps0_t, ps0_x, ps0_y, Vpar0, r0_corr, T0_corr,T0_corr_sqrt, cs0  
 real*8     :: psi, psi_s, psi_t, vpar, T, u0_s, u_s, cs_T
 real*8     :: T0, T0_s, T0_t, T0_x, T0_y, T0_p
 real*8     :: r0, r0_s, r0_t, r0_p, r0_x, r0_y, rho, rho_s, rho_t, rho_x, rho_y
@@ -176,7 +176,7 @@ do ms=1, n_gauss
 
   grad_t = (/ - y_s(ms),   x_s(ms) /) / xjac
 
-!  normal_direction = (/R_mid - R_cnt, Z_mid - Z_cnt /) / norm2((/R_mid - R_cnt, Z_mid - Z_cnt /))
+
   normal_direction = (/x_g(ms) - R_cnt, y_g(ms) - Z_cnt /) / norm2((/x_g(ms) - R_cnt, y_g(ms) - Z_cnt /))
 
   normal = dot_product(grad_t,normal_direction) * grad_t      ! outward pointing normal
@@ -212,10 +212,11 @@ do ms=1, n_gauss
     u0_s  = eq_s(mp,2,ms)
     Vpar0 = eq_g(mp,7,ms)
 
-    T0_corr = corr_neg_temp1(T0)
-    r0_corr = corr_neg_dens(r0)
+    T0_corr = T0 !
+	  T0_corr_sqrt = max(T0,1.d-6)! force above 0 for calculating sound speed
+    r0_corr = r0  !
 
-    cs0      = sqrt(gamma*T0_corr)
+    cs0      = sqrt(gamma*T0_corr_sqrt)
 
     Btot = sqrt(F0**2 + ps0_x**2 + ps0_y**2) / BigR
 
@@ -248,16 +249,15 @@ do ms=1, n_gauss
 
           rhs_ij_5 = + v * density_reflection * r0_corr * vpar0 * ps0_s * normal_sign3 * tstep  & ! right hand side equation 5
                      - v * r0_corr * cs0 * BigR * dl * c_angle * tstep                          & ! particle flux at 1 degree angle  
-                     - v * r0_corr * BigR**2.d0 * u0_s * normal_sign3 * tstep                     ! reflect v_perp particle flow
+                     - v * r0_corr * BigR**2.d0 * u0_s * normal_sign3 * tstep                    ! reflect v_perp particle flow
+					 
            
           rhs_ij_6 = - v * (gamma_sheath -1.d0) * r0_corr * T0_corr * vpar0 * ps0_s * normal_sign3 * tstep  & ! right hand side equation 6
                      - v * (gamma_sheath -1.d0) * r0_corr * T0_corr * cs0   * BigR  * dl * c_angle * tstep  &
-                     - v *                        r0_corr * T0_corr * BigR**2.d0    * u0_s  * normal_sign3 * tstep &
-                       ! Test heat source to remove the negative temperature region
-                     + (gamma-1.d0) * v * r0 * (0.5d0* T_min + 0.5d0*T_min *exp( (min(T0,T_min)-T_min)/(0.5d0*T_min) ) -min(T0,T_min))  * tstep 
+                     - v *                        r0_corr * T0_corr * BigR**2.d0    * u0_s  * normal_sign3 * tstep  &
+                     + v * (0.5d0* T_min + 0.5d0*T_min *exp( (min(T0,T_min)-T_min)/(0.5d0*T_min) ) -min(T0,T_min))  * tstep     
 
           rhs_ij_7 = - v * (vpar0 * Btot * normal_sign - cs0 * factor) * dl * Zbig                ! right hand side equation 7
-
 
           index_ij = n_tor_local*n_var*n_degrees*(vertex(i)-1) + n_tor_local * n_var * (j2-1) + im - i_tor_min +1  ! index in the ELM matrix
 
@@ -320,15 +320,13 @@ do ms=1, n_gauss
                 amat_66 = + v * (gamma_sheath-1.d0) * r0_corr  * T       * vpar0 * ps0_s * normal_sign3 * theta * tstep &
                           + v * (gamma_sheath-1.d0) * r0_corr  * T       * cs0   * BigR  * dl * c_angle * theta * tstep &
                           + v * (gamma_sheath-1.d0) * r0_corr  * T0_corr * cs_T  * BigR  * dl * c_angle * theta * tstep &
-                       ! Test heat source to remove the negative temperature region
-                          - (gamma-1.d0) * v * r0 * (exp( (min(T0,T_min)-T_min)/(0.5d0*T_min) ) -1.d0)*T   *theta* tstep
+                          - v * (exp( (min(T0,T_min)-T_min)/(0.5d0*T_min) ) -1.d0)*T   *theta* tstep     
 
                 amat_67 = + v * (gamma_sheath-1.d0) * r0_corr  * T0_corr * vpar  * ps0_s * normal_sign3 * theta * tstep 
 
            
                 amat_76 =   v * ( - cs_T) * factor          * dl * Zbig
                 amat_77 =   v * (vpar * Btot * normal_sign) * dl * Zbig 
-
 
                 index_kl = n_tor_local*n_var*n_degrees*(vertex(k)-1) + n_tor_local * n_var * (l2-1) + in - i_tor_min +1  ! index in the ELM matrix
                  
@@ -353,7 +351,6 @@ do ms=1, n_gauss
                 ELM(ij7,kl6) =  ELM(ij7,kl6) + ws * amat_76 * factor_cs_bnd_integral
                 ELM(ij7,kl7) =  ELM(ij7,kl7) + ws * amat_77 * factor_cs_bnd_integral
 
-	
               enddo
             enddo
           enddo

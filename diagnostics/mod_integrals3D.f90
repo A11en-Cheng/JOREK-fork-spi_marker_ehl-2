@@ -30,7 +30,7 @@ module mod_integrals3D
 #endif
   use mod_impurity, only: radiation_function, radiation_function_linear
   use equil_info, only : get_psi_n, ES
-  use mod_atomic_coeff_deuterium, only : atomic_coeff_deuterium
+  use mod_atomic_coeff_deuterium, only: rec_rate_to_kinetic, atomic_coeff_deuterium
   use mod_sources
 
   implicit none
@@ -56,6 +56,7 @@ type (type_bnd_element_list), intent(in)    :: bnd_elm_list
 type (t_expr_list),           intent(in)    :: expr_list
 real*8,                    intent(inout)    :: res(:)
 integer,                      intent(in)    :: units
+type(type_node_list),pointer, intent(inout), optional :: aux_node_list
 logical, optional,            intent(in)    :: exclude_n0     !< Ommit n=0 component
 
 
@@ -64,6 +65,7 @@ type (type_element)      :: element, elm_k
 type (type_node)         :: nodes(n_vertex_max), aux_nodes(n_vertex_max), node_k, aux_node_k
 type (type_bnd_element)  :: bndelem
 type (type_surface_list) :: surface_list
+type (type_node) :: aux_nodes(n_vertex_max) 
 
 real*8  :: psi_axis, psi_bnd
 real*8  :: x_g(n_plane,n_gauss,n_gauss),        x_s(n_plane,n_gauss,n_gauss),        x_t(n_plane,n_gauss,n_gauss),        x_p(n_plane,n_gauss,n_gauss),         x_ss(n_plane,n_gauss,n_gauss),        x_tt(n_plane,n_gauss,n_gauss),        x_st(n_plane,n_gauss,n_gauss)
@@ -74,8 +76,7 @@ real*8  :: eq_g(n_plane,0:n_var,n_gauss,n_gauss), eq_s(n_plane,0:n_var,n_gauss,n
 real*8  :: eq_t(n_plane,0:n_var,n_gauss,n_gauss), eq_p(n_plane,0:n_var,n_gauss,n_gauss)
 real*8  :: eq_ss(n_plane,0:n_var,n_gauss,n_gauss), eq_tt(n_plane,0:n_var,n_gauss,n_gauss), eq_st(n_plane,0:n_var,n_gauss,n_gauss)
 real*8  :: eq_sp(n_plane,0:n_var,n_gauss,n_gauss), eq_tp(n_plane,0:n_var,n_gauss,n_gauss)
-real*8  :: eq_aux_g(n_plane,0:n_var,n_gauss,n_gauss), eq_aux_s(n_plane,0:n_var,n_gauss,n_gauss)
-real*8  :: eq_aux_t(n_plane,0:n_var,n_gauss,n_gauss), eq_aux_p(n_plane,0:n_var,n_gauss,n_gauss)
+real*8, dimension(n_plane,n_var,n_gauss,n_gauss) :: eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p 
 real*8  :: eq_spp(n_plane,0:n_var,n_gauss,n_gauss), eq_tpp(n_plane,0:n_var,n_gauss,n_gauss)
 real*8  :: eq_s_3d(n_plane,0:n_var,n_gauss,n_gauss), eq_t_3d(n_plane,0:n_var,n_gauss,n_gauss)
 real*8  :: wgauss_copy(n_gauss)
@@ -124,6 +125,8 @@ real*8  :: current_in, current_out, D_int, D_ext, P_ext, C_ext, delta_phi, phi, 
 real*8  :: C_intern_3d, C_ext_3d, current_R_in, current_R_out, current_R, P_e_ext, P_i_ext, P_e_tot, P_i_tot
 real*8  :: VP_int, VP_ext, VK_int, VK_ext, vpar0, Bv2, BB2, VP_tot, VK_tot
 real*8  :: kin_par_in, kin_par_out, kin_par_tot, kin_perp_in, kin_perp_out, kin_perp_tot
+real*8  :: local_mom_par_tot, local_mom_par_int, local_mom_par_ext
+real*8  :: mom_par_tot, mom_par_int, mom_par_ext
 real*8  :: VM_int, VM_ext, VM_tot, mag_in, mag_out, mag_tot, J2_int, J2_ext, J2_tot, ohm_in, ohm_tot, ohm_out
 real*8  :: heli_tot, thm_wk, thm_wk_tot, mag_wk, mag_wk_tot, thermal_work_tot
 real*8  :: thermal_work_e_tot,thermal_work_i_tot, thm_wk_e_tot, thm_wk_i_tot, thm_wk_e, thm_wk_i
@@ -172,6 +175,24 @@ real*8  :: Psi_surface(n_flux)
 real*8  :: Vol_surface(n_flux), Volume_surface(n_flux)
 real*8  :: De_surface(n_flux), PNum_e_surface(n_flux)
 real*8  :: Pe_surface(n_flux), Pres_e_surface(n_flux)
+
+!> for use_ncs
+real*8  :: aux_rho0, aux_T0, aux_Vpar0
+real*8  :: aux_P0, aux_P0_s,  aux_P0_t, aux_P0_p, aux_q0, aux_jx0, aux_jy0, aux_jz0, aux_jz0_pcs 
+!Ionisation recombination for aux/use_ncs purposes. 
+real*8  :: Nion, Nrec, plasmaneutral, Prec, Prb !Also needed for use_ncs
+real*8  ::  local_Nion, local_Nrec, local_pn, local_Prec, local_Prb  !Also needed for use_ncs
+real*8  :: local_aux_mom_par_int ,local_aux_mom_par_ext, local_aux_mom_par_tot  ! coupled parallel momentum
+real*8  :: aux_mom_par_int ,aux_mom_par_ext, aux_mom_par_tot  ! coupled parallel momentum
+!> For model500 + use_ncs
+real*8     :: ksi_ion_norm                                          ! Ionization energy shared with WITH_NEUTRALS
+!   -Ionization
+real*8     :: Sion_T_ncs, dSion_dT_ncs
+!   -Recombination
+real*8     :: Srec_T_ncs, dSrec_dT_ncs                                ! Recombination rate and its derivative wrt. temperature
+!   -Radiation from injected gas/impurities
+real*8     :: LradDcont_T_ncs, dLradDcont_dT_ncs                      ! Continuum (Brem.) radiation rate and its derivative wrt. T
+!end for use_ncs
 real*8  :: R_curr_cent, Z_curr_cent, Zcurr_tmp, R2curr_tmp, R2curr
 real*8  :: heating_impl_in, heating_impl_out, H_impl_int, H_impl_ext,heating_impl_tot
 real*8  :: Tie_min_neg, lnA
@@ -240,7 +261,6 @@ real*8  :: alpha_imp, dalpha_imp_dT, beta_imp, dbeta_imp_dT, dbeta_imp_dx, dbeta
 ! Atomic physics coefficients:
 !   -Ionization
 real*8     :: Sion_T, dSion_dT                                ! Ionization rate and its derivative wrt. temperature
-real*8     :: ksiion                                          ! Ionization energy
 !   -Recombination
 real*8     :: Srec_T, dSrec_dT                                ! Recombination rate and its derivative wrt. temperature
 !   -Radiation from injected gas/impurities
@@ -288,6 +308,7 @@ H_int    = 0.d0
 H_impl_int = 0.d0
 S_int    = 0.d0
 VP_int   = 0.d0
+local_mom_par_int = 0.d0 
 VK_int   = 0.d0
 VM_int   = 0.d0
 J2_int   = 0.d0
@@ -301,6 +322,7 @@ H_ext    = 0.d0
 H_impl_ext  = 0.d0
 S_ext    = 0.d0
 VP_ext   = 0.d0
+local_mom_par_ext = 0.d0
 VK_ext   = 0.d0
 VM_ext   = 0.d0
 J2_ext   = 0.d0
@@ -313,6 +335,7 @@ P_i_tot  = 0.d0
 D_tot    = 0.d0
 wgauss_copy = wgauss
 VP_tot   = 0.d0
+local_mom_par_tot = 0.d0
 VK_tot   = 0.d0
 VM_tot   = 0.d0
 J2_tot   = 0.d0
@@ -365,6 +388,15 @@ local_pellet_volume    = 0.d0
 local_n_particles_inj = 0.d0
 local_n_particles     = 0.d0
 
+local_Nion = 0.d0
+local_Nrec = 0.d0
+local_pn   = 0.d0
+local_Prec = 0.d0
+local_Prb = 0.d0
+local_aux_mom_par_int = 0.d0 
+local_aux_mom_par_ext = 0.d0 
+local_aux_mom_par_tot = 0.d0 
+
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 local_radiation       = 0.d0
 local_radiation_bg    = 0.d0
@@ -399,6 +431,7 @@ if (nonlocal_abl) then
 end if
 #endif
 
+
 delta_phi     = 2.d0 * PI / float(n_plane) / float(n_period)
 
 psi_axis   = ES%psi_axis;        R_axis = ES%R_axis;        Z_axis = ES%Z_axis
@@ -413,93 +446,95 @@ ife_max   = min((my_id +1) * ife_delta, element_list%n_elements)
 Tie_min_neg = 0.5*T_min_neg
 #endif
 
-!$omp parallel default(none)                                                                   &
-!$omp   shared(element_list,node_list, H, H_s, H_t, HZ, HZ_p, ife_min, ife_max, xpoint, xcase, &
-!$omp          H_ss, H_tt, H_st, HZ_pp, HZ_coord, HZ_coord_p, aux_node_list, use_marker, use_rcs, &
-!$omp          R_xpoint, Z_xpoint, my_id, use_pellet, delta_phi, R_axis, Z_axis, psi_axis, psi_bnd, &
-!$omp          D_tot, D_int, D_Ext, P_tot, P_int, P_ext, Vol, surface_area, C_intern, C_ext, VP_ext, VP_int, &
-!$omp          VK_ext, VK_int, VK_tot, VM_ext, VM_int, VM_tot, J2_tot, J2_ext, J2_int,         &
-!$omp          H_int, H_ext, S_int, S_ext,psi_xpoint,  F0, VP_tot,eta, T_0, Te_0, T_min,       &
-!$omp          ne_SI_min, Te_eV_min, rn0_min, P_e_tot, P_i_tot, P_e_int, P_i_int, P_e_ext, P_i_ext, &
-!$omp          Psi_surface, Vol_surface, De_surface, Pe_surface, nonlocal_abl,                 &
-!$omp          n_nonlocal_array, n_flux,                                                       &
-!$omp          T_min_neg, Tie_min_neg, H_impl_int,H_impl_ext,implicit_heat_source,GAMMA,       &
-!$omp          C_intern_3d,C_ext_3d,pellet_amplitude,pellet_R,pellet_Z,pellet_psi,pellet_phi,  &
-!$omp          pellet_radius, pellet_delta_psi, pellet_sig, pellet_length, pellet_ellipse, pellet_theta,  &
-!$omp          central_density, pellet_particles,pellet_density, pellet_volume,                &
-!$omp          local_pellet_particles, local_plasma_particles, local_pellet_volume,            &
-!$omp          heli_tot,  keep_current_prof, psi_off, visco_par, visco_par_heating, thm_wk_tot,&
-!$omp          thm_wk_e_tot, thm_wk_i_tot, visco, visco_T_dependent, visco_old_setup, SAW_tot, &
-!$omp          mag_wk_tot, vpar_disp_tot, vprp_disp_tot, fric_disp_tot, area1, mag_src_tot,    &
-!$omp          momentum_x, momentum_y,                                                         &
-!$omp          eta_ohmic, central_mass, R2curr_tmp, Zcurr_tmp,                                 &
+!$omp parallel default(none)                                                                                  &
+!$omp   shared(element_list,node_list, aux_node_list, H, H_s, H_t, HZ, HZ_p, ife_min, ife_max, xpoint, xcase, &
+!$omp          H_ss, H_tt, H_st, HZ_pp, HZ_coord, HZ_coord_p, use_marker, use_rcs,                            &
+!$omp          R_xpoint, Z_xpoint, my_id, use_pellet, delta_phi, R_axis, Z_axis, psi_axis, psi_bnd,           &
+!$omp          D_tot, D_int, D_Ext, P_tot, P_int, P_ext, Vol, surface_area, C_intern, C_ext, VP_ext, VP_int,  &
+!$omp          VK_ext, VK_int, VK_tot, VM_ext, VM_int, VM_tot, J2_tot, J2_ext, J2_int,                        &
+!$omp          H_int, H_ext, S_int, S_ext,psi_xpoint,  F0, VP_tot,eta, T_0, Te_0, T_min,                      &
+!$omp          ne_SI_min, Te_eV_min, rn0_min, P_e_tot, P_i_tot, P_e_int, P_i_int, P_e_ext, P_i_ext,           &
+!$omp          Psi_surface, Vol_surface, De_surface, Pe_surface, nonlocal_abl, n_nonlocal_array, n_flux,      &
+!$omp          C_intern_3d,C_ext_3d,pellet_amplitude,pellet_R,pellet_Z,pellet_psi,pellet_phi,                 &
+!$omp          T_min_neg, Tie_min_neg, H_impl_int,H_impl_ext,implicit_heat_source,GAMMA,                      &
+!$omp          pellet_radius, pellet_delta_psi, pellet_sig, pellet_length, pellet_ellipse, pellet_theta,      &
+!$omp          central_density, pellet_particles,pellet_density, pellet_volume,                               &
+!$omp          local_pellet_particles, local_plasma_particles, local_pellet_volume,                           &
+!$omp          heli_tot,  keep_current_prof, psi_off, visco_par, visco_par_heating, thm_wk_tot,               &
+!$omp          thm_wk_e_tot, thm_wk_i_tot,                                                                    &
+!$omp          visco, visco_T_dependent, visco_old_setup, SAW_tot, mag_wk_tot,                                &
+!$omp          vpar_disp_tot, vprp_disp_tot, fric_disp_tot, area1, mag_src_tot, momentum_x, momentum_y,       &
+!$omp          eta_ohmic, central_mass, R2curr_tmp, Zcurr_tmp, ksi_ion,                                       &
+!$omp          local_mom_par_int, local_mom_par_ext, local_mom_par_tot,                                       &
+!$omp          use_ncs, local_Nion, local_Nrec, local_pn, local_Prec, local_Prb,                              &
+!$omp          local_aux_mom_par_int,local_aux_mom_par_ext,local_aux_mom_par_tot,                             &
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
-!$omp          spi_num_vol, local_source_volume, local_source_volume_drift, drift_distance,    &
-!$omp          using_spi, n_spi_tot, n_inj, n_spi,                                             &
-!$omp          pellets, ns_radius_ratio, ns_radius_min,                                        &
-!$omp          local_n_particles_inj, local_n_particles, ns_amplitude, ns_R, ns_Z,             &
-!$omp          ns_phi, ns_radius, ns_deltaphi, ns_delta_minor_rad, ns_tor_norm, spi_tor_rot, local_E_ion,  &
-!$omp          t_now, A_Dmv, K_Dmv, V_Dmv, P_Dmv, t_ns, L_tube, JET_MGI,ASDEX_MGI, local_P_ion,&
-!$omp          local_radiation, local_radiation_phi, imp_cor, imp_adas, imp_type, local_P_ei,  &
-!$omp          n_adas, nimp_bg, local_radiation_bg,                                            &
+!$omp          spi_num_vol, local_source_volume, local_source_volume_drift, drift_distance,                   &
+!$omp          using_spi, n_spi_tot, n_inj, n_spi,                                                            &
+!$omp          pellets, ns_radius_ratio, ns_radius_min,                                                       &
+!$omp          local_n_particles_inj, local_n_particles, ns_amplitude, ns_R, ns_Z,                            &
+!$omp          ns_phi, ns_radius, ns_deltaphi, ns_delta_minor_rad, ns_tor_norm, spi_tor_rot, local_E_ion,     &
+!$omp          t_now, A_Dmv, K_Dmv, V_Dmv, P_Dmv, t_ns, L_tube, JET_MGI,ASDEX_MGI, local_P_ion,               &
+!$omp          local_radiation, local_radiation_phi, imp_cor, imp_adas, imp_type, local_P_ei,                 &
+!$omp          n_adas, nimp_bg, local_radiation_bg,                                                           &
 #endif
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
-!$omp          ksi_ion, use_imp_adas,                                                   &
+!$omp          use_imp_adas,                                                                                  &
 #endif
 #if (defined WITH_Impurities)
-!$omp          index_main_imp,                                                                 &
+!$omp          index_main_imp,                                                                                &
 #endif
-!$omp          T_1, T_max_eta, T_max_eta_ohm, eta_T_dependent,                                 &
-!$omp          wgauss_copy, varmin, varmax)                                                    &
-!$omp   private(ife,iv,inode,element,nodes,aux_nodes,i,j, k,in, mp, ms, mt, i_surface,         &
-!$omp           x_g, y_g, x_s, y_s, x_t, y_t, x_p, y_p, xjac, xjac_R, xjac_Z, eq_g, eq_s, eq_t, eq_p,    &
-!$omp           x_ss, x_tt, x_st, y_ss, y_tt, y_st, eq_ss, eq_tt, eq_st, eq_sp, eq_tp,         &
-!$omp           eq_spp, eq_tpp, psi_axisym, eq_s_3d, eq_t_3d, eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p,&
-!$omp           s_norm, stel_current_source,                                                   &
-!$omp           wst, BigR, r0, T0, Te0, zj0, ps0, dTdx, dTdy, drhodx, drhody, dpsidx, dpsidy, dpsidp, dudx, dudy, dudp, &
-!$omp           dpsidx_3d, dpsidy_3d, saw_ene_dens, BB2_zero,                                  &
-!$omp           w0, dwdx, dwdy, u0_xpp, u0_ypp, visco_T, visco_fact_old, visco_fact_new,       &
-!$omp           dpdx, dpdy, phi, Ti0, psi_as_coord, vprp_disp,                                 &
-!$omp           source_pellet, source_volume, eq_zne, eq_zTe, vpar0, BB2, chi, Bv2,  &
-!$omp           heat_source, heat_source_i, heat_source_e, particle_source, current_source, rotation_source, &
-!$omp           dn_dpsi,dn_dz,dn_dpsi2,dn_dz2,dn_dpsi_dz,dn_dpsi3,dn_dpsi_dz2, dn_dpsi2_dz,    &
-!$omp           dT_dpsi,dT_dz,dT_dpsi2,dT_dz2,dT_dpsi_dz,dT_dpsi3,dT_dpsi_dz2, dT_dpsi2_dz,    &
-!$omp           hel1, vpar_x, vpar_y, ps0_s, ps0_t, u0_s, u0_t, p0_s, p0_t, vpar_s, vpar_t,    &
-!$omp           u0_x, u0_y, Te0_corr, Ti0_corr, T_or_Te, T_or_Te_corr, T_or_Te_0, thm_wk_e, thm_wk_i,&
-!$omp           thm_wk, mag_wk, eta_T, vpar_disp, fric_disp, p0_p, T0_corr, r0_corr, u0_p,     &
-!$omp           pe0_s, pe0_t, pe0_p, pi0_s, pi0_t, pi0_p,                                      &
-!$omp           AR0, AR0_p, AR0_s, AR0_t, AR0_sp, AR0_tp, AR0_Rp, AZ0, AZ0_p, AZ0_s, AZ0_t, AZ0_sp, AZ0_tp, AZ0_Zp, A30, &
-!$omp           A30_p, A30_s, A30_t, A30_ss, A30_tt, A30_st, A30_R, A30_RR, A30_ZZ, BR_Z, BZ_R,&
-!$omp           eta_T_ohm, rn0, rn0_corr, rimp0, rimp0_corr, Z_eff, lnA, alpha_e,              &
-
+!$omp          T_1, T_max_eta, T_max_eta_ohm, eta_T_dependent,                                                & 
+!$omp          wgauss_copy, varmin, varmax)                                                                   &
+!$omp   private(ife,iv,inode,element,nodes,i,j, k,in, mp, ms, mt,                                             &
+!$omp           x_g, y_g, x_s, y_s, x_t, y_t, x_p, y_p, xjac, xjac_R, xjac_Z, eq_g, eq_s, eq_t, eq_p,         &
+!$omp           x_ss, x_tt, x_st, y_ss, y_tt, y_st, eq_ss, eq_tt, eq_st, eq_sp, eq_tp,                        &
+!$omp           eq_spp, eq_tpp, psi_axisym,s_norm, stel_current_source,eq_s_3d, eq_t_3d, wst, BigR,           &
+!$omp           r0, T0, Te0, zj0, ps0, dTdx, dTdy, drhodx, drhody, dpsidx, dpsidy, dpsidp, dudx, dudy,dudp,   &
+!$omp           dpsidx_3d, dpsidy_3d, saw_ene_dens, BB2_zero,                                                 &
+!$omp           w0, dwdx, dwdy, u0_xpp, u0_ypp, visco_T, visco_fact_old, visco_fact_new,                      &
+!$omp           dpdx, dpdy, phi, Ti0, psi_as_coord, vprp_disp,                                                &
+!$omp           source_pellet, source_volume, eq_zne, eq_zTe, vpar0, BB2, chi, Bv2,                           &
+!$omp           heat_source, heat_source_i, heat_source_e, particle_source, current_source, rotation_source,  &
+!$omp           dn_dpsi,dn_dz,dn_dpsi2,dn_dz2,dn_dpsi_dz,dn_dpsi3,dn_dpsi_dz2, dn_dpsi2_dz,                   &
+!$omp           dT_dpsi,dT_dz,dT_dpsi2,dT_dz2,dT_dpsi_dz,dT_dpsi3,dT_dpsi_dz2, dT_dpsi2_dz,                   & 
+!$omp           hel1, vpar_x, vpar_y, ps0_s, ps0_t, u0_s, u0_t, p0_s, p0_t, vpar_s, vpar_t,                   &
+!$omp           u0_x, u0_y, Te0_corr, Ti0_corr, T_or_Te, T_or_Te_corr, T_or_Te_0, thm_wk_e, thm_wk_i,         &
+!$omp           thm_wk, mag_wk, eta_T, vpar_disp, fric_disp, p0_p, T0_corr, r0_corr, u0_p,                    &
+!$omp           AR0, AR0_p, AR0_s, AR0_t, AR0_sp, AR0_tp, AR0_Rp, AZ0, AZ0_p, AZ0_s, AZ0_t, AZ0_sp, AZ0_tp,   &
+!$omp           AZ0_Zp, A30, A30_p, A30_s, A30_t, A30_ss, A30_tt, A30_st, A30_R, A30_RR, A30_ZZ, BR_Z, BZ_R,  &
+!$omp           Srec_T_ncs, dSrec_dT_ncs, ksi_ion_norm, LradDcont_T_ncs, dLradDcont_dT_ncs, Sion_T_ncs,       &
+!$omp           dSion_dT_ncs, aux_nodes, eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p, aux_rho0, aux_T0, aux_Vpar0, &
+!$omp           aux_P0, aux_P0_s, aux_P0_t, aux_P0_p, aux_q0, aux_jx0, aux_jy0, aux_jz0, aux_jz0_pcs,         &
+!$omp           eta_T_ohm, rn0, rn0_corr, rimp0, rimp0_corr, Z_eff, lnA, alpha_e,                             &
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
-!$omp           i_imp, frad_bg, Lrad_imp, Te_corr_eV, Te_eV, ne_SI, Ti_eV,                     &
-!$omp           spi_R_tmp, spi_Z_tmp, spi_phi_tmp, ns_radius_tmp,                              &
-!$omp           spi_psi_tmp, spi_grad_psi_tmp, spi_i, i_inj,                                   &
-!$omp           n_spi_tmp, source_tmp, ns_shape, ns_shape_drift,                               &
+!$omp           i_imp, frad_bg, Lrad_imp, Te_corr_eV, Te_eV, ne_SI, Ti_eV,                                    &
+!$omp           spi_R_tmp, spi_Z_tmp, spi_phi_tmp, ns_radius_tmp,                                             &
+!$omp           spi_psi_tmp, spi_grad_psi_tmp, spi_i, i_inj,                                                  &
+!$omp           n_spi_tmp, source_tmp, ns_shape, ns_shape_drift,                                              &
 #endif
 #ifdef WITH_Impurities
-!$omp           source_bg, source_imp, source_bg_drift, source_imp_drift,                      &
-!$omp           source_bg_arr, source_imp_arr, source_bg_drift_arr, source_imp_drift_arr,      &
-!$omp           m_i_over_m_imp, m_imp, Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, n_imp,           &
-!$omp           ne_JOREK, P_imp, Lrad, E_ion, E_ion_bg, ion_i, aux_rad,                        &
-!$omp           ion_k, Z_eff_imp, eta_coef, Ti_corr_eV,                                        &
-!$omp           Z_imp_s, Z_imp_t, Z_imp_p, Z_imp_x, Z_imp_y,                                   &
-!$omp           n_imp_s, n_imp_t, n_imp_p, n_imp_x, n_imp_y,                                   &
+!$omp           source_bg, source_imp, source_bg_drift, source_imp_drift,                                     &
+!$omp           source_bg_arr, source_imp_arr, source_bg_drift_arr, source_imp_drift_arr,                     &
+!$omp           m_i_over_m_imp, m_imp, Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, n_imp,                          &
+!$omp           ne_JOREK, P_imp, Lrad, E_ion, E_ion_bg, ion_i, aux_rad,                                       &
+!$omp           ion_k, Z_eff_imp, eta_coef, Ti_corr_eV,                                                       &
+!$omp           Z_imp_s, Z_imp_t, Z_imp_p, Z_imp_x, Z_imp_y,                                                  &
+!$omp           n_imp_s, n_imp_t, n_imp_p, n_imp_x, n_imp_y,                                                  &
 #endif
 #if (defined WITH_Impurities) && (defined WITH_TiTe)
-!$omp           alpha_i, nu_e_imp, nu_e_bg, lambda_e_imp, lambda_e_bg, dTi_e, dTe_i,  &
-!$omp           dalpha_e_dT, alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y,            &
+!$omp           alpha_i, nu_e_imp, nu_e_bg, lambda_e_imp, lambda_e_bg, dTi_e, dTe_i,                          &
+!$omp           dalpha_e_dT, alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y,                           &
 #endif
 #if (defined WITH_Impurities) && (!defined WITH_TiTe) 
-!$omp           alpha_imp, beta_imp, dalpha_imp_dT,                                            &
+!$omp           alpha_imp, beta_imp, dalpha_imp_dT,                                                           &
 #endif
 #if (defined WITH_Neutrals)
-!$omp           Sion_T, dSion_dT, Srec_T, dSrec_dT, ksiion, source_neutral,                    &
-!$omp           source_neutral_drift, source_neutral_arr, source_neutral_drift_arr,            &
-!$omp           LradDrays_T, LradDcont_T, dLradDrays_dT, dLradDcont_dT,                        &
-!$omp           Arad_bg, Brad_bg, Crad_bg,                                                     &
-!$omp           coef_prad_si,                                                                  &
+!$omp           Sion_T, dSion_dT, Srec_T, dSrec_dT, source_neutral,                                           &
+!$omp           source_neutral_drift, source_neutral_arr, source_neutral_drift_arr,                           &
+!$omp           LradDrays_T, LradDcont_T, dLradDrays_dT, dLradDcont_dT,                                       &
+!$omp           Arad_bg, Brad_bg, Crad_bg,                                                                    &
+!$omp           coef_prad_si,                                                                                 &
 #endif
 !$omp           omp_nthreads,omp_tid)
 
@@ -522,21 +557,29 @@ omp_tid      = 0
 !$omp                P_e_int, P_i_int, P_e_ext, P_i_ext, P_e_tot, P_i_tot,                    &
 !$omp                VP_int, VP_ext, VP_tot, VK_tot, VK_int, VK_ext, VM_ext,                  &
 !$omp                VM_int, VM_tot, Vol, surface_area, P_tot, D_tot,J2_tot, J2_int, J2_ext,                &
-!$omp                heli_tot, mag_wk_tot, vpar_disp_tot, thm_wk_tot, area1, mag_src_tot,     &
-!$omp                fric_disp_tot, Vol_surface, De_surface, Pe_surface, R2curr_tmp, Zcurr_tmp,&
-!$omp                C_intern_3d,C_ext_3d,H_impl_int, H_impl_ext, vprp_disp_tot, SAW_tot,     &
-!$omp                thm_wk_e_tot, thm_wk_i_tot)
+!$omp                local_Nion, local_Nrec, local_pn, local_Prec, local_Prb ,                &
+!$omp                local_aux_mom_par_int,local_aux_mom_par_ext,local_aux_mom_par_tot,       &
+!$omp                local_mom_par_int, local_mom_par_ext, local_mom_par_tot,                        &
+!$omp                Vol_surface, De_surface, Pe_surface, SAW_tot, thm_wk_e_tot, thm_wk_i_tot, &
+!$omp                heli_tot, mag_wk_tot, vpar_disp_tot, thm_wk_tot, area1, mag_src_tot,H_impl_int,H_impl_ext, &
+!$omp                fric_disp_tot, R2curr_tmp, Zcurr_tmp, C_intern_3d, C_ext_3d, vprp_disp_tot)
 
 do ife = ife_min, ife_max
-
   element = element_list%element(ife)
 
   do iv = 1, n_vertex_max
-    inode         = element%vertex(iv)
-    nodes(iv)     = node_list%node(inode)
+    inode     = element%vertex(iv)
+    nodes(iv) = node_list%node(inode)
     if (present(aux_node_list)) aux_nodes(iv) = aux_node_list%node(inode)
   enddo
 
+eq_aux_g = 0.d0; eq_aux_s = 0.d0; eq_aux_t = 0.d0; eq_aux_p = 0.d0;  
+aux_rho0  = 0.d0; aux_T0    = 0.d0; aux_Vpar0 = 0.d0
+aux_P0    = 0.d0; aux_P0_s  = 0.d0; aux_P0_t  = 0.d0; aux_P0_p  = 0.d0
+aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_pcs = 0.d0
+  
+  
+  
   x_g(:,:,:)    = 0.d0; x_s(:,:,:)    = 0.d0; x_t(:,:,:)    = 0.d0; x_p(:,:,:)    = 0.d0; x_ss(:,:,:)    = 0.d0; x_tt(:,:,:)    = 0.d0; x_st(:,:,:)    = 0.d0;
   y_g(:,:,:)    = 0.d0; y_s(:,:,:)    = 0.d0; y_t(:,:,:)    = 0.d0; y_p(:,:,:)    = 0.d0; y_ss(:,:,:)    = 0.d0; y_tt(:,:,:)    = 0.d0; y_st(:,:,:)    = 0.d0;
   psi_axisym(:,:) = 0.d0; s_norm(:,:) = 0.d0; stel_current_source(:,:,:) = 0.d0
@@ -617,21 +660,26 @@ do ife = ife_min, ife_max
 
                 eq_spp(mp,k,ms,mt) = eq_spp(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_s(i,j,ms,mt)*HZ_pp(in,mp)
                 eq_tpp(mp,k,ms,mt) = eq_tpp(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_t(i,j,ms,mt)*HZ_pp(in,mp)
+
+                if (present(aux_node_list)) then
+                  eq_aux_g(mp,k,ms,mt) =  eq_aux_g(mp,k,ms,mt) + aux_nodes(i)%values(in,j,k) * element%size(i,j) * H(i,j,ms,mt)   * HZ(in,mp)
+                  eq_aux_s(mp,k,ms,mt) =  eq_aux_s(mp,k,ms,mt) + aux_nodes(i)%values(in,j,k) * element%size(i,j) * H_s(i,j,ms,mt) * HZ(in,mp)
+                  eq_aux_t(mp,k,ms,mt) =  eq_aux_t(mp,k,ms,mt) + aux_nodes(i)%values(in,j,k) * element%size(i,j) * H_t(i,j,ms,mt) * HZ(in,mp)
+                  eq_aux_p(mp,k,ms,mt) =  eq_aux_p(mp,k,ms,mt) + aux_nodes(i)%values(in,j,k) * element%size(i,j) * H(i,j,ms,mt)   * HZ_p(in,mp)
+                endif ! present(aux_node_list)
                 
                 if ( in == 1 ) cycle ! Record only the non-axisymmetric components
                 eq_s_3d(mp,k,ms,mt) = eq_s_3d(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_s(i,j,ms,mt)* HZ(in,mp)
                 eq_t_3d(mp,k,ms,mt) = eq_t_3d(mp,k,ms,mt) + nodes(i)%values(in,j,k) * element%size(i,j) * H_t(i,j,ms,mt)* HZ(in,mp)
              
-              enddo
-            enddo
-
-          enddo
-        enddo
-      enddo
-
-    enddo
-  enddo
-  
+              enddo !n_tor
+            enddo !n_var
+          enddo !mt n_gauss
+        enddo !ms n_gauss
+      enddo !mp nplane
+    enddo !j n_degrees
+  enddo !i n_vertex_max
+   
   ! --- Determine smallest and largest values of the variables in the whole domain (on Gauss points and toroidal integration surfaces)
   !$omp critical
   do k = 1, n_var
@@ -715,6 +763,12 @@ do ife = ife_min, ife_max
         vpar0   = eq_g(mp,var_Vpar,ms,mt)
         vpar_s  = eq_s(mp,var_Vpar,ms,mt)
         vpar_t  = eq_t(mp,var_Vpar,ms,mt)
+
+        if (use_ncs) then
+                aux_rho0  = eq_aux_g(mp,1,ms,mt)
+                aux_T0    = eq_aux_g(mp,2,ms,mt)
+                aux_Vpar0 = eq_aux_g(mp,3,ms,mt)
+        end if
 
 #if (defined WITH_Neutrals)
         rn0    = eq_g(mp,var_rhon,ms,mt)
@@ -824,6 +878,34 @@ do ife = ife_min, ife_max
         endif
 
 !-------------------------------------------
+! --- USE NCS, PARTICLE NEUTRAL AND IMPURITY COUPLE SCHEME
+! ------------------------------------------
+        if(use_ncs) then 
+          ksi_ion_norm = central_density * 1.d20 * ksi_ion
+          call rec_rate_to_kinetic(r0, 0.5d0*T0, Sion_T_ncs, dSion_dT_ncs, Srec_T_ncs, dSrec_dT_ncs, LradDcont_T_ncs, dLradDcont_dT_ncs)
+        
+          !> coupled densities
+          !>ionization
+          local_Nion = local_Nion + aux_rho0 * BigR * xjac * delta_phi * wst
+          !> Recombination
+          local_Nrec = local_Nrec + (Srec_T_ncs * r0_corr * r0_corr)*BigR *xjac * delta_phi *wst ! rho_rec
+          
+          !> coupled energies
+          !>aux_T0 (plasma neutral interaction)
+          local_pn = local_pn + aux_T0 *BigR * xjac* delta_phi * wst !& !aux_T0
+                      !+ (gamma-1.d0)* 0.5d0 *aux_rho0 *vpar0**2 * BB2 * BigR*xjac* delta_phi *wst &
+                      !- (gamma-1.d0)* aux_Vpar0 * vpar0 * BigR *xjac* delta_phi *wst
+          !>Lost to recombination (no Brehmstralung)
+          local_Prec = local_Prec + r0_corr*r0_corr*(T0_corr*Srec_T_ncs)*BigR *xjac* delta_phi *wst
+          ! Power recombination and bremstrhalung combined
+          local_Prb = local_Prb + r0_corr*r0_corr*(LradDcont_T_ncs-ksi_ion_norm*Srec_T_ncs)*BigR *xjac* delta_phi *wst
+          !> aux_vpar = dot_product(SI momentum source,B). so we  divide by |B| to obtain the integral of the SI momentum
+          local_aux_mom_par_tot=local_aux_mom_par_tot+ aux_vpar0 /sqrt(BB2) * xjac * BigR * wst * delta_phi !< * sqrt(BB2)
+
+        endif ! use_ncs  
+ 
+
+!-------------------------------------------
 ! --- Radiation and ionization power
 ! ------------------------------------------
 #if ( (defined WITH_Neutrals) && (! defined WITH_Impurities) )
@@ -839,7 +921,7 @@ do ife = ife_min, ife_max
         ! Get coefficient:  Prad,SI = coef_prad_si * Prad,jorek
         coef_prad_si = 1./((GAMMA-1)*MU_ZERO*(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**0.5) 
       
-        ksiion = central_density * 1.d20 * ksi_ion   ! Normalisation of the ionization energy cost for Deuterium
+        ksi_ion_norm = central_density * 1.d20 * ksi_ion   ! Normalisation of the ionization energy cost for Deuterium
       
         ! --- Radiation from background impurity
         ne_SI = r0_corr * 1.d20 * central_density !electron density (SI)
@@ -872,7 +954,7 @@ do ife = ife_min, ife_max
           local_radiation         = local_radiation + ( (r0_corr * rn0_corr  * LradDrays_T            &
                                      + r0_corr ** 2 * LradDcont_T) * coef_prad_si                     & 
                                      + ne_SI * frad_bg) * bigR * xjac * wst * delta_phi 
-          local_P_ion             = local_P_ion + ksiion * r0_corr * rn0_corr * Sion_T * coef_prad_si &
+          local_P_ion             = local_P_ion + ksi_ion_norm * r0_corr * rn0_corr * Sion_T * coef_prad_si &
                                    * bigR * xjac * wst * delta_phi
         else
           if ( trim(imp_type(1)) == 'Ar') then ! Hard-coded fitting exists for argon
@@ -888,7 +970,7 @@ do ife = ife_min, ife_max
             local_radiation         = local_radiation + (r0_corr * rn0_corr  * LradDrays_T &
                                        + r0_corr ** 2 * LradDcont_T + r0_corr * frad_bg) * coef_prad_si & 
                                        * bigR * xjac * wst * delta_phi 
-            local_P_ion             = local_P_ion + ksiion * r0_corr * rn0_corr * Sion_T * coef_prad_si &
+            local_P_ion             = local_P_ion + ksi_ion_norm * r0_corr * rn0_corr * Sion_T * coef_prad_si &
                                        * bigR * xjac * wst * delta_phi
           else
             write(*,*) "WARNING: hard-coded fitting doesn't exist for  ", trim(imp_type(1)), ", use open adas instead!"
@@ -1220,6 +1302,7 @@ do ife = ife_min, ife_max
         p0_t   = pe0_t + pi0_t
         p0_p   = pe0_p + pi0_p
 #else /* WITH_TiTe */
+
         P_tot  = P_tot  + r0 * T0 * xjac * BigR * wst * delta_phi
         P_e_tot = P_tot / 2.
         P_i_tot = P_e_tot
@@ -1249,6 +1332,7 @@ do ife = ife_min, ife_max
                                  + u0_xpp * dudx + u0_ypp * dudy   )     * visco_fact_new
 
         VP_tot = VP_tot + r0 * vpar0**2 * BB2 * xjac * BigR * wst * delta_phi
+        local_mom_par_tot = local_mom_par_tot + r0 * vpar0 * sqrt(BB2) * xjac * BigR * wst * delta_phi
 #if STELLARATOR_MODEL
         VK_tot = VK_tot + r0*((dudx**2 + dudy**2 + dudp**2/BigR**2)/Bv2 &
                - (chi(1,0,0)*dudx + chi(0,1,0)*dudy + chi(0,0,1)*dudp/BigR**2)**2/Bv2**2)*xjac*BigR*wst*delta_phi
@@ -1512,6 +1596,7 @@ do ife = ife_min, ife_max
           H_int = H_int + heat_source     * xjac * BigR * wst * delta_phi
           S_int = S_int + particle_source * xjac * BigR * wst * delta_phi
           VP_int = VP_int + r0 * vpar0**2 * BB2 * xjac * BigR * wst * delta_phi
+          local_mom_par_int = local_mom_par_int + r0 * vpar0 * sqrt(BB2) * xjac * BigR * wst * delta_phi
 #if STELLARATOR_MODEL
           VK_int = VK_int + r0*(dudx**2 + dudy**2)*BigR**2*xjac*BigR*wst*delta_phi/F0**2
 #else
@@ -1519,7 +1604,13 @@ do ife = ife_min, ife_max
 #endif
           VM_int = VM_int + (dpsidx**2+dpsidy**2)/BigR**2 * xjac * BigR * wst * delta_phi
           J2_int = J2_int + eta_T_ohm * (ZJ0/BigR)**2.d0 * xjac * BigR * wst * delta_phi
-        else
+
+          if (use_ncs) then 
+            local_aux_mom_par_int=local_aux_mom_par_int+ aux_vpar0 /sqrt(BB2)* xjac * BigR * wst * delta_phi !*sqrt(BB2)
+          endif 
+
+          
+        else  ! not inside LCFS
 #ifdef WITH_Impurities
           D_ext = D_ext + (r0-rimp0) * xjac * BigR * wst * delta_phi
 #ifdef WITH_TiTe
@@ -1560,6 +1651,7 @@ do ife = ife_min, ife_max
           H_ext = H_ext + heat_source     * xjac * BigR * wst * delta_phi
           S_ext = S_ext + particle_source * xjac * BigR * wst * delta_phi
           VP_ext = VP_ext + r0 * vpar0**2 * BB2 * xjac * BigR * wst * delta_phi
+          local_mom_par_ext = local_mom_par_ext + r0 * vpar0 * sqrt(BB2) * xjac * BigR * wst * delta_phi
 #if STELLARATOR_MODEL
           VK_ext = VK_ext + r0*(dudx**2 + dudy**2)*BigR**2*xjac*BigR*wst*delta_phi/F0**2
 #else
@@ -1567,7 +1659,11 @@ do ife = ife_min, ife_max
 #endif
           VM_ext = VM_ext + (dpsidx**2+dpsidy**2)/BigR**2 * xjac * BigR * wst * delta_phi
           J2_ext = J2_ext + eta_T_ohm * (ZJ0/BigR)**2.d0 * xjac * BigR * wst * delta_phi
-        endif
+          if (use_ncs) then 
+            local_aux_mom_par_ext=local_aux_mom_par_ext+ aux_vpar0 /sqrt(BB2)* xjac * BigR * wst * delta_phi !*sqrt(BB2)
+          endif  
+
+        endif !in or outside LCFS
 
         ! Fill in the nonlocal array
         if (nonlocal_abl .and. get_psi_n(psi_as_coord, y_g(mp,ms,mt)) < 1. &
@@ -2201,6 +2297,19 @@ if (nonlocal_abl) then
 endif
 call MPI_AllReduce(momentum_x,Px,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(momentum_y,Py,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+call MPI_AllReduce(local_Nion,Nion,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_Nrec,Nrec,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_pn,plasmaneutral,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_Prec,Prec,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_Prb,Prb,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_mom_par_int,mom_par_int,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_mom_par_ext,mom_par_ext,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_mom_par_tot,mom_par_tot,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_aux_mom_par_int,aux_mom_par_int,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_aux_mom_par_ext,aux_mom_par_ext,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(local_aux_mom_par_tot,aux_mom_par_tot,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 call MPI_AllReduce(local_radiation, total_radiation,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(local_radiation_bg, total_radiation_bg,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -2210,6 +2319,7 @@ call MPI_AllReduce(local_P_ion, total_P_ion,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_C
 call MPI_AllReduce(local_radiation_phi, total_radiation_phi,n_plane,&
                    MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 #endif /* (defined WITH_Neutrals) || (defined WITH_Impurities) */
+
 #else /* NOMPIVERSION */
 density_in           = D_int
 density_out          = D_ext
@@ -2268,6 +2378,18 @@ if (nonlocal_abl) then
 endif
 Px                   = momentum_x
 Py                   = momentum_y
+
+mom_par_int = local_mom_par_int
+mom_par_ext = local_mom_par_ext
+mom_par_tot = local_mom_par_tot
+Nion                 = local_Nion
+Nrec                 = local_Nrec
+plasmaneutral        = local_pn
+Prec                 = local_Prec
+Prb                  = local_Prb
+aux_mom_par_int = local_aux_mom_par_int
+aux_mom_par_ext = local_aux_mom_par_ext
+aux_mom_par_tot = local_aux_mom_par_tot
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 total_radiation      = local_radiation
@@ -2433,6 +2555,18 @@ mag_source_tot       = n_period * mag_source_tot      * fact_flux
 volume               = n_period * volume
 area                 = n_period * area / (2.d0 * PI)
 surface_area         = n_period * surface_area
+mom_par_int      = n_period * mom_par_int * rho_norm / t_norm
+mom_par_ext      = n_period * mom_par_ext * rho_norm / t_norm
+mom_par_tot      = n_period * mom_par_tot * rho_norm / t_norm
+
+Nion                 = n_period * Nion         * fact_part / t_norm2
+Nrec                 = n_period * Nrec         * fact_part / t_norm2
+plasmaneutral        = n_period * plasmaneutral* fact_flux / (GAMMA-1.d0) 
+Prec                 = n_period * Prec         * fact_flux / (GAMMA-1.d0)
+Prb                  = n_period * Prb          * fact_flux / (GAMMA-1.d0)
+aux_mom_par_int      = n_period * aux_mom_par_int * rho_norm / t_norm
+aux_mom_par_ext      = n_period * aux_mom_par_ext * rho_norm / t_norm
+aux_mom_par_tot      = n_period * aux_mom_par_tot * rho_norm / t_norm
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
 total_radiation     = n_period * total_radiation
@@ -2896,6 +3030,7 @@ if (my_id .eq. 0) then
   write(*,'(A,4es14.6,A)') ' pressure (total/in/out)         : ',xt,pressure/1.d6, pressure_in/1.d6, pressure_out/1.d6,' [MJ]'
   write(*,'(A,4es14.6,A)') ' kinetic parallel (total/in/out) : ',xt,kin_par_tot/1.d6, kin_par_in/1.d6, kin_par_out/1.d6,' [MJ]'
   write(*,'(A,4es14.6,A)') ' kinetic perp (total/in/out)     : ',xt,kin_perp_tot/1.d6, kin_perp_in/1.d6, kin_perp_out/1.d6,' [MJ]'
+  write(*,'(A,4e14.6,A)')  ' parallel momentum (total/in/out): ',xt,mom_par_tot, mom_par_int, mom_par_ext,' [kg m/s]'
   write(*,'(A,4es14.6,A)') ' magnetic (total/in/out)         : ',xt,mag_tot/1.d6, mag_in/1.d6, mag_out/1.d6,' [MJ]'
   write(*,'(A,3es14.6,A)') ' current  (in/out)               : ',xt,current_in/1.d6, current_out/1.d6, ' [MA]'
   write(*,'(A,3es14.6,A)') ' int J*R  (in/out)               : ',xt,current_R_in, current_R_out, ' [Am]'
@@ -2911,6 +3046,17 @@ if (my_id .eq. 0) then
 
   write(*,'(A,20es14.6)')  ' sum ',xt,density_tot,pressure/1.d6,kin_par_tot/1.d6,kin_perp_tot/1.d6,mag_tot/1.d6, &
                                  Ohm_tot/1.d6,heating_in/1d6+heating_out/1.d6 ,source_in+source_out
+
+
+  if (use_ncs) then
+    write(*,'(A)') '----------------------------------------'
+    write(*,'(A)') ' Kinetic neutral integrals on fluid side                  '
+    write(*,'(A,4es14.6,A)') ' Ion source (aux_rho0), Recomb loss                : ',xt,xt*t_norm, Nion, Nrec,' [#/m^3/s]'
+    write(*,'(A,5es14.6,A)') ' Parallel momentum source(aux_vpar0) (total/in/out): ',xt,xt*t_norm,aux_mom_par_tot, aux_mom_par_int, aux_mom_par_ext,' [kg m/s]'
+    write(*,'(A,3es14.6,A)') ' Heat source (aux_T0)         : ',xt,xt*t_norm, plasmaneutral/1.d6, ' [MW]'
+    write(*,'(A,4es14.6,A)') ' Prec, Prb                       : ',xt,xt*t_norm,Prec/1.d6,Prb/1.d6, ' [MW]'
+    write(*,'(A)') '----------------------------------------'
+  endif !use_ncs  
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
   write(*,'(A,4es14.6)')   ' Integrals_3D, MGI              : ', total_n_particles_inj, total_n_particles
@@ -2971,6 +3117,7 @@ if (my_id .eq. 0) then
   if (with_TiTe) then
     if (index_now > 0) xtime_P_ei(index_now) = total_P_ei
   endif
+
 #endif
 
   do k = 1, n_var

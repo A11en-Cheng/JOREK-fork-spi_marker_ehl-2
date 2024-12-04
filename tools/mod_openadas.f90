@@ -72,7 +72,7 @@ do i_ADF11 = 1,size(ADF11_filenames,1)
   if (present(directory)) filename = trim(directory) // trim(filename)
   inquire(file=trim(filename), exist=file_exists)
   if (.not. file_exists) then
-    write(*,*) "File not found for", filename
+    write(*,*) "File not found for ", trim(filename)
     cycle ! Skip this type of data
   end if
 
@@ -150,7 +150,6 @@ else
   if (my_id .eq. 0) write(*,*) 'Done reading adas data for atomic number', ad%n_Z
 endif
 
-
 ! Try to load the ionisation energies
 ! try 2 cases, first the full suffix and then the stripped suffix
 ! i.e. ion50_w.dat and ion_w.dat
@@ -164,21 +163,22 @@ do i=1,3,2 ! full, strip
     if (ierr .ne. 0) then
       write(*,*) my_id, " failed with code ", ierr
     else
-      allocate(ad%ionisation_energy(1:ad%n_Z))
+      allocate(ad%ionisation_energy(0:ad%n_Z))
+      ad%ionisation_energy(0) = 0.d0 ! Zero energy for no ionisation
       do k=1,ad%n_Z
         read(10,*) q, ad%ionisation_energy(k)
         if (q + 1 .ne. k) then ! conversion from 0-based to 1-based indices for ionisation energies
-          write(*,*) 'Mismatch in detected energy levels, ', q+1, k
+              if (my_id .eq. 0) write(*,*) 'Mismatch in detected energy levels, ', q+1, k
           stop 1
         end if
       end do
-      write(*,*) "Read ionisation energies from ", trim(filename)
+          if (my_id .eq. 0) write(*,*) "Read ionisation energies from ", trim(filename)
       close(10)
       exit ! the loop, we have found a file
     endif
   else
-    if (i .eq. 3) then
-      write(*,*) "Cannot find ionisation data file ", trim(filename), "not loading ionisation energies"
+    if (i .eq. 3 .and. my_id .eq. 0) then
+      write(*,*) "Cannot find ionisation data file ", trim(filename), " not loading ionisation energies"
     end if
   end if
 end do

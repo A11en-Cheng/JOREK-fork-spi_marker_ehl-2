@@ -265,8 +265,8 @@ subroutine preset_parameters
   ne_SI_min          = 1.d18
   Te_eV_min          = 5.
   rn0_min            = 1.d-8
-  T_min              = 1.0d-20
-  rho_min            = 1.0d-20
+  T_min              = 1.0d-20  !-1.0d20
+  rho_min            = 1.0d-20  !-1.0d20
   T_min_neg          = -1.d12 !< only used if T_min_neg>0 , 2.01d-5*central_density*Tmin_ev (cd = 1, 20 eV)
   T_min_ZKpar        = -1.d12 
   Ti_min_ZKpar       = -1.d12 
@@ -754,6 +754,7 @@ subroutine preset_parameters
   D_neutral_p = 1.d-5
   delta_n_convection = 0
   nimp_bg = 0.
+
   n_adas = 1
   adas_dir = ' '
   imp_type = ' '
@@ -809,11 +810,8 @@ subroutine preset_parameters
   use_rcs           = .false.
   use_ccs           = .false.
   use_pcs           = .false.
-  use_cx            = .false.
   use_marker        = .false.
   diff_diffusive_flux  = .false.
-  use_sputtering    = .false.
-  use_ionisation    = .false.
   n_particles       = 0.0
   tstep_particles   = 0.0
   nstep_particles   = 0
@@ -867,9 +865,9 @@ subroutine preset_parameters
   phys_particles_puff = 0.d0
   fueling_rate  = 0.d0 
   valve_r       = 5.d-2
-  R_valve_loc   = 0.d0 
-  Z_valve_loc   = 0.d0 
-  PHI_valve_loc = 0.d0 
+  R_laser_loc   = 0.d0 
+  Z_laser_loc   = 0.d0 
+  PHI_laser_loc = 0.d0 
   initial_E     = 3.d2
   puffing_direction = (/0.d0,0.d0,0.d0/)
   puffing_timestep  = 1.d-6
@@ -892,9 +890,22 @@ use_ncs            = .false.
 use_ccs            = .false.
 use_pcs            = .false.
 use_pcs_full       = .false.
-use_ionisation     = .true.
-use_sputtering     = .false.
-use_cx             = .true.
+use_kn_ionisation     = .true.
+use_kn_sputtering     = .false.
+use_kn_cx             = .true.
 use_marker         = .false.
+use_kn_recombination = .true.
+use_kn_puffing       = .false.
+use_kn_line_radiation= .true.
+
+n_puff        = 0
+puff_rate     = 0.d0
+r_valve       = 0.d0
+R_valve_loc   = 0.d0
+Z_valve       = 0.d0
+R_valve_loc2  = 0.d0
+Z_valve2      = 0.d0
+
+
 
 end subroutine preset_parameters

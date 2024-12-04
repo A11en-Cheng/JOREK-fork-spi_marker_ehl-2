@@ -451,7 +451,7 @@ module phys_module
   real*8  :: A_Dmv             !< Cross sectional area of DMV (Disruption mitigation valve) pipe
   real*8  :: K_Dmv             !< Correction parameter describing the gas expansion near the pipe orifice
   real*8  :: L_tube            !< Pipe length
-  real*8  :: ksi_ion            !< Energy cost of each ionization
+  real*8  :: ksi_ion            !< Energy cost of each ionization, ksi_ion / mu_0 / (gamma-1) / e = 13.7 eV
   real*8  :: delta_n_convection !< Switch to activate the convection term for neutrals (at the plasma velocity)
   real*8  :: nimp_bg(n_imp_max) !< Density of background impurities (in \f$m^{-3}\f$)
   integer :: index_main_imp     !< Index of the main impurity species (in imp_type and nimp_bg) solved with continuity equation
@@ -531,9 +531,9 @@ module phys_module
   logical :: use_puffing   !<  Switch to use gas puffing
   real*8  :: phys_particles_puff  !< physical puffing amount
   real*8  :: fueling_rate  !< puffing fueling rate (/s)
-  real*8  :: R_valve_loc   !< valve location R
-  real*8  :: Z_valve_loc   !< valve location Z
-  real*8  :: PHI_valve_loc !< valve location phi
+  real*8  :: R_laser_loc   !< valve location R
+  real*8  :: Z_laser_loc   !< valve location Z
+  real*8  :: PHI_laser_loc !< valve location phi
   real*8  :: valve_r   !< radius of gas valve
   real*8  :: initial_E   !< initial energy in Kelvin
   real*8  :: puffing_direction(3)   !< puffing direction
@@ -875,7 +875,8 @@ module phys_module
     Magwork_tot_t(:), thmwork_tot_t(:), viscopar_dissip_tot_t(:), viscopar_flux_t(:), li3_t(:),      &
     li3_tot_t(:), part_src_tot_t(:), heat_src_tot_t(:), volume_t(:), area_t(:), mag_ener_src_tot(:), &
     dpart_tot_dt(:), part_flux_Dpar_t(:), part_flux_Dperp_t(:), part_flux_vpar_t(:), part_flux_vperp_t(:), & 
-    dnpart_tot_dt(:), npart_tot_t(:), npart_flux_t(:), density_tot_t(:), flux_poynting_t(:), Px_t(:), Py_t(:), dPx_dt(:), dPy_dt(:),       &
+    dnpart_tot_dt(:), npart_tot_t(:), npart_flux_t(:), density_tot_t(:), flux_poynting_t(:), & 
+    Px_t(:), Py_t(:), dPx_dt(:), dPy_dt(:), &
     thermal_e_tot_t(:), thermal_i_tot_t(:), thmwork_e_tot_t(:), thmwork_i_tot_t(:), visco_dissip_tot_t(:)
 
   !> @name gmres parameters
@@ -932,14 +933,13 @@ module phys_module
   real*8              :: D_imp_extra_neg_thresh  !< D_imp_extra_neg becomes effective if rho_imp < D_imp_extra_neg_thresh
   real*8              :: T_min              !< minimum temperature (limits on the temperature dependence of resistivity etc.) value in jorek units: 2.01d-5*central_density*Tmin_ev (preset central_density = 1, 20 eV)
   real*8              :: rho_min            !< minimum density
+  real*8              :: ne_SI_min          !< minimum e density (in SI unit) below which we cut-off the radiation loss
+  real*8              :: Te_eV_min          !< minimum temperature (in eV) below which we cut-off the radiation loss
+  real*8              :: rn0_min            !< minimum impurity density (in JU) for radiation loss cut-off
   real*8              :: T_min_neg          !< minimum temperature,used for correcting negative values,in jorek units: 2.01d-5*central_density*Tmin_ev (preset central_density = 1, 20 eV)  
   real*8              :: rho_min_neg        !< minimum density, used for correcting negative values  
   real*8              :: implicit_heat_source !< Choose = 1.d0 to fully switch on the implicit heat source for numerical stabilization
   
-  real*8              :: ne_SI_min          !< minimum e density (in SI unit) below which we cut-off the radiation loss
-  real*8              :: Te_eV_min          !< minimum temperature (in eV) below which we cut-off the radiation loss
-  real*8              :: rn0_min            !< minimum impurity density (in JU) for radiation loss cut-off
-
   integer             :: n_tor_fft_thresh   !< If n_tor >= n_tor_fft_thresh, element_matrix_fft will be used
   integer*8           :: fftw_plan          !< Required for FFTW library
   real*8              :: corr_neg_temp_coef(2) !< Parameters used in models/corr_neg.f90
@@ -969,11 +969,14 @@ module phys_module
   logical :: use_ccs          ! use current coupling scheme for fast particles
   logical :: use_pcs          ! use pressure coupling scheme for fast particles
   logical :: use_pcs_full     ! use full tensor pressure coupling scheme for fast particles
-  logical :: use_cx           ! switch on sputtering         (in particle module)
+  logical :: use_kn_cx           ! switch on sputtering         (in particle module)
   logical :: use_marker       ! This flag determines whether to use marker particles to treat impurity
   logical :: diff_diffusive_flux ! This flag determines whether to use the differential diffusive flux for marker partircles
-  logical :: use_sputtering   ! switch on charge-exchange    (in particle module)
-  logical :: use_ionisation   ! switch on ionisation         (in particle module)
+  logical :: use_kn_sputtering   ! switch on charge-exchange    (in particle module)
+  logical :: use_kn_ionisation   ! switch on ionisation         (in particle module)
+  logical :: use_kn_recombination ! switch on recombination         (in particle module)
+  logical :: use_kn_puffing       ! switch on particle puffing         (in particle module)
+  logical :: use_kn_line_radiation ! switch on line radiation         (in particle module)
   real*8  :: n_particles      ! the number of particles (real on purpose)
   real*8  :: tstep_particles  ! the time step for the particles
   integer :: nstep_particles  ! the number of particle time steps
@@ -984,7 +987,15 @@ module phys_module
   real*8  :: filter_perp_n0   ! particle projection smoothing parameter, poloidal plane (n=0)
   real*8  :: filter_hyper_n0  ! particle projection smoothing parameter, poloidal plane (n=0)
   real*8  :: filter_par_n0    ! particle projection smoothing parameter, parallel direction (n=0)
-  
+
+  real*8  :: puff_rate        ! physical atoms/sec puffed (shared over 2 places)
+  real*8  :: r_valve          ! radius of poloidal circular source
+  real*8  :: R_valve_loc      ! R position valve 1
+  real*8  :: Z_valve          ! Z position valve 1
+  real*8  :: R_valve_loc2     ! R position valve 2
+  real*8  :: Z_valve2         ! Z position valve 2
+  integer :: n_puff           ! superparticles used per puffing action per valve
+    
   !> @name Mode families preconditioner parameters
   integer, parameter :: n_fam_max = 100               !< maximum number of families
   integer :: n_mode_families                          !< number of families
@@ -995,6 +1006,7 @@ module phys_module
   logical :: autodistribute_ranks                     !< use automatic or manual rank distribution
   integer :: ranks_per_family(n_fam_max)              !< Number of MPI ranks per mode families
  
+
   contains
   
 end module phys_module

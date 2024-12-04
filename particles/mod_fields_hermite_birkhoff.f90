@@ -58,6 +58,7 @@ type, extends(fields_base) :: jorek_fields_interp_hermite_birkhoff
   contains
     procedure :: interp_PRZ => do_interp_PRZ_1
     procedure :: interp_PRZ_2 => do_interp_PRZ_2
+    procedure :: interp_PRZP_1 => do_interp_PRZP_1
     procedure, nopass :: mask !< Map number to 1..NL
     procedure :: ind !< Return (array of) indices into 1..NL (start+i etc)
 end type jorek_fields_interp_hermite_birkhoff
@@ -233,6 +234,24 @@ pure subroutine do_interp_PRZ_2(this,time,i_elm,i_v,n_v,s,t,phi,       &
       values(:,3,3),values(:,4,3),time,P_ttime)
     
 end subroutine do_interp_PRZ_2
+
+pure subroutine do_interp_PRZP_1(this, time, i_elm, i_v, n_v, s, t, phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi)
+  use mod_interp
+  use constants, only: mu_zero, mass_proton
+  use phys_module, only: tstep, central_mass, central_density
+  use mod_linear, only: linear_interp_differentials
+  use mod_linear, only: linear_interp_differentials_dt
+  class(jorek_fields_interp_hermite_birkhoff),  intent(in)  :: this
+  real*8,                   intent(in)  :: time !< Time at which to calculate this variable
+  integer,                  intent(in)  :: i_elm
+  integer,                  intent(in)  :: n_v, i_v(n_v)
+  real*8,                   intent(in)  :: s, t, phi
+  real*8,                   intent(out) :: P(n_v), P_s(n_v), P_t(n_v), P_phi(n_v), P_time(n_v)
+  real*8,                   intent(out) :: R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi
+
+  ! This routine has not been implemented yet!
+  return
+end subroutine
 
 !> Constructor to allow for optional variables
 function new_read_jorek_fields_interp_hermite_birkhoff(basename, i, rst_format, stop_at_end) result(new)

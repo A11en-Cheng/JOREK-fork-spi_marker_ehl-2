@@ -51,8 +51,8 @@ module mod_particle_types
   !> Integration in a 2D finite element method is included in the form of 2 coordinates
   !> and an element index.
   type, abstract :: particle_base
-    real*8    :: x(3)             !< particle position in real space
-    real*8    :: st(2)            !< particle position in the element
+    real*8    :: x(3)    = 0.d0   !< particle position in real space
+    real*8    :: st(2)   = 0.d0   !< particle position in the element
     real*8    :: weight = 1.0     !< weight (i.e. number of particles)
     integer*4 :: i_elm = 0        !< index in element_list. Negative indices indicate lost particles on the edge of - that element.
     integer*4 :: i_life = 0       !< particle lifetime index (i.e. is this still the same particle?)
@@ -293,7 +293,7 @@ contains
     type is (particle_kinetic_leapfrog)
       select type (p_in => particle_in)
       type is (particle_kinetic_leapfrog)
-        p_out%v  = p_in%v
+        p_out%v  = p_in%v !copy_particle(particle_out, particle_in)
         p_out%q  = p_in%q
       class default
         ! the transformation from kinetic to kinetic_leapfrog could be done with a small error here
