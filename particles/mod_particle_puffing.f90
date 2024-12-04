@@ -484,7 +484,6 @@ subroutine do_laser_puffing(this,sim, ev)
   end select
 
 end subroutine do_laser_puffing
-end module
 
 pure function time_dependent_puff(max_puff,time, t_puff_start,t_puff_slope, min_puff) result(to_puff)
 real*8,intent(in)   :: max_puff, min_puff
