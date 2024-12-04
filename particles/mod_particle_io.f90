@@ -800,7 +800,7 @@ do i=1,n
   ! Check if the imbalance is not too great
   if (sim%my_id .eq. 0) then
     if (maxval(n_alive_all) .gt. minval(n_alive_all) * 1.5) then
-      write(*,*) "WARNING: ", (maxval(n_alive_all)*100)/minval(n_alive_all), '% imbalance between CPUs, counts:'
+      write(*,*) "WARNING: ", (maxval(n_alive_all)*100)/(minval(n_alive_all)+0.00001), '% imbalance between CPUs, counts:'
       write(*,*) n_alive_all
     end if
   end if
