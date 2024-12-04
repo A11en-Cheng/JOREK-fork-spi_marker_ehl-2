@@ -484,7 +484,7 @@ Tie_min_neg = 0.5*T_min_neg
 #endif
 !$omp          T_1, T_max_eta, T_max_eta_ohm, eta_T_dependent,                                                & 
 !$omp          wgauss_copy, varmin, varmax)                                                                   &
-!$omp   private(ife,iv,inode,element,nodes,i,j, k,in, mp, ms, mt,                                             &
+!$omp   private(ife,iv,inode,element,nodes,i,j, k,in, mp, ms, mt, i_surface,                                  &
 !$omp           x_g, y_g, x_s, y_s, x_t, y_t, x_p, y_p, xjac, xjac_R, xjac_Z, eq_g, eq_s, eq_t, eq_p,         &
 !$omp           x_ss, x_tt, x_st, y_ss, y_tt, y_st, eq_ss, eq_tt, eq_st, eq_sp, eq_tp,                        &
 !$omp           eq_spp, eq_tpp, psi_axisym,s_norm, stel_current_source,eq_s_3d, eq_t_3d, wst, BigR,           &
@@ -499,6 +499,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp           hel1, vpar_x, vpar_y, ps0_s, ps0_t, u0_s, u0_t, p0_s, p0_t, vpar_s, vpar_t,                   &
 !$omp           u0_x, u0_y, Te0_corr, Ti0_corr, T_or_Te, T_or_Te_corr, T_or_Te_0, thm_wk_e, thm_wk_i,         &
 !$omp           thm_wk, mag_wk, eta_T, vpar_disp, fric_disp, p0_p, T0_corr, r0_corr, u0_p,                    &
+!$omp           pe0_s, pe0_t, pe0_p, pi0_s, pi0_t, pi0_p,                                                     &
 !$omp           AR0, AR0_p, AR0_s, AR0_t, AR0_sp, AR0_tp, AR0_Rp, AZ0, AZ0_p, AZ0_s, AZ0_t, AZ0_sp, AZ0_tp,   &
 !$omp           AZ0_Zp, A30, A30_p, A30_s, A30_t, A30_ss, A30_tt, A30_st, A30_R, A30_RR, A30_ZZ, BR_Z, BZ_R,  &
 !$omp           Srec_T_ncs, dSrec_dT_ncs, ksi_ion_norm, LradDcont_T_ncs, dLradDcont_dT_ncs, Sion_T_ncs,       &
