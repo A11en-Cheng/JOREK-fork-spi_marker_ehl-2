@@ -49,7 +49,6 @@ subroutine int3d_new(my_id, node_list, element_list, bnd_node_list, bnd_elm_list
 implicit none
 
 type (type_node_list),        intent(in)    :: node_list
-type(type_node_list),pointer, intent(in), optional :: aux_node_list
 type (type_element_list),     intent(in)    :: element_list   
 type (type_bnd_node_list),    intent(in)    :: bnd_node_list
 type (type_bnd_element_list), intent(in)    :: bnd_elm_list   
@@ -65,7 +64,6 @@ type (type_element)      :: element, elm_k
 type (type_node)         :: nodes(n_vertex_max), aux_nodes(n_vertex_max), node_k, aux_node_k
 type (type_bnd_element)  :: bndelem
 type (type_surface_list) :: surface_list
-type (type_node) :: aux_nodes(n_vertex_max) 
 
 real*8  :: psi_axis, psi_bnd
 real*8  :: x_g(n_plane,n_gauss,n_gauss),        x_s(n_plane,n_gauss,n_gauss),        x_t(n_plane,n_gauss,n_gauss),        x_p(n_plane,n_gauss,n_gauss),         x_ss(n_plane,n_gauss,n_gauss),        x_tt(n_plane,n_gauss,n_gauss),        x_st(n_plane,n_gauss,n_gauss)
