@@ -5210,7 +5210,7 @@ subroutine construct_imp_charge_states()
      dE_ion_dT = 0.
      E_ion_bg  = 0.
 
-  else
+  else if (use_marker) then
 
      E_ion     = 0.
      dE_ion_dT = 0.
@@ -5251,6 +5251,20 @@ subroutine construct_imp_charge_states()
      Z_imp_s    = (Z_imp_s - n_imp_s * Z_imp) / n_imp
      Z_imp_t    = (Z_imp_t - n_imp_t * Z_imp) / n_imp
 
+  else if (use_rcs) then
+
+     E_ion     = 0.
+     dE_ion_dT = 0.
+     E_ion_bg  = 13.6
+     E_ion_bg  = E_ion_bg * EL_CHG*MU_ZERO*central_density*1.d20
+     Z_imp     = 0.
+     dZ_imp_dT = 0.
+     aux_dEion_dt = eq_aux_g(mp,1,ms,mt) ! Accumulated ionization energy change
+     aux_rad    = max(eq_aux_g(mp,2,ms,mt),0.0)   ! The radiation power density
+     Z_eff      = 0.0   ! The sum (q^2) divided by the impurity number density
+     Z_imp      = 0.0   ! The sum (q) divided by the impurity number density
+     n_imp      = 0.0            ! The time averaged impurity number density
+     n_imp      = max(n_imp,1.d-2)!corr_neg_dens(n_imp, (/ 1.d-1, 1.d-1 /),1.d-3)
 
   end if
 
