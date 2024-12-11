@@ -183,7 +183,9 @@ subroutine grid_inside_wall(n_R,n_Z,R_begin,R_end,Z_begin,Z_end,boundary,node_li
   enddo
       
   element_list%n_elements = n_elm
-  node_list%node(1:n_nodes_max)%values(1,1,1) = 0.d0
+  do i = 1, n_nodes_max
+    node_list%node(i)%values(1,1,1) = 0.d0
+  end do
   do i_elm = 1,n_elm
     
     ! --- Nodes

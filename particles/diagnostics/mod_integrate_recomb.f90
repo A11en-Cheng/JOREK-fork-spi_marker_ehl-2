@@ -104,12 +104,13 @@ ksi_ion_norm = central_density * 1.d20 * ksi_ion
 !$omp          tstep,F0, delta_phi,ksi_ion_norm, gamma                                                 &
 !$omp          )                                                          &
 !$omp   private(ife,ielm,iv,i,j,k,ms,mt,mp,in,                            &
-!$omp           inode,nodes,element,                                      &
+!$omp           inode,element,                                            &
 !$omp           x_g, y_g, x_s, y_s, x_t, y_t, xjac, eq_g, eq_s, eq_t,     &
 !$omp           wst, BigR, r0, T0,  ps0_x,ps0_y ,u0_x,u0_y,vpar0,         &
 !$omp           r0_corr, T0_corr, Sion_T, dSion_dT, Srec_T, dSrec_dT,      &
-!$omp           LradDcont_T, dLradDcont_dT                                &
-!$omp           ) 
+!$omp           LradDcont_T, dLradDcont_dT                               &
+!$omp           )                                                         &
+!$omp   firstprivate(nodes)
 !> loop over all local recombination elements
 do ife =1,  local_rec_elements(my_id+1) !element_list%n_elements !n_local_rec_elms
 
@@ -127,7 +128,7 @@ do ife =1,  local_rec_elements(my_id+1) !element_list%n_elements !n_local_rec_el
 
   do iv = 1, n_vertex_max
     inode     = element%vertex(iv)
-    nodes(iv) = node_list%node(inode)
+    call make_deep_copy_node(node_list%node(inode), nodes(iv))
   enddo
   
 !----------------------- from elt_matrix_fft  
@@ -223,6 +224,9 @@ enddo
       enddo !mt
     enddo !ms
   enddo !mp !in, n_tor
+  do iv = 1, n_vertex_max
+    call dealloc_node(nodes(iv))
+  enddo
 
   !write(50+my_id,*) "ife,ielm,volume_check(ife)",ife, ielm, volume_check(ife)
 enddo !ife

@@ -495,9 +495,11 @@ module mod_chi
     ! --- Declare shared and private variables for omp
     !$omp parallel default(none) &
     !$omp   shared(element_list,node_list, H, H_s, H_t, H_ss, H_tt, H_st, HZ_coord, HZ_coord_p, HZ_coord_pp, local_elms, n_local_elms)  &
-    !$omp   private(i_elm, i_elm_loc,i_vertex,i_node,i_tor,element,nodes, i, j, ms, mt, mp,                                             &
+    !$omp   private(i_elm, i_elm_loc,i_vertex,i_node,i_tor,element, i, j, ms, mt, mp,                                             &
     !$omp           x_g, x_s, x_t, x_p, x_ss, x_tt, x_st, x_pp, x_sp, x_tp,                                                             &
-    !$omp           y_g, y_s, y_t, y_p, y_ss, y_tt, y_st, y_pp, y_sp, y_tp, chi, phi)
+    !$omp           y_g, y_s, y_t, y_p, y_ss, y_tt, y_st, y_pp, y_sp, y_tp, chi, phi)                                                   &
+    !$omp   firstprivate(nodes) !< so that these nodes are unallocated at the start of the omp region and can be explicitly allocated/deallocated 
+
     
     !$omp do schedule(runtime)
     do i_elm_loc = 1, n_local_elms
@@ -508,7 +510,7 @@ module mod_chi
       !$omp end critical
       do i_vertex = 1, n_vertex_max
         i_node     = element%vertex(i_vertex)
-        nodes(i_vertex) = node_list%node(i_node)
+        call make_deep_copy_node(node_list%node(i_node), nodes(i_vertex))
       enddo
       
       x_g  = 0.d0; x_s   = 0.d0; x_t   = 0.d0; x_p = 0.d0; x_st  = 0.d0; x_ss  = 0.d0; x_tt  = 0.d0; x_sp = 0.d0; x_tp = 0.d0; x_pp = 0.d0;
@@ -561,6 +563,10 @@ module mod_chi
       !$omp end critical
     enddo ! i_elm_loc
     !$omp end do
+
+    do i_vertex = 1, n_vertex_max
+      call dealloc_node(nodes(i_vertex))
+    enddo
     !$omp end parallel
 #else
   write(*,*) 'This function should not be called for tokamak models!'

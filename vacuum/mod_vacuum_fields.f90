@@ -1023,7 +1023,7 @@ module mod_vacuum_fields
   !< can be larger than the JOREK domain. Needs free-boundary
   !< since it calculates plasma, wall and coil contributions
   !< for each Fourier harmonic.
-  subroutine mag_field_including_vacuum(RZ,B_tot)  
+  subroutine mag_field_including_vacuum(RZ, B_tot, psi_tot)  
 
     use phys_module, only : R_geo
     use mod_interp
@@ -1040,10 +1040,12 @@ module mod_vacuum_fields
     real*8, allocatable, dimension(:,:,:), intent(inout) :: B_tot !< Magnetic field at given points 
                                                                   !< B_tot(i_pol, i_harmonic, i_comp) i_comp=1 for BR
                                                                   !< and i_comp=2 for BZ
+    real*8, allocatable, dimension(:,:), intent(inout) ::psi_tot  !< Psi at RZ points (i_pol, i_harmonic)
+                                                                  !< CAREFUL! psi has a different gauge in vacuum for 3D plasmas...
  
     ! --- Local parameters
     real*8, allocatable, dimension(:)     :: psi_tmp, psi_sing, R_elm, Z_elm, distance 
-    real*8, allocatable, dimension(:,:)   :: RZ_vac, r_pts, r_pts_sing, psi, psi_vac, &
+    real*8, allocatable, dimension(:,:)   :: RZ_vac, r_pts, r_pts_sing, psi_vac, &
                                              psi_vac_four, B_sing, B_tmp 
     real*8, allocatable, dimension(:,:,:) :: B_vac, B_vac_four
     real*8  :: R_out,Z_out,s_out,t_out, Ps0,Ps0_s,Ps0_t
@@ -1075,7 +1077,7 @@ module mod_vacuum_fields
 
 
     allocate(i_vac(np))
-    allocate(psi(np,n_tor))
+    allocate(psi_tot(np,n_tor))
     allocate(B_tot(np,n_tor,2))
     n_out_pol = 0
     i_vac     = 0
@@ -1087,7 +1089,7 @@ module mod_vacuum_fields
         xjac = R_s * Z_t - R_t * Z_s
         do i_tor=1, n_tor
           call interp(node_list,element_list,ielm_out,var_psi,i_tor,s_out,t_out,Ps0,Ps0_s,Ps0_t)
-          psi(i_pol,i_tor)     = Ps0
+          psi_tot(i_pol,i_tor) = Ps0
           B_tot(i_pol,i_tor,1) =   ( - Ps0_s * R_t + Ps0_t * R_s ) / xjac / R ! BR =  dpsi/dZ / R
           B_tot(i_pol,i_tor,2) = - (   Ps0_s * Z_t - Ps0_t * Z_s ) / xjac / R ! BZ = -dpsi/dR / R
         enddo
@@ -1243,10 +1245,10 @@ module mod_vacuum_fields
       if (i_vac(i_pol)>0) then ! point is in the vacuum region
         do i_tor=1, n_tor
           if (is_freebound(i_tor,var_psi)) then
-            psi(i_pol,i_tor)     = psi_vac_four(i_vac(i_pol),i_tor)
+            psi_tot(i_pol,i_tor) = psi_vac_four(i_vac(i_pol),i_tor)
             B_tot(i_pol,i_tor,:) = B_vac_four(i_vac(i_pol),i_tor,:)
           else ! set to 0 the harmonics that are not free-boundary in vacuum
-            psi(i_pol,i_tor)     = 0.d0
+            psi_tot(i_pol,i_tor) = 0.d0
             B_tot(i_pol,i_tor,:) = 0.d0
           endif
         enddo

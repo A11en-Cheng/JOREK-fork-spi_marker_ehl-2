@@ -146,7 +146,6 @@ program jorek2_fast_camera
   allocate(node_list)
   allocate(element_list)
 
-
   ! ********************************************************************** !
   !  User input parameter: Camera position, view, focal length, resolution !
   ! ********************************************************************** !

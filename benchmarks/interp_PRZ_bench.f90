@@ -32,6 +32,7 @@ integer, parameter :: n = 100 ! number of nodes in r, z directions
 ! Setup the grid
 call MPI_INIT_THREAD(MPI_THREAD_SINGLE, provided, ierr)
 call initialise_basis
+call init_node_list(node_list, n_nodes_max, 0, n_var)
 node_list%n_nodes = 0
 element_list%n_elements = 0
 call grid_bezier_square(n, n, R_geo-amin,R_geo+amin, Z_geo-amin, Z_geo+amin, .true., node_list, element_list)
@@ -73,5 +74,6 @@ call cpu_time(t1)
 
 write(*,*) "Time for ", N_loops, " iterations: ", t1-t0, "s"
 write(*,*) "Time per iteration: ", ((t1-t0)/real(N_loops)) *1d6, " microseconds"
+call dealloc_node_list(node_list) 
 
 end program interp_PRZ_bench

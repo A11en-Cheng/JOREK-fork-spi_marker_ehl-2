@@ -862,6 +862,7 @@ enddo
 
 ! --- Allocate data structures for new nodes and elements and initialize them.
 allocate(newnode_list)
+call init_node_list(newnode_list, n_nodes_max, newnode_list%n_dof, n_var)
 call tr_register_mem(sizeof(newnode_list),"newnode_list")
 allocate(newelement_list)
 call tr_register_mem(sizeof(newelement_list),"newelement_list")
@@ -1988,6 +1989,7 @@ do i=1, element_list%n_elements
   element_list%element(i)%sons(:) = 0
 enddo
 
+call dealloc_node_list(newnode_list) ! deallocates all the node values in newnode_list
 deallocate(newnode_list, newelement_list)
 deallocate(s_values,theta_sep,R_sep,Z_sep,R_max,Z_max,R_min,Z_min,s_tmp)
 deallocate(R_polar,Z_polar)

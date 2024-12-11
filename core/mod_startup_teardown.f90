@@ -369,6 +369,8 @@ end subroutine sanity_checks
 subroutine finalize(my_id)
   use phys_module, only: xtime, energies, energies2, energies3, energies4, fftw_plan
   use tr_module, only: tr_deallocate, CAT_UNKNOWN
+  use nodes_elements
+  use data_structure, only: dealloc_node_list
 
   integer, intent(in) :: my_id
   integer :: ierr
@@ -389,6 +391,9 @@ subroutine finalize(my_id)
 #ifdef USE_FFTW
   call dfftw_destroy_plan(fftw_plan)
 #endif
+
+if (allocated(node_list%node)) call dealloc_node_list(node_list)
+if (allocated(aux_node_list%node)) call dealloc_node_list(aux_node_list)
 
   call r3_info_summary()                                 ! timing
   call MPI_Finalize(ierr)                                ! clean up MPI

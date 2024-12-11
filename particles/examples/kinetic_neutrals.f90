@@ -200,45 +200,27 @@ if (use_kn_sputtering) then
   D_sputter_event = event(D_sputter_source)
 endif
 
-! setting up particle puffing Top puff
-! puff_t_dependent = .true. !.true. !< select if you want time dependent puffing
-! puff_rate = 40.d21 !40.d21!100.d21 !8.85d21 !4.d21 !8.d22 !4.d22 !4.d21
-! puffing_rate_start = 10.d21 !10 40 worked, 20 before
-! r_valve     = 0.02d0!              0.01d0 !0.04d0 !0.02d0 !0.04d0 !.005d0
-! R_valve_loc = 4.27d0!               4.4d0 !4.42787 !4.42787!2.33!2.6!2.1 !< for JET test !1.98991!2.58888  or 1.98991
-! Z_valve     = -3.74d0!             -3.8d0 !-3.7 !-3.77948! -1.86 !-1.0!-1.75 !-0.550736!1.86579   or -0.550736
 
-! R_valve_loc2 = 5.55d0!                  5.4d0 !5.46d0
-! Z_valve2     = -4.35d0!                  -4.19d0 !-4.2d0
-
-! puff_rate3 = 160.d21 !136.d21 ! 109.d21 !72.d21 !160.d21 !160.d21!85.d21
-! R_valve_loc3 = 6.05d0!                  5.4d0 !5.46d0
-! Z_valve3     = 4.15d0! 
-! r_valve3    = 0.10d0!  .12
-
-!Bot puff
 puff_t_dependent = .true. !.true. !< select if you want time dependent puffing
 puff_rate = 70.d21 !70.d21 !280.d21 !160.d21 !40.d21!100.d21 !8.85d21 !4.d21 !8.d22 !4.d22 !4.d21
 puffing_rate_start = 40.d21 !40.d21 !40 40 worked, 20 before
 r_valve     = 0.05d0 !0.02d0!              0.01d0 !0.04d0 !0.02d0 !0.04d0 !.005d0
-R_valve_loc = 4.3d0 !4.27d0!               4.4d0 !4.42787 !4.42787!2.33!2.6!2.1 !< for JET test !1.98991!2.58888  or 1.98991
-Z_valve     = -3.8d0 !-3.74d0!             -3.8d0 !-3.7 !-3.77948! -1.86 !-1.0!-1.75 !-0.550736!1.86579   or -0.550736
-poly_R = (/4.2566d0 ,4.474d0 ,4.237d0 ,4.4917d0 /)
-poly_Z= (/-3.727d0 ,-3.629d0 ,-3.7738d0 ,-3.6587d0 /)
+R_valve_loc = 10.0d0 !4.27d0!               4.4d0 !4.42787 !4.42787!2.33!2.6!2.1 !< for JET test !1.98991!2.58888  or 1.98991
+Z_valve     = -0.8d0 !-3.74d0!             -3.8d0 !-3.7 !-3.77948! -1.86 !-1.0!-1.75 !-0.550736!1.86579   or -0.550736
+!poly_R = (/9.9d0 ,9.9d0 ,10.1d0 ,10.1d0 /)
+!poly_Z= (/-0.9d0 ,-0.8d0 ,-0.8d0 ,-0.9d0 /)
 
-
-R_valve_loc2 = 5.5d0 !5.55d0!                  5.4d0 !5.46d0
-Z_valve2     = -4.35d0!                  -4.19d0 !-4.2d0
-poly_R2 = (/5.426d0 ,5.559d0 ,5.455d0 ,5.5586d0 /)
-poly_Z2= (/-4.155d0 ,-4.4005d0 ,-4.0803d0 ,-4.330d0 /)
-
+R_valve_loc2 = 10.0d0 !4.27d0!               4.4d0 !4.42787 !4.42787!2.33!2.6!2.1 !< for JET test !1.98991!2.58888  or 1.98991
+Z_valve2     = -0.8d0 !-3.74d0!             -3.8d0 !-3.7 !-3.77948! -1.86 !-1.0!-1.75 !-0.550736!1.86579   or -0.550736
+!poly_R2 = (/9.9d0 ,9.9d0 ,10.1d0 ,10.1d0 /)
+!poly_Z2= (/-0.9d0 ,-0.8d0 ,-0.8d0 ,-0.9d0 /)
 
 puff_rate3 = 0.d21 !136.d21 ! 109.d21 !72.d21 !160.d21 !160.d21!85.d21
-R_valve_loc3 = 6.05d0!                  5.4d0 !5.46d0
-Z_valve3     = 4.15d0! 
-r_valve3    = 0.10d0!  .12
-poly_R3 = (/5.77d0 ,6.735d0 ,5.72d0 ,6.68d0 /)
-poly_Z3= (/4.51d0 ,3.760d0 ,4.46d0 ,3.71d0 /)
+r_valve3     = 0.05d0 !0.02d0!              0.01d0 !0.04d0 !0.02d0 !0.04d0 !.005d0
+R_valve_loc3 = 10.0d0 !4.27d0!               4.4d0 !4.42787 !4.42787!2.33!2.6!2.1 !< for JET test !1.98991!2.58888  or 1.98991
+Z_valve3     = -0.8d0 !-3.74d0!             -3.8d0 !-3.7 !-3.77948! -1.86 !-1.0!-1.75 !-0.550736!1.86579   or -0.550736
+!poly_R3 = (/9.9d0 ,9.9d0 ,10.1d0 ,10.1d0 /)
+!poly_Z3= (/-0.9d0 ,-0.8d0 ,-0.8d0 ,-0.9d0 /)
 boxpuff = .true.
 
 
@@ -459,7 +441,8 @@ do while (.not. sim%stop_now)
 
 !=======================================================================
 !                     Run diagnostics for conservation check
-!======================================================================== 
+!========================================================================
+
   call Integrals_3D(sim%my_id, sim%fields%node_list, sim%fields%element_list, density_tot, density_in, density_out, &
                     pressure, pressure_in, pressure_out, kin_par_tot, kin_par_in, kin_par_out, mom_par_tot, mom_par_in, mom_par_out,varminout,varmaxout)
 

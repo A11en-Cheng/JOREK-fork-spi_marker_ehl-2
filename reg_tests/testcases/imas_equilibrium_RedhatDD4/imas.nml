@@ -1,0 +1,17 @@
+&imas_params
+  shot_number = 111111
+  run_number  = 1
+  database    = 'imas_regtest_db'
+!!  user        = 'artolaj'
+  export_1d_profiles = .true.
+  export_equilibrium = .true.
+  export_JOREK_variables  = .false.
+  n_grid      = 100
+  overwrite_entry=.true.
+ rect_grid_params%nR = 100
+ rect_grid_params%nZ  = 100
+ rect_grid_params%R_min = 2
+ rect_grid_params%R_max=4
+ rect_grid_params%Z_min=-1.7
+ rect_grid_params%Z_max=1.7
+/

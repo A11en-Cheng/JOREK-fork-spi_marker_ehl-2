@@ -79,6 +79,7 @@ n_tht_mid2 = n_tht-n_tht_mid
 !-------------------------------- Allocate data structures for new nodes and initialize them
 allocate(newnode_list)
 call tr_register_mem(sizeof(newnode_list),"newnode_list")
+call init_node_list(newnode_list, n_nodes_max, newnode_list%n_dof, n_var)
 newnode_list%n_nodes = 0
 newnode_list%n_dof   = 0
 index = 0
@@ -1416,6 +1417,7 @@ do i=1, element_list%n_elements
 enddo
 
 call tr_unregister_mem(sizeof(newnode_list),"newnode_list")
+call dealloc_node_list(newnode_list) ! deallocates all the node values in newnode_list
 deallocate(newnode_list)
 call tr_unregister_mem(sizeof(newelement_list),"newelement_list")
 deallocate(newelement_list)

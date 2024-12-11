@@ -37,7 +37,6 @@ end if
 
 !----------------------------------- one line would be enough if only MPI_TYPE_STRUCT would work on IXIA
 !call MPI_BCAST(phys_list,1,MPI_phys,0,MPI_COMM_WORLD,ierr)
-
 err_buff_too_small = .false.
 
 ! --- Define the derived MPI type for shattered pellets
@@ -441,7 +440,6 @@ if (my_id .eq. 0) then
   call MPI_PACK(tgnum_AR  ,             1,MPI_REAL8,buffer,bufsize,position,MPI_COMM_WORLD,ierr)
   call MPI_PACK(tgnum_AZ  ,             1,MPI_REAL8,buffer,bufsize,position,MPI_COMM_WORLD,ierr)
   call MPI_PACK(tgnum_A3  ,             1,MPI_REAL8,buffer,bufsize,position,MPI_COMM_WORLD,ierr)
-
 
 
   call MPI_PACK(pastix_pivot,           1,MPI_REAL8,buffer,bufsize,position,MPI_COMM_WORLD,ierr)
@@ -919,6 +917,7 @@ if ( err_buff_too_small ) then
 end if
 
 ! --- Broadcast input parameters.
+
 call MPI_BCAST(buffer,bufsize,MPI_PACKED,0,MPI_COMM_WORLD,ierr)
 
 ! --- Unpack the input parameters from the buffer on all receiving MPI tasks.

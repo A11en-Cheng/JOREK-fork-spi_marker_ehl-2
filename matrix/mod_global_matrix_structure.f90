@@ -76,12 +76,11 @@ subroutine global_matrix_structure(node_list, element_list, boundary_list, freeb
      i_father= element_list%element(ielm)%father
      do iv = 1, n_vertex_max
 
-        inode     = element%vertex(iv)
-
-        nodes(iv) = node_list%node(inode)
-
+      inode     = element%vertex(iv)
+      call make_deep_copy_node(node_list%node(inode), nodes(iv))
      enddo
 
+     
 
      !if( i_father.ne.0) then
      call Ch_node_struct(ielm, element,nodes,node_out) !  Processing  "constrained nodes"
@@ -90,6 +89,10 @@ subroutine global_matrix_structure(node_list, element_list, boundary_list, freeb
      !  node_out(j)=element%vertex(j)
      ! enddo
      !endif
+     
+     do iv = 1, n_vertex_max
+      call dealloc_node(nodes(iv))
+     enddo
 
      if (element%n_sons .eq. 0) then
 

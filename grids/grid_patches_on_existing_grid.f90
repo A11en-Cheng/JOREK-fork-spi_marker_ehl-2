@@ -76,6 +76,9 @@ call export_restart(node_list, element_list, 'grid_no_patch')
 
 ! --- Allocate data structures for new nodes and initialize them
 allocate(node_list_tmp,node_list_tmp2,node_list_new)
+call init_node_list(node_list_tmp, n_nodes_max, 0, n_var)
+call init_node_list(node_list_tmp2, n_nodes_max, 0, n_var)
+call init_node_list(node_list_new, n_nodes_max, 0, n_var)
 call tr_register_mem(sizeof(node_list_tmp),"node_list_tmp")
 call tr_register_mem(sizeof(node_list_tmp2),"node_list_tmp2")
 call tr_register_mem(sizeof(node_list_new),"node_list_new")

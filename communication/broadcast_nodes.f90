@@ -43,16 +43,17 @@ bufsize = node_list%n_nodes * ((n_coord_tor*n_degrees*n_dim + 2*n_tor*n_degrees*
 bufsize = node_list%n_nodes * ((n_coord_tor*n_degrees*n_dim + 2*n_tor*n_degrees*n_var+2)*IDBL_EXT + (n_degrees + 1+3+1+1)*INT_EXT + (2)*ILOG_EXT)
 #endif
 
-
+call init_node(anode, n_var)
 allocate(buffer(bufsize))
 call tr_register_mem(bufsize,"bcastn_buffer")
 
 if (my_id .eq. 0) then
 
   position = 0
+
   do i=1,node_list%n_nodes
 
-    anode = node_list%node(i)
+    call make_deep_copy_node(node_list%node(i), anode)
 
     call MPI_PACK(anode%x              ,n_coord_tor*n_degrees*n_dim      ,MPI_DOUBLE_PRECISION,buffer,bufsize,position,MPI_COMM_WORLD,ierr)
     call MPI_PACK(anode%values         ,n_tor*n_degrees*n_var,MPI_DOUBLE_PRECISION,buffer,bufsize,position,MPI_COMM_WORLD,ierr)
@@ -92,6 +93,8 @@ call MPI_BCAST(buffer,bufsize,MPI_PACKED,0,MPI_COMM_WORLD,ierr)
 
 if (my_id .ne. 0) then
 
+    if (.not. allocated(node_list%node)) call init_node_list(node_list, node_list%n_nodes, node_list%n_dof, n_var)
+
   position = 0
   do i=1,node_list%n_nodes
 
@@ -123,13 +126,15 @@ if (my_id .ne. 0) then
     call MPI_UNPACK(buffer,bufsize,position,anode%parent_elem    ,1        ,MPI_INTEGER,MPI_COMM_WORLD,ierr)
     call MPI_UNPACK(buffer,bufsize,position,anode%ref_lambda     ,1        ,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,ierr)
     call MPI_UNPACK(buffer,bufsize,position,anode%ref_mu         ,1        ,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,ierr)
-    node_list%node(i) = anode
+
+    call make_deep_copy_node(anode, node_list%node(i))
 
   enddo
 
 endif
 
 call tr_unregister_mem(bufsize,"bcastn_buffer")
+call dealloc_node(anode)
 deallocate(buffer)
 
 return

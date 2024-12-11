@@ -1,6 +1,7 @@
 module mod_penning_case_jorek_spec_mpi_test
 use fruit
 use fruit_mpi
+use data_structure
 implicit none
 private
 public :: run_fruit_penning_case_jorek_spec_mpi
@@ -68,6 +69,7 @@ subroutine test_penning_case_jorek_square_10_10()
   type(jorek_fields_interp_linear) :: fields 
   character(len=message_len),parameter :: message='penning case jorek square 10 10 test'
   allocate(fields%node_list,fields%element_list)
+  call init_node_list(fields%node_list, n_nodes_max, fields%node_list%n_dof, n_var)
   call default_square_grid(rank_loc,n_tasks_loc,nx,ny,fields%node_list,&
   fields%element_list,ifail_loc)
   call jorek_penning_fields(fields%node_list,fields%element_list,&
@@ -85,6 +87,7 @@ subroutine test_penning_case_jorek_polar_30_32()
   type(jorek_fields_interp_linear) :: fields
   character(len=message_len),parameter :: message='penning case jorek polar 30 32 test'
   allocate(fields%node_list,fields%element_list)
+  call init_node_list(fields%node_list, n_nodes_max, fields%node_list%n_dof, n_var)
   call default_polar_grid(rank_loc,n_tasks_loc,npol,nrad,&
   fields%node_list,fields%element_list,ifail_loc)
   call jorek_penning_fields(fields%node_list,fields%element_list,&

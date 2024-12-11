@@ -42,7 +42,6 @@ if (my_id .eq. 0) then
   endif
 endif
  
-
 index_total = -1
 do inode=1,node_list%n_nodes
   index_total = max(index_total,maxval(node_list%node(inode)%index))

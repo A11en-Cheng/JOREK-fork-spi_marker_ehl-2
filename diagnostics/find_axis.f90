@@ -6,7 +6,7 @@ use data_structure
 use gauss
 use basis_at_gaussian
 use equil_info,  only: ES
-use phys_module, only: R_geo, Z_geo, axis_srch_radius, R_axis_t, Z_axis_t, index_start  
+use phys_module, only: R_geo, Z_geo, axis_srch_radius, R_axis_t, Z_axis_t, index_start, index_now
 use mod_interp
 
 implicit none
@@ -39,7 +39,7 @@ real*8  :: R, R_s, R_t, R_st, R_ss, R_tt, Z, Z_s, Z_t, Z_st, Z_ss, Z_tt, P, P_s,
 integer :: ij_axis(2), i, iv, ms, mt, kf, kv, i_tries, n_tries, i_elm_axis_init, min_indices(3)
 real*8  :: x(2), s, t, xerr, ferr, s_axis_init, t_axis_init
 real*8  :: R0, Z0, search_radius
-logical :: found_axis, axis_in_rst_file
+logical :: found_axis, axis_in_rst_file, restarting_now, GS_equil_phase
 real*8,  allocatable :: grad_psi(:,:,:)
 logical, allocatable :: include_pt(:,:,:)
 
@@ -71,10 +71,16 @@ if( (index_start /= 0) .and. allocated(R_axis_t)) then
   if (R_axis_t(index_start) /= 0.d0) axis_in_rst_file = .true.  
 endif
 
-if (ES%initialized) then
+restarting_now  = ((index_now == index_start) .and. (index_now > 0))
+GS_equil_phase  = (index_now == 0)
+
+if (ES%initialized .and. (.not. restarting_now)) then 
   R0 = ES%R_axis
   Z0 = ES%Z_axis
-else if ((.not. ES%initialized) .and. (index_start > 0) .and. axis_in_rst_file) then
+else if (ES%initialized .and. GS_equil_phase) then
+  R0 = ES%R_axis
+  Z0 = ES%Z_axis
+else if (restarting_now .and. axis_in_rst_file) then  ! --- If we restart and the axis was already found, then use it
   R0 = R_axis_t(index_start)
   Z0 = Z_axis_t(index_start)
 else 

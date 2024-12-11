@@ -1765,7 +1765,8 @@ module exec_commands
     logical, optional, intent(in)   :: flux_av     !< Perform proper flux average
     
     ! --- Local variables
-    integer :: units, npts, nsmall, i_exp
+    integer :: units, npts, nsmall, i_exp, nmaxstep
+    real*8  :: deltaphi, PsiNmin, PsiNmax
     character(len=1024) :: filename, comment
     type(t_pol_pos_list), save :: pol_pos_list
     type(t_tor_pos_list), save :: tor_pos_list
@@ -1777,16 +1778,20 @@ module exec_commands
     call check_step_imported(ierr);          if ( ierr /= 0 ) return
     call check_exprs_selected(ierr);         if ( ierr /= 0 ) return
     
-    units = get_int_setting('units', ierr)
-    npts  = get_int_setting('surfaces', ierr)
-    nsmall= get_int_setting('nsmallsteps', ierr)
+    units    = get_int_setting('units', ierr)
+    npts     = get_int_setting('surfaces', ierr)
+    nsmall   = get_int_setting('nsmallsteps', ierr)
+    nmaxstep = get_int_setting('nmaxsteps', ierr)
+    deltaphi = get_float_setting('deltaphi', ierr)
+    PsiNmin  = get_float_setting('rad_range_min', ierr)
+    PsiNmax  = get_float_setting('rad_range_max', ierr)
     
     write(filename,'(4a)') trim(DIR), 'exprs_averaged',                                                  &
       trim(step_range_string(loop_min_step,loop_max_step)), '.dat'
     
     ! ### is nTht and nphi really chosen well???
     pol_pos_list = pol_pos(node_list, element_list, ES, nPsiN=npts, nTht=max(150,6*n_plane),                &
-      nsmallsteps=nsmall)
+      nsmallsteps=nsmall, nmaxsteps=nmaxstep, deltaphi=deltaphi, PsiNmax=PsiNmax, PsiNmin=PsiNmin )
     tor_pos_list = tor_pos(nphi=max(n_plane,2))
 
     if (present(flux_av)) then

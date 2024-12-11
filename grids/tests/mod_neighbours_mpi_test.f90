@@ -39,6 +39,7 @@ subroutine setup(rank,n_tasks,ifail)
   integer,intent(inout) :: ifail
   integer,intent(in)    :: rank,n_tasks
   rank_loc=rank; n_tasks_loc=n_tasks; ifail_loc=ifail;
+  call init_node_list(test_nodes, n_nodes_max, test_nodes%n_dof, n_var)
 end subroutine setup
 
 subroutine teardown(rank,n_tasks,ifail)
@@ -46,6 +47,7 @@ subroutine teardown(rank,n_tasks,ifail)
   integer,intent(inout) :: ifail
   integer,intent(in)    :: rank,n_tasks
   rank_loc=-1; n_tasks_loc=-1; ifail=ifail_loc;
+  call dealloc_node_list(test_nodes)
 end subroutine teardown
 
 !> Tests ------------------------------------------

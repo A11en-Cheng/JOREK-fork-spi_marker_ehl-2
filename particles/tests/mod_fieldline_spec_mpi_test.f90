@@ -47,6 +47,8 @@ subroutine setup(rank,n_tasks,ifail)
   integer,intent(inout) :: ifail
   integer,intent(in)    :: rank,n_tasks
   rank_loc = rank; n_tasks_loc = n_tasks; ifail_loc = ifail;
+  call init_node_list(node_list_sol, n_nodes_max, node_list_sol%n_dof, n_var)
+
   fields_sol%node_list    => node_list_sol
   fields_sol%element_list => element_list_sol
   !> compute the MHD equilibrium and define the flux grid
@@ -60,6 +62,7 @@ subroutine teardown(rank,n_tasks,ifail)
   rank_loc = 0; n_tasks_loc = 0; ifail = ifail_loc;
   if(associated(fields_sol%node_list))    fields_sol%node_list => NULL()
   if(associated(fields_sol%element_list)) fields_sol%element_list => NULL()
+  call dealloc_node_list(node_list_sol)
 end subroutine teardown
 
 !> Tests ------------------------------------------
@@ -87,7 +90,6 @@ subroutine test_fieldline_backforth_euler
     write(is,"(i2)") i
     dt = 10.d0**i
     call initialise_particles(p, fields_sol%node_list, fields_sol%element_list, sobseq_rng())
-
     do k=1,n_p
     
       p(k)%v = v

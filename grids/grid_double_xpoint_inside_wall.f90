@@ -208,7 +208,15 @@ call find_strategic_points_advanced(node_list, element_list, flux_list, xcase, f
 !-------------------------------------------------------------------------------------------!
 
 ! --- Allocate data structures for new nodes and initialize them
-allocate(node_list_inner_leg,node_list_outer_leg,node_list_tmp,node_list_tmp2,node_list_new)
+allocate(node_list_inner_leg, node_list_outer_leg, node_list_tmp, node_list_tmp2, node_list_new)
+
+call init_node_list(node_list_inner_leg, n_nodes_max, 0, n_var)
+call init_node_list(node_list_outer_leg, n_nodes_max, 0, n_var)
+call init_node_list(node_list_tmp, n_nodes_max, 0, n_var)
+call init_node_list(node_list_tmp2, n_nodes_max, 0, n_var)
+call init_node_list(node_list_new, n_nodes_max, 0, n_var)
+
+
 call tr_register_mem(sizeof(node_list_inner_leg),"node_list_inner_leg")
 call tr_register_mem(sizeof(node_list_outer_leg),"node_list_outer_leg")
 call tr_register_mem(sizeof(node_list_tmp),"node_list_tmp")

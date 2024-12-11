@@ -292,6 +292,8 @@ if (my_id .eq. 0) then
   !write(*,*) ' n_cpu   : ',n_cpu
 endif
 
+
+
 density_tot  = 0.d0
 pressure = 0.d0
 pressure_i = 0.d0
@@ -484,7 +486,7 @@ Tie_min_neg = 0.5*T_min_neg
 #endif
 !$omp          T_1, T_max_eta, T_max_eta_ohm, eta_T_dependent,                                                & 
 !$omp          wgauss_copy, varmin, varmax)                                                                   &
-!$omp   private(ife,iv,inode,element,nodes,i,j, k,in, mp, ms, mt, i_surface,                                  &
+!$omp   private(ife,iv,inode,element,i,j, k,in, mp, ms, mt, i_surface                                         &
 !$omp           x_g, y_g, x_s, y_s, x_t, y_t, x_p, y_p, xjac, xjac_R, xjac_Z, eq_g, eq_s, eq_t, eq_p,         &
 !$omp           x_ss, x_tt, x_st, y_ss, y_tt, y_st, eq_ss, eq_tt, eq_st, eq_sp, eq_tp,                        &
 !$omp           eq_spp, eq_tpp, psi_axisym,s_norm, stel_current_source,eq_s_3d, eq_t_3d, wst, BigR,           &
@@ -503,7 +505,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp           AR0, AR0_p, AR0_s, AR0_t, AR0_sp, AR0_tp, AR0_Rp, AZ0, AZ0_p, AZ0_s, AZ0_t, AZ0_sp, AZ0_tp,   &
 !$omp           AZ0_Zp, A30, A30_p, A30_s, A30_t, A30_ss, A30_tt, A30_st, A30_R, A30_RR, A30_ZZ, BR_Z, BZ_R,  &
 !$omp           Srec_T_ncs, dSrec_dT_ncs, ksi_ion_norm, LradDcont_T_ncs, dLradDcont_dT_ncs, Sion_T_ncs,       &
-!$omp           dSion_dT_ncs, aux_nodes, eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p, aux_rho0, aux_T0, aux_Vpar0, &
+!$omp           dSion_dT_ncs, eq_aux_g, eq_aux_s, eq_aux_t, eq_aux_p, aux_rho0, aux_T0, aux_Vpar0, &
 !$omp           aux_P0, aux_P0_s, aux_P0_t, aux_P0_p, aux_q0, aux_jx0, aux_jy0, aux_jz0, aux_jz0_pcs,         &
 !$omp           eta_T_ohm, rn0, rn0_corr, rimp0, rimp0_corr, Z_eff, lnA, alpha_e,                             &
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
@@ -535,7 +537,9 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp           Arad_bg, Brad_bg, Crad_bg,                                                                    &
 !$omp           coef_prad_si,                                                                                 &
 #endif
-!$omp           omp_nthreads,omp_tid)
+!$omp           omp_nthreads,omp_tid)                                                          &
+!$omp   firstprivate(nodes, aux_nodes) !< so that these nodes are unallocated at the start of the omp region and can be explicitly allocated/deallocated 
+
 
 
 #ifdef OPENMP
@@ -568,8 +572,8 @@ do ife = ife_min, ife_max
 
   do iv = 1, n_vertex_max
     inode     = element%vertex(iv)
-    nodes(iv) = node_list%node(inode)
-    if (present(aux_node_list)) aux_nodes(iv) = aux_node_list%node(inode)
+    call make_deep_copy_node(node_list%node(inode), nodes(iv))
+    if (present(aux_node_list)) call make_deep_copy_node(aux_node_list%node(inode), aux_nodes(iv)) 
   enddo
 
 eq_aux_g = 0.d0; eq_aux_s = 0.d0; eq_aux_t = 0.d0; eq_aux_p = 0.d0;  
@@ -1715,7 +1719,10 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
       enddo
     enddo
   enddo
-
+  do iv = 1, n_vertex_max
+    call dealloc_node(nodes(iv))
+    call dealloc_node(aux_nodes(iv))
+  enddo
 enddo
 !$omp end do
 !$omp end parallel
@@ -1742,9 +1749,9 @@ do m_bndelem = 1, bnd_elm_list%n_bnd_elements
       k_node      = bndelem%vertex(k_vertex)
       k_dir       = bndelem%direction(k_vertex,k_dof)
       k_size      = bndelem%size(k_vertex,k_dof)
-      node_k      = node_list%node(k_node)
-      if (present(aux_node_list)) aux_node_k  = aux_node_list%node(k_node)
-  
+      call make_deep_copy_node(node_list%node(k_node), node_k)
+      if (present(aux_node_list)) call make_deep_copy_node(aux_node_list%node(k_node), aux_node_k)
+      
       do mp=1,n_plane
         do in=1,n_coord_tor
           x_g_1D(mp,:)   = x_g_1D(mp,:)  + node_k%x(in,k_dir,1) * k_size * H1  (k_vertex,k_dof,:) *HZ_coord(in,mp)
@@ -1787,6 +1794,8 @@ do m_bndelem = 1, bnd_elm_list%n_bnd_elements
 
     end do
   end do
+
+  call dealloc_node(node_k)
 
 
   !--- Find out correct sign of the normal (it has to point outwards the domain)

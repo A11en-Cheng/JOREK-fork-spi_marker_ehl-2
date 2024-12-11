@@ -963,6 +963,8 @@ module phys_module
   real*8  :: D_neutral
 
   !> @name Particles-related input parameters
+  integer :: n_aux_var = n_var   ! number of variables in aux_node_list (= n_var is temporary)
+  integer :: n_diag_var = n_var  ! number of variables in diag_node_list (= n_var is temporary)
   logical :: restart_particles
   logical :: use_ncs          ! use neutral particles
   logical :: use_rcs          ! use radiative coupling of particles

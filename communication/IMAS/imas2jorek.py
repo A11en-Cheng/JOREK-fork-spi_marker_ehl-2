@@ -1,4 +1,3 @@
-
 import imas, os, copy 
 import numpy as np
 from imas import imasdef
@@ -14,8 +13,32 @@ def find_nearest(arr, target_value):
     idx = abs(arr - target_value).argmin()
     return arr.flat[idx],idx
 
+# --- Routine to calculate Coulmb's log ei
+def coulomb_log(Te, ne):  # Te in eV, ne in SI
+    if np.ndim(Te)>0:
+        mask1 = Te < 10
+        mask2 = Te > 10
+        Coulomb_Log = np.copy(Te)
+        Coulomb_Log[mask1] = 23.0000 - np.log((ne*1e-6)**0.5*Te[mask1]**(-1.5))
+        Coulomb_Log[mask2] = 24.1513 - np.log((ne*1e-6)**0.5*Te[mask2]**(-1.0))
+    else:
+        if (Te<10):
+            Coulomb_Log = 23.0000 - np.log((ne*1e-6)**0.5*Te**(-1.5))
+        else:
+            Coulomb_Log = 24.1513 - np.log((ne*1e-6)**0.5*Te**(-1.0))
+    return Coulomb_Log
 
-# --- Routine to constructu initial boundary of JOREK's grid
+# --- Routine to calculate Spitzer's resistivity
+def eta_spitzer(Te, ne, Zeff):  # Te in eV, ne in SI, eta in SI
+    coef_Zeff = Zeff*(1.+1.198*Zeff+0.222*Zeff**2)/(1.+2.966*Zeff+0.753*Zeff**2) / ((1.+1.198+0.222)/(1.+2.966+0.753))
+    eta = 1.65e-9 * coulomb_log(Te, ne) * (Te*0.001)**(-1.5) * coef_Zeff # From Wesson
+    return eta
+  
+# --- Routine to calculate Spitzer-Haerm conductivity
+def kappa_par_Spitzer(Te):  # Te in eV, ne in SI, kappa_par in SI
+    return 3.6e29 * (Te*1e-3)**2.5
+
+# --- Routine to construct the initial boundary of JOREK's grid
 def build_JOREK_boundary(tokamak_name):
 
   R_scale = 1
@@ -130,7 +153,7 @@ def build_JOREK_boundary(tokamak_name):
 
 print(" ")
 print(" Example of usage: ")
-print("    python imas2jorek.py -u public -d ITER -s 105033 -r 1 -t 54.5")
+print("    python imas2jorek.py -u public -d ITER -p 105033 -r 1 -t 54.5")
 print(" ")
 print(" To see options and default values do: ")
 print("    python imas2jorek.py -h ")
@@ -139,51 +162,59 @@ print(" ")
 # Import shot
 parser = argparse.ArgumentParser(description="Create a JOREK input file from an equilibrium IDS in a given IMAS database",
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument("-s", "--shot", type=int, default=1, help="Shot number")
+parser.add_argument("-p", "--pulse", type=int, default=1, help="Pulse number")
 parser.add_argument("-r", "--run", type=int, default=7, help="Run number")
 parser.add_argument("-u", "--user", type=str, default=getpass.getuser(),
                     help="Location of ~$USER/public/imasdb")
 parser.add_argument("-d", "--database", type=str, default="test_db", help="Database name under public/imasdb/")
+parser.add_argument("-dd", "--data_dictionary", type=int, default=3, help="data dictionary major version")
 parser.add_argument("-o", "--occurrence", type=int, default=0, help="Occurrence number")
 parser.add_argument("-tk", "--tokamak", type=str, default="ITER", help="Name of the tokamak (to construct R,Z boundary)")
-parser.add_argument("-f", "--backend", type=int, default=imasdef.MDSPLUS_BACKEND,
+parser.add_argument("-f", "--backend", type=int, default=imasdef.HDF5_BACKEND,
                     help="Database format: 12=MDSPLUS, 13=HDF5")
 parser.add_argument("-t", "--time", type=float, default=-1, help="The requested time in seconds")
 args = parser.parse_args()
 
 # cocos factors
-cocos_psi  =  1.0/(2*np.pi)       # Transform to COCOS convention 11 --> 8
+if (args.data_dictionary <=3):
+  cocos_psi  =  1.0/(2*np.pi)       # Transform to COCOS convention 11 --> 8
+else:
+  cocos_psi  =  -1.0/(2*np.pi)      # Transform to COCOS convention 17 --> 8
+
 cocos_curr = -1.0 
 cocos_Bphi = -1.0
+it=0
 
-input = imas.ids(args.shot,args.run,0,0)
-input.open_env(args.user, args.database,'3')
-input.equilibrium.get()
-input.pf_active.get()
-input.core_profiles.get()
+input = imas.DBEntry(args.backend, args.database, args.pulse, args.run, args.user, data_version = str(args.data_dictionary))
+input.open()
 
-# Find out array index of the requested time
-timevec  = input.equilibrium.time
-ntime    = len(timevec)
-time_req = args.time
-if ntime > 1:
-    if time_req >= 0:
-        tc, it = find_nearest(timevec, time_req)
+time = input.partial_get("equilibrium",'time')
+equilibrium   = input.get_slice("equilibrium",args.time, imas.imasdef.CLOSEST_INTERP)
+pf_active     = input.get_slice("pf_active",  args.time, imas.imasdef.CLOSEST_INTERP)
+# Use plasma_profiles if available
+if args.data_dictionary>3:
+  use_core_prof  = False
+  profiles = input.get_slice("plasma_profiles", args.time, imas.imasdef.CLOSEST_INTERP)
+  try:
+    profiles.validate()
+    if len(profiles.profiles_1d[it].electrons.temperature)==0:
+      print(len(profiles.profiles_1d[it].electrons.temperature))
+      use_core_prof = True
     else:
-        it = int(ntime/2)
-        tc = timevec[it]
+      print('Use plasma_profiles')
+  except:
+    use_core_prof = True
 else:
-    if ntime > 0:
-        tc = timevec[0]
-    else:
-        tc = 0
-    it = 0
+  use_core_prof = True
+if (use_core_prof):
+  print('Use core_profiles')
+  profiles = input.get_slice("core_profiles", args.time, imas.imasdef.CLOSEST_INTERP)
     
-time = tc
+# Find out array index of the requested time
+tc   = equilibrium.time[0]
 
 print(' **************** Found time and index *****************')
-print(' Time  = '+'%.5f' % tc+' s in range ['+'%.2f' % timevec[0]+','+'%.2f' % timevec[ntime-1]+'] s')
-print(' Index = ',str(it))
+print(' Time  = %.5fs with t=%.5f - %.5fs '% (tc, time[0], time[-1]))
 print(" ")
 
 ########## Create boundary of the JOREK domain ###############
@@ -200,25 +231,32 @@ m_proton = 1.67262192e-27
 e_ch     = 1.6021766e-19
 
 # Read 0D parameters
-a_min        = input.equilibrium.time_slice[it].boundary_separatrix.minor_radius
+if args.data_dictionary<4:
+  a_min      = equilibrium.time_slice[it].boundary_separatrix.minor_radius
+else:
+  a_min      = equilibrium.time_slice[it].boundary.minor_radius
+
 eps          = a_min / R_geo
-B_geo        = input.equilibrium.vacuum_toroidal_field.r0 * input.equilibrium.vacuum_toroidal_field.b0[0] / R_geo * cocos_Bphi
-xip          = input.equilibrium.time_slice[it].global_quantities.ip           * cocos_curr
-psi_axis     = input.equilibrium.time_slice[it].global_quantities.psi_axis     * cocos_psi
-psi_boundary = input.equilibrium.time_slice[it].global_quantities.psi_boundary * cocos_psi
-beta_p       = input.equilibrium.time_slice[it].global_quantities.beta_pol                
-beta_tor     = input.equilibrium.time_slice[it].global_quantities.beta_tor                
-beta_normal  = input.equilibrium.time_slice[it].global_quantities.beta_normal             
-li3          = input.equilibrium.time_slice[it].global_quantities.li_3                    
-volume       = input.equilibrium.time_slice[it].global_quantities.volume                  
-area         = input.equilibrium.time_slice[it].global_quantities.area                    
-q_axis       = input.equilibrium.time_slice[it].global_quantities.q_axis                  
-q_95         = input.equilibrium.time_slice[it].global_quantities.q_95                    
-Wth          = input.equilibrium.time_slice[it].global_quantities.energy_mhd              
-R_axis       = input.equilibrium.time_slice[it].global_quantities.magnetic_axis.r         
-Z_axis       = input.equilibrium.time_slice[it].global_quantities.magnetic_axis.z         
-#R_xpoint     = input.equilibrium.time_slice[it].boundary_separatrix.x_point.r        
-#Z_xpoint     = input.equilibrium.time_slice[it].boundary_separatrix.x_point.z        
+B_geo        = equilibrium.vacuum_toroidal_field.r0 * equilibrium.vacuum_toroidal_field.b0[0] / R_geo * cocos_Bphi
+xip          = equilibrium.time_slice[it].global_quantities.ip           * cocos_curr
+psi_axis     = equilibrium.time_slice[it].global_quantities.psi_axis     * cocos_psi
+psi_boundary = equilibrium.time_slice[it].global_quantities.psi_boundary * cocos_psi
+beta_p       = equilibrium.time_slice[it].global_quantities.beta_pol                
+beta_tor     = equilibrium.time_slice[it].global_quantities.beta_tor
+if args.data_dictionary<4:
+  beta_normal  = equilibrium.time_slice[it].global_quantities.beta_normal
+else:
+  beta_normal  = equilibrium.time_slice[it].global_quantities.beta_tor_norm
+li3          = equilibrium.time_slice[it].global_quantities.li_3                    
+volume       = equilibrium.time_slice[it].global_quantities.volume                  
+area         = equilibrium.time_slice[it].global_quantities.area                    
+q_axis       = equilibrium.time_slice[it].global_quantities.q_axis                  
+q_95         = equilibrium.time_slice[it].global_quantities.q_95                    
+Wth          = equilibrium.time_slice[it].global_quantities.energy_mhd              
+R_axis       = equilibrium.time_slice[it].global_quantities.magnetic_axis.r         
+Z_axis       = equilibrium.time_slice[it].global_quantities.magnetic_axis.z         
+#R_xpoint     = equilibrium.time_slice[it].boundary_separatrix.x_point.r        
+#Z_xpoint     = equilibrium.time_slice[it].boundary_separatrix.x_point.z        
 
 print(' **************** Equilibrium quantities *****************')
 print( ' Ip                = %s MA'%(xip* 1e-6) )
@@ -235,14 +273,13 @@ print( ' ')
 
 
 # Read 1D profiles  
-psi_1d      = input.equilibrium.time_slice[it].profiles_1d.psi                 * cocos_psi
-qprof       = input.equilibrium.time_slice[it].profiles_1d.q     #             * cocos_psi
-pressure_1d = input.equilibrium.time_slice[it].profiles_1d.pressure
-ffprime_1d  = input.equilibrium.time_slice[it].profiles_1d.f_df_dpsi     *(-1.0)      / cocos_psi  
-ions        = input.core_profiles.profiles_1d[it].ion
-Te_ids      = input.core_profiles.profiles_1d[it].electrons.temperature
-#jtor_ids    = input.core_profiles.profiles_1d[it].j_tor
-psi_1d_core = input.core_profiles.profiles_1d[it].grid.psi * cocos_psi
+psi_1d      = equilibrium.time_slice[it].profiles_1d.psi                 * cocos_psi
+qprof       = equilibrium.time_slice[it].profiles_1d.q     #             * cocos_psi
+pressure_1d = equilibrium.time_slice[it].profiles_1d.pressure
+ffprime_1d  = equilibrium.time_slice[it].profiles_1d.f_df_dpsi     *(-1.0)      / cocos_psi
+ions        = profiles.profiles_1d[it].ion
+Te_ids      = profiles.profiles_1d[it].electrons.temperature
+psi_1d_core = profiles.profiles_1d[it].grid.psi * cocos_psi
 
 # Get ion density profile
 n_tot    = np.zeros( len(ions[0].density))
@@ -257,16 +294,18 @@ for ion in ions:
 psi_norm    = (psi_1d      - psi_axis) / (psi_boundary - psi_axis)
 psi_norm2   = (psi_1d_core - psi_axis) / (psi_boundary - psi_axis)
 
+psi_1d = psi_1d[psi_norm<=1.]
+psi_norm = psi_norm[psi_norm<=1.]
 # Export 1d profiles to compare with JOREK
 np.savetxt('profiles_ids.txt', np.transpose([psi_norm2, Te_ids, n_tot, qprof]   ) )
 
 # Read 2D profiles  
-R_2d   = input.equilibrium.time_slice[it].profiles_2d[0].r
-Z_2d   = input.equilibrium.time_slice[it].profiles_2d[0].z
-psi_2d = input.equilibrium.time_slice[it].profiles_2d[0].psi  * cocos_psi
+R_2d   = equilibrium.time_slice[it].profiles_2d[0].r
+Z_2d   = equilibrium.time_slice[it].profiles_2d[0].z
+psi_2d = equilibrium.time_slice[it].profiles_2d[0].psi  * cocos_psi
 
 # Read PF coil currents
-coils  = input.pf_active.coil
+coils  = pf_active.coil
 
 # Get poloidal flux at the JOREK boundary
 Ra = R_2d.flatten()
@@ -278,33 +317,34 @@ psi_bnd = griddata((Ra, Za), pa, (R_bnd, Z_bnd))
 n0              = n_tot[0]
 central_density = n0*1e-20
 central_mass    = rho_tot[0] / (n0 * m_proton)
+rho0            = central_mass * m_proton * central_density * 1e20 
 rho_unit        = rho_tot / rho_tot[0]
 
 # Extend profiles into the SOL
 n_sol          = 80
 n_core         = len(psi_1d)
-n_tot          = n_sol + n_core
+n_prof         = n_sol + n_core
 psin_sol       = 2.0
 psin_sep       = psi_norm[-1] + (psi_norm[-1] - psi_norm[-2])
 
-psi_norm_ext    = np.zeros( n_tot )
-ffprime_1d_ext  = np.zeros( n_tot )
-pressure_1d_ext = np.zeros( n_tot )
-rho_1d_ext      = np.zeros( n_tot )
+psi_norm_ext    = np.zeros( n_prof )
+ffprime_1d_ext  = np.zeros( n_prof )
+pressure_1d_ext = np.zeros( n_prof )
+rho_1d_ext      = np.zeros( n_prof )
 
 # Fill core values in
-psi_norm_ext   [0:n_core] = psi_norm
-ffprime_1d_ext [0:n_core] = ffprime_1d
-pressure_1d_ext[0:n_core] = pressure_1d
-rho_1d_ext     [0:n_core] = rho_unit 
+psi_norm_ext   [0:n_core] = psi_norm[0:n_core]
+ffprime_1d_ext [0:n_core] = ffprime_1d[0:n_core]
+pressure_1d_ext[0:n_core] = pressure_1d[0:n_core]
+rho_1d_ext     [0:n_core] = rho_unit [0:n_core]
 
 # Extend psi
-psi_norm_ext[n_core:n_tot] = np.linspace(psin_sep,psin_sol,num=n_sol) 
+psi_norm_ext[n_core:n_prof] = np.linspace(psin_sep,psin_sol,num=n_sol) 
 
 # Fill SOL with last values
-ffprime_1d_ext  [n_core:n_tot] = np.full( n_sol,  ffprime_1d[-1] ) 
-pressure_1d_ext [n_core:n_tot] = np.full( n_sol, pressure_1d[-1] ) 
-rho_1d_ext      [n_core:n_tot] = np.full( n_sol,    rho_unit[-1] ) 
+ffprime_1d_ext  [n_core:n_prof] = np.full( n_sol,  ffprime_1d[n_core-1] ) 
+pressure_1d_ext [n_core:n_prof] = np.full( n_sol, pressure_1d[n_core-1] ) 
+rho_1d_ext      [n_core:n_prof] = np.full( n_sol,    rho_unit[n_core-1] ) 
 
 # Ramp-down values in the SOL
 ramp_down   = 0.5*(1 - np.tanh((psi_norm_ext - 1.01)/0.01) )
@@ -327,6 +367,9 @@ namelist = open('jorek_namelist', 'w')
   
 namelist.write( "***********************************************\n")
 namelist.write( "* namelist from imas2jorek.py                 *\n")
+namelist.write("* pulse %06i        run %02i          *\n"%(args.pulse,args.run))
+namelist.write("* database %s user %s*\n"%(args.database,args.user))
+namelist.write("* time %.6f                           \n*" %tc)
 namelist.write( "***********************************************\n")
 
 namelist.write(" &in1"+"\n")
@@ -334,9 +377,10 @@ namelist.write(" &in1"+"\n")
 namelist.write("  tstep = 1."+"\n")
 namelist.write("  nstep = 0"+"\n")
 namelist.write("\n")
-namelist.write("  freeboundary       = .f."+"\n")
-namelist.write("  resistive_wall     = .f."+"\n")
-namelist.write("  freeboundary_equil = .f."+"\n")
+namelist.write("  freeboundary          = .f." +"\n")
+namelist.write("  resistive_wall        = .f." +"\n")
+namelist.write("  freeboundary_equil    = .f." +"\n")
+namelist.write("  wall_resistivity_fact = 1.d0"+"\n")
 namelist.write("\n")
 namelist.write("  psi_axis_init = %18.9e \n"%(psi_axis))
 namelist.write("  amix          = 0.d0"+"\n")
@@ -347,6 +391,7 @@ for i in range(0, len(coils)):
     namelist.write("  pf_coils(%3d)%%current = %18.9e  ! %s \n"%(i+1, coils[i].current.data[it]*cocos_curr, coils[i].name))
     
 namelist.write("\n")
+namelist.write("! --- Grid parameters -----------------------\n")
 namelist.write("  n_R      = 0"+"\n")
 namelist.write("  n_Z      = 0"+"\n")
 namelist.write("  n_radial = 41"+"\n")
@@ -359,27 +404,64 @@ namelist.write("  n_private = 9"+"\n")
 namelist.write("  dPSI_open    = 0.04"+"\n")
 namelist.write("  dPSI_private = 0.02"+"\n")
 namelist.write(" "+"\n")
+namelist.write("! --- Initial conditions --------------------\n")
 namelist.write("  rho_file     = 'jorek_density'"+"\n")
 namelist.write("  T_file       = 'jorek_temperature'"+"\n")
 namelist.write("  ffprime_file = 'jorek_ffprime'"+"\n")
 namelist.write(" "+"\n")
 
 namelist.write(" "+"\n")
-namelist.write("  F0 = %18.9e \n"%(R_geo * B_geo))
-namelist.write("  xpoint = .t."+"\n")
+namelist.write("! --- Physical parameters -------------------\n")
+
+eta_JU  = eta_spitzer(Te_ids[0], n_tot[0], 1) * np.sqrt(rho0/mu0)
+namelist.write("  eta                   = %18.9e    !!! Spitzer value at Zeff=1 \n"%(eta_JU))
+namelist.write("  eta_ohmic             = %18.9e    !!! Spitzer value at Zeff=1 \n"%(eta_JU))
+namelist.write("  eta_T_dependent       = .t.  \n" )
+namelist.write("  eta_coul_log_dep      = .t.  \n" )
+Te_norm_fact = e_ch * mu0 * n0 
+namelist.write("  T_max_eta             = %18.9e  !!! You may want to modify this, taken at T_tot_axis \n"%( Te_ids[0]*Te_norm_fact*2) )
+namelist.write("  T_max_eta_ohm         = 1d99    !!! No upper value for ohmic heating \n" )
+namelist.write("  T_min                 = %18.9e  !!! T_tot_min = 1eV, double check!! \n"%( 1*Te_norm_fact) )
+namelist.write("  T_min_neg             = %18.9e  !!! T_tot_min = 1eV, double check!! \n"%( 1*Te_norm_fact) )
+namelist.write("  Te_eV_min             = 1.d0    !!! Used for radiation and impurity functions \n" )
+namelist.write("  corr_neg_temp_coef(1) = 1.0     !!! These are used to make sure the minimum corrected temperature is T_min_neg \n" )
+namelist.write("  corr_neg_temp_coef(2) = 0.1 \n" )
+namelist.write("  rho_min               = %18.9e  !!! double check!! \n"%( rho_1d_ext[-1]*0.5 ) )
+namelist.write("  rho_min_neg           = %18.9e  !!! double check!! \n"%( rho_1d_ext[-1]*0.5 ) )
+
+diffusion_coef_default = 1.0   # 1 m2/s
 namelist.write("\n")
-namelist.write("  D_par     = 0.d0"+"\n")
-namelist.write("  D_perp(1) = 1.d-6"+"\n")
+namelist.write("  F0     = %18.9e \n"%(R_geo * B_geo))
+namelist.write("  xpoint = .t."+"\n")
+namelist.write("  gamma_stangeby  = 8.d0"+"\n")
+namelist.write("  bc_natural_open = .t."+"\n")
+namelist.write("\n")
+namelist.write("  D_par     = %18.9e    !!! 1m2/s - Double check! \n"%(diffusion_coef_default * np.sqrt(rho0*mu0)))
+namelist.write("  D_perp(1) = %18.9e    !!! 1m2/s - Double check! \n"%(diffusion_coef_default * np.sqrt(rho0*mu0)))
 namelist.write("  D_perp(2) = 0.85d0"+"\n")
 namelist.write("  D_perp(3) = 0.d0"+"\n")
 namelist.write("  D_perp(4) = 0.01d0"+"\n")
-namelist.write("  D_perp(5) = 2.d0"+"\n")
-namelist.write("  ZK_par     = 1.d0"+"\n")
-namelist.write("  ZK_perp(1) = 1.d-6"+"\n")
+namelist.write("  D_perp(5) = 1.d4"+"\n")
+namelist.write("\n")
+fact_norm_kappa = np.sqrt(mu0/rho0) * (5.0/3.0-1.0) * central_mass * m_proton 
+Kappa_par_JU    = kappa_par_Spitzer(Te_ids[0]) * fact_norm_kappa
+namelist.write("  ZKpar_T_dependent = .t. "+"\n")
+namelist.write("  ZK_par            = %18.9e    !!! Spitzer value in the core \n"%(Kappa_par_JU))
+namelist.write("  ZK_par_max        = %18.9e    !!! double check!! you may want to lower if Te_axis > 1keV \n"%(Kappa_par_JU))
+namelist.write("  T_min_ZKpar       = %18.9e    !!! set to 1 eV, you may want to rise it to resolve sharp gradients \n"%(Te_norm_fact*1))
+namelist.write("\n")
+namelist.write("  ZK_perp(1) = %18.9e    !!! 1m2/s - Double check! \n"%(diffusion_coef_default * fact_norm_kappa * n0 ))
 namelist.write("  ZK_perp(2) = 0.85d0"+"\n")
 namelist.write("  ZK_perp(3) = 0.d0"+"\n")
 namelist.write("  ZK_perp(4) = 0.01d0"+"\n")
-namelist.write("  ZK_perp(5) = 2.0d0"+"\n")
+namelist.write("  ZK_perp(5) = 1.d4"+"\n")
+namelist.write("\n")
+visco_JU = diffusion_coef_default * np.sqrt(mu0/rho0) * rho0
+namelist.write("  visco_T_dependent = .f. "+"\n")
+namelist.write("  visco             = %18.9e    !!! 1 m2/s - Double check! \n"%(visco_JU))
+namelist.write("  visco_heating     = %18.9e    !!! 1 m2/s - Double check! \n"%(visco_JU))
+namelist.write("  visco_par         = %18.9e    !!! 10m2/s - Double check! \n"%(visco_JU*10))
+namelist.write("  visco_par_heating = %18.9e    !!! 10m2/s - Double check! \n"%(visco_JU*10))
 namelist.write(""+"\n")
 namelist.write("  heatsource     = 0.d0"+"\n")
 namelist.write("  particlesource = 0.d0"+"\n")
@@ -389,6 +471,8 @@ namelist.write("  central_density = %18.9e \n"%(central_density))
 namelist.write(""+"\n")
 namelist.write("  R_geo = %18.9e \n"%(R_geo))
 namelist.write("  Z_geo = %18.9e \n"%(Z_geo))
+namelist.write(""+"\n")
+namelist.write("! --- Initial psi ------------------------\n")
 namelist.write("  mf = 0 \n")
 namelist.write("  n_boundary = "+str(len(R_bnd))+"\n")
 

@@ -18,6 +18,7 @@ contains
 !> Fruit basket -----------------------------------
 subroutine run_fruit_kinetic_to_gc_spec
   implicit none
+  call init_node_list(node_list, n_nodes_max, node_list%n_dof, n_var)
   write(*,'(/A)') "  ... setting-up: kinetic to gc spec"
   call setup_kinetic_to_gc_spec
   write(*,'(/A)') "  ... running: kinetic to gc spec"
@@ -28,6 +29,7 @@ subroutine run_fruit_kinetic_to_gc_spec
   call run_test_case(test_gc_kinetic_gc_negative_mu,'test_gc_kinetic_gc_negative_mu')
   call run_test_case(test_get_orthonormals,'test_get_orthonormals')
   write(*,'(/A)') "  ... tearing-down: kinetic to gc spec"
+  call dealloc_node_list(node_list)
 end subroutine run_fruit_kinetic_to_gc_spec
 
 !> Set-up and tear-down  --------------------------

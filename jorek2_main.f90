@@ -185,10 +185,11 @@ program JOREK2
   call init_expr()
   allocate(res(exprs_all_int%n_expr+1))
   res = 0.d0   
-  
+    
   !***********************************************************************
   !*                  intialisation                                      *
   !***********************************************************************
+
   ! --- Initialize OpenMP threads before MPI_init
   !call init_threads()
   
@@ -370,9 +371,13 @@ mpi_required = 0
   call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list)
 #else
   if_not_restart: if (.not. restart) then
+
     call tr_resetfile()
+    call init_node_list(node_list, n_nodes_max, node_list%n_dof, n_var)
 
     if_not_regrid_from_rz: if(.not. regrid_from_rz) then
+      
+      ! --- allocate values of nodes
 
       call initial_grid(node_list, element_list, bnd_node_list, bnd_elm_list, my_id, n_cpu)
 
@@ -426,7 +431,7 @@ mpi_required = 0
     if (n_flux > 1) then
 
       call flux_grid(node_list, element_list, bnd_node_list, bnd_elm_list, my_id, n_cpu)
-      
+            
       if ( freeb_equil2) then
         freeboundary_equil = .true.
         call get_vacuum_response(my_id, node_list, bnd_elm_list, bnd_node_list, freeboundary_equil,  &
@@ -446,7 +451,7 @@ mpi_required = 0
         call export_boundary(node_list, bnd_elm_list, bnd_node_list)
       endif
     end if ! if (n_flux > 1) then
- 
+      
     if (my_id == 0) then
           
       ! --- Update the status of the equilibrium
@@ -485,27 +490,30 @@ mpi_required = 0
   ! --- Determine boundary information from the grid
   if ( my_id == 0 ) call boundary_from_grid(node_list, element_list, bnd_node_list, bnd_elm_list, output_bnd_elements)
   call broadcast_boundary(my_id, bnd_elm_list, bnd_node_list)
-  
+    
   ! --- Fill the vacuum response matrices for freeboundary computations
-  if ( freeboundary ) then
-    call get_vacuum_response(my_id, node_list, bnd_elm_list, bnd_node_list, freeboundary_equil,    &
-        resistive_wall)
-    call update_response(my_id,tstep,  resistive_wall)
-    call import_external_fields('coil_field.dat', my_id)
-    call set_coil_curr_time_trace()
-    call read_Z_axis_profile() 
-    if ( (.not. restart) .or. (.not. wall_curr_initialized) ) call init_wall_currents(my_id, resistive_wall)
-  end if
+if ( freeboundary ) then
+  call get_vacuum_response(my_id, node_list, bnd_elm_list, bnd_node_list, freeboundary_equil,    &
+      resistive_wall)
+  call update_response(my_id,tstep,  resistive_wall)
+  call import_external_fields('coil_field.dat', my_id)
+  call set_coil_curr_time_trace()
+  call read_Z_axis_profile() 
+  if ( (.not. restart) .or. (.not. wall_curr_initialized) ) call init_wall_currents(my_id, resistive_wall)
+end if
   
-  call tr_print_memsize("AfterEquilibrium")
+call tr_print_memsize("AfterEquilibrium")
 
-  if (RMP_on) then
-     if (my_id == 0) then
-        call read_RMP_profiles(bnd_node_list)
-     endif
+if (RMP_on) then
+  if (my_id == 0) then
+    call read_RMP_profiles(bnd_node_list)
   endif
-  
-  ! --- Broadcast grid information and input parameters to other MPI procs
+endif
+
+
+write(*,*) "n elements:", element_list%n_elements
+
+! --- Broadcast grid information and input parameters to other MPI procs
   call broadcast_elements(my_id, element_list)                ! elements
   
   if (RMP_on) call broadcast_RMP_profiles(my_id, bnd_node_list)        ! psi_RMP profiles
@@ -516,8 +524,10 @@ mpi_required = 0
 #ifdef USE_NO_TREE
   call no_tree_init(node_list, element_list)
 #elif USE_QUADTREE
+
   call quadtree_init(node_list, element_list)
 #else
+
   call populate_element_rtree(node_list, element_list)
 #endif
 
@@ -640,6 +650,7 @@ mpi_required = 0
   call r3_info_print (-2, -2, 'INITIALIZATION')    ! timing
 
   if (.not. associated(aux_node_list)) allocate(aux_node_list) ! information of particle moments is stored in aux_list
+  call init_node_list(aux_node_list, n_nodes_max, aux_node_list%n_dof, n_aux_var)
 
   index_now = index_start  ! index_now: Index of current timestep
 
@@ -882,7 +893,6 @@ mpi_required = 0
 #endif
 #endif
     endif
-
     call clck_time_barrier(t1)
     call clck_ldiff(t0,t1,tsecond)
     if (my_id .eq. 0) then
@@ -1161,6 +1171,9 @@ mpi_required = 0
 #ifdef USE_FFTW
   call dfftw_destroy_plan(fftw_plan)
 #endif
+
+if (allocated(node_list%node)) call dealloc_node_list(node_list)
+if (allocated(aux_node_list%node)) call dealloc_node_list(aux_node_list)
 
   call r3_info_summary ()                                ! timing
   call MPI_FINALIZE(IERR)                                ! clean up MPI

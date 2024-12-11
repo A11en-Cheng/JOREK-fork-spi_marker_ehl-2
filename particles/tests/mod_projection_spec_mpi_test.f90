@@ -6,7 +6,9 @@
 module mod_projection_spec_mpi_test
 use fruit
 use fruit_mpi
-use data_structure, only: type_node_list,type_element_list
+use data_structure, only: type_node_list,type_element_list, init_node_list, dealloc_node_list
+use mod_parameters, only: n_nodes_max
+use mod_model_settings, only: n_var
 implicit none
 private
 public :: run_fruit_projection_spec_mpi
@@ -81,6 +83,7 @@ subroutine setup(rank,n_tasks,ifail)
   integer,intent(in)    :: rank,n_tasks
   rank_loc=rank; n_tasks_loc=n_tasks; ifail_loc=ifail;
   allocate(test_node_list,test_element_list)
+  call init_node_list(test_node_list, n_nodes_max, test_node_list%n_dof, n_var)
 end subroutine setup
 
 subroutine teardown(rank,n_tasks,ifail)

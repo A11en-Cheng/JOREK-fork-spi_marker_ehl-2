@@ -254,9 +254,15 @@ if (my_id == 0) then
   !$omp parallel default(none) &
   !$omp shared(node_list, element_list, refinement, itype, ivar_in, ivar_out, i_harm, psi_axis, psi_bnd, xpoint, xcase, Z_xpoint, psi_axis_kl, &
   !$omp        psi_bnd_kl, newton_method_GS, treat_axis, ES, a_mat, rhs_vec, ilarge) &
-  !$omp private(element, nodes, inode, ife, i_father, element_father, iv, inode_father, nodes_father, ELM, RHS, ELM_axis, ELM_bnd, node_out, i, j, &
-  !$omp         i_tor, index_ij, index_large_i, k, l, knode, k_tor, index_kl, index_large_k)
+  !$omp private(element, inode, ife, i_father, element_father, iv, inode_father, ELM, RHS, ELM_axis, ELM_bnd, node_out, i, j, &
+  !$omp         i_tor, index_ij, index_large_i, k, l, knode, k_tor, index_kl, index_large_k)                                                       &
+  !$omp firstprivate(nodes, nodes_father) !< so that these nodes are unallocated at the start of the omp region and can be explicitly allocated/deallocated 
   
+  do iv = 1, n_vertex_max
+    call init_node(nodes(iv), n_var)
+    call init_node(nodes_father(iv), n_var)
+  enddo
+
   !$omp do
   do ife =1, element_list%n_elements
   
@@ -430,6 +436,12 @@ if (my_id == 0) then
   
   enddo ! ife
   !$omp end do
+
+  do iv = 1, n_vertex_max
+    call dealloc_node(nodes(iv))
+    call dealloc_node(nodes_father(iv))
+  enddo
+
   !$omp end parallel
 
   nz_AA_old = nz_AA
@@ -844,7 +856,7 @@ if (my_id == 0) then
         h_u = 1
         h_v = 1
         h_w = h_u*h_v
-  
+        
         node_list%node(i)%values(i_harm,1,ivar_out) = Psi
         node_list%node(i)%values(i_harm,2,ivar_out) = (dPsi_ds) /(3.*h_u)
         node_list%node(i)%values(i_harm,3,ivar_out) = (dPsi_dt) /(3.*h_v)

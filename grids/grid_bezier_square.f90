@@ -189,5 +189,6 @@ enddo
 if (n_order .ge. 5) call set_high_order_sizes(element_list)
 
 call update_neighbours(node_list,element_list, force_rtree_initialize=.true.)
+
 return
 end subroutine grid_bezier_square

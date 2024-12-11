@@ -236,7 +236,10 @@ subroutine setup_solvers(this, sim)
   call this%solver%setup()
   this%setup_done = .true.
 
-  if (.not. associated(aux_node_list)) allocate(aux_node_list) ! information of particle moments is stored in aux_list
+  if (.not. associated(aux_node_list)) then 
+    allocate(aux_node_list) ! information of particle moments is stored in aux_list
+    call init_node_list(aux_node_list, n_nodes_max, aux_node_list%n_dof, n_aux_var)
+  endif
 
 end subroutine setup_solvers
 
@@ -422,8 +425,7 @@ subroutine do_jorek_timestep(this, sim, ev)
     ! This is a change from jorek2_main, where these quantities are calculated using the old xpoint and axis data
     call update_equil_state(sim%my_id,sim%fields%node_list, sim%fields%element_list, bnd_elm_list, xpoint, xcase)
     this%es = ES
-
-    call energy(W_mag,W_kin)
+    call energy(W_mag, W_kin)
     
 !    call integrals(sim%fields%node_list, sim%fields%element_list,                                                         &
 !        this%es%R_axis, this%es%Z_axis, this%es%psi_axis, this%es%R_xpoint, this%es%Z_xpoint,       &
