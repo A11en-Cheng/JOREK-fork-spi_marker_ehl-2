@@ -486,7 +486,7 @@ Tie_min_neg = 0.5*T_min_neg
 #endif
 !$omp          T_1, T_max_eta, T_max_eta_ohm, eta_T_dependent,                                                & 
 !$omp          wgauss_copy, varmin, varmax)                                                                   &
-!$omp   private(ife,iv,inode,element,i,j, k,in, mp, ms, mt, i_surface                                         &
+!$omp   private(ife,iv,inode,element,i,j, k,in, mp, ms, mt, i_surface,                                        &
 !$omp           x_g, y_g, x_s, y_s, x_t, y_t, x_p, y_p, xjac, xjac_R, xjac_Z, eq_g, eq_s, eq_t, eq_p,         &
 !$omp           x_ss, x_tt, x_st, y_ss, y_tt, y_st, eq_ss, eq_tt, eq_st, eq_sp, eq_tp,                        &
 !$omp           eq_spp, eq_tpp, psi_axisym,s_norm, stel_current_source,eq_s_3d, eq_t_3d, wst, BigR,           &
