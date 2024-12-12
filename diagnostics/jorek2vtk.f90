@@ -198,10 +198,6 @@ allocate(bnd_node_list)
 my_id     = 0
 call initialise_parameters(my_id, "__NO_FILENAME__")
 
-! --- Define the basis functions at the Gaussian points
-call initialise_basis()
-call init_chi_basis()
-
 ! --- Preset parameters
 nsub                   = 5       ! Number of subdivisions of the cubic finite elements into linear pieces
 i_tor                  = -1      ! If i_tor > 0, only this mode will be included in the vtk file...
