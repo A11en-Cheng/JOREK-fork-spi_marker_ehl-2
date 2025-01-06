@@ -105,6 +105,12 @@ module mod_injection_source
         mol_atom = 2.
         mass_gas = A_gas*MASS_PROTON
         c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(7.d0/5.d0))
+      case('C')
+        n_gas  = 3
+        A_gas  = 12.
+        mol_atom = 1.
+        mass_gas = A_gas*MASS_PROTON
+        c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(5.d0/3.d0))
       case('Ar')
         n_gas  = 3
         A_gas  = 40.
