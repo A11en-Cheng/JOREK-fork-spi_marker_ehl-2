@@ -973,7 +973,7 @@ do i=1,n_vertex_max
             call conductivity_parallel(ZK_e_par, ZK_par_max, Te0, Te0_corr, Te_min_ZKpar, Te_0, &
                                        ZKe_par_T,  ZK_e_par_neg_thresh, ZK_e_par_neg, dTe0_corr_dT, dZKe_par_dT)
 
-            if (with_impurities) call construct_imp_charge_states()
+            if (with_impurities .or. use_rcs) call construct_imp_charge_states()
                           
             ! --- Ion-electron energy transfer
             if (thermalization) then
@@ -1005,7 +1005,7 @@ do i=1,n_vertex_max
             call conductivity_parallel(ZK_par, ZK_par_max, T0, T0_corr, T_min_ZKpar, T_0, &
                                        ZK_par_T, ZK_par_neg_thresh, ZK_par_neg, dT0_corr_dT, dZK_par_dT)
 
-            if (with_impurities) call construct_imp_charge_states()
+            if (with_impurities .or. use_rcs) call construct_imp_charge_states()
                
             call construct_pressure()
            
