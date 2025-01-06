@@ -335,7 +335,7 @@ aux_rho0  = 0.d0; aux_T0    = 0.d0; aux_Vpar0 = 0.d0; aux_dEion_dT = 0.0;  aux_r
 aux_P0    = 0.d0; aux_P0_s  = 0.d0; aux_P0_t  = 0.d0; aux_P0_p     = 0.d0
 aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0      = 0.d0; aux_jz0_pcs = 0.d0
 
-if (with_impurities) then
+if (with_impurities .or. use_rcs) then
   if (allocated(P_imp)) deallocate(P_imp)
   if (allocated(dP_imp_dT)) deallocate(dP_imp_dT)
   
