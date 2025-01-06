@@ -215,7 +215,12 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 alpha_Newton, vacuum_min, strumpack_matching,       &
                 visco_old_setup, visco_heating, eta_coul_log_dep,   &
                 export_polar_boundary, xpoint_search_tries,         &
-                loop_voltage, export_aux_node_list
+                loop_voltage, export_aux_node_list,                 &
+                use_puffing, fueling_rate, valve_r,                 &
+                R_valve_loc, Z_laser_loc, PHI_laser_loc,            &
+                initial_E, puffing_direction, puffing_timestep,     &
+                puff_starttime, puffingtime,                        &
+                phys_particles_puff
 
 
 if (my_id .eq. 0) then
