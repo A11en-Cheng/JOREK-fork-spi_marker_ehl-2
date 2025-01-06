@@ -992,6 +992,9 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
           case('D2')
             m_i_over_m_imp = central_mass/2.  ! Deuterium mass = 2 u
             m_imp          = 2.
+          case('C')
+            m_i_over_m_imp = central_mass/12.
+            m_imp          = 12.
           case('Ar')
             m_i_over_m_imp = central_mass/40. ! Argon mass = 40 u
             m_imp          = 40.
@@ -2073,6 +2076,8 @@ do m_bndelem = 1, bnd_elm_list%n_bnd_elements
       select case ( trim(imp_type(index_main_imp)) )
         case('D2')
           m_i_over_m_imp = central_mass/2.  ! Deuterium mass = 2 u
+        case('C')
+          m_i_over_m_imp = central_mass/12.  ! Deuterium mass = 2 u
         case('Ar')
           m_i_over_m_imp = central_mass/40. ! Argon mass = 40 u
         case('Ne')

@@ -883,6 +883,9 @@ do ms=1, n_gauss
        case('D2')
          m_i_over_m_imp = central_mass/2.
          m_imp          = 2.
+       case('C')
+         m_i_over_m_imp = central_mass/12.
+         m_imp          = 12.
        case('Ar')
          m_i_over_m_imp = central_mass/40. ! Argon mass = 40 u and main ion (D) mass = 2 u
          m_imp          = 40.
