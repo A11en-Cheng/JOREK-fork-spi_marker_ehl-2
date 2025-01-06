@@ -128,6 +128,11 @@ else
       sim%groups(1)%mass = atomic_weights(-2) !< atomic mass units
       sim%groups(1)%ad   = imp_adas(index_main_imp)
       sim%groups(1)%cor  = imp_cor(index_main_imp)
+    case('C')
+      sim%groups(1)%Z    = 6
+      sim%groups(1)%mass = atomic_weights(6) !< atomic mass units
+      sim%groups(1)%ad   = imp_adas(index_main_imp)
+      sim%groups(1)%cor  = imp_cor(index_main_imp)
     case('Ar')
       sim%groups(1)%Z    = 18
       sim%groups(1)%mass = atomic_weights(18) !< atomic mass units
