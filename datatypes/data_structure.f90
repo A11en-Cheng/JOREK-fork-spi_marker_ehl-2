@@ -243,6 +243,8 @@ contains
 
     node_list%n_nodes = n_nodes
     node_list%n_dof = n_dof
+    
+    if (allocated(node_list%node)) call dealloc_node_list(node_list)
     allocate(node_list%node(n_nodes))
 
     do i=1, n_nodes
