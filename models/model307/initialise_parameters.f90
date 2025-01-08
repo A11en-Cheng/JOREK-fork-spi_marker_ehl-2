@@ -161,7 +161,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 xpoint_search_tries, export_aux_node_list,          &
                 bgf_rpolar, bgf_tht,                                &
                 use_puffing, fueling_rate, valve_r,                 &
-                R_valve_loc, Z_laser_loc, PHI_laser_loc,            &
+                R_laser_loc, Z_laser_loc, PHI_laser_loc,            &
                 initial_E, puffing_direction, puffing_timestep,     &
                 puff_starttime, puffingtime,                        &
                 phys_particles_puff 
