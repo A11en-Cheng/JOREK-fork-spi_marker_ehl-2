@@ -148,13 +148,10 @@ do i=1,n_stream
 end do
 
 ! Sputter initial set
-! We need to do a trick above (set last_time), since the sputtering module sets the last time it was
-! called. Use the equivalent of 1 microsecond of sputtering.
 do i=2,3
   select type (ac => events(i)%action)
   type is (particle_sputter)
     ! Sputter 1 milliseconds worth of particles
-    ac%last_time = sim%time - 1e-3
     ac%last_diag_time = sim%time - 1e-3
   end select
   call with(sim, events(i))
