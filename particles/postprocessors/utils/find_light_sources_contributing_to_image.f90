@@ -601,7 +601,7 @@ pixel_ids,pixel_coordinates,ierr)
   allocate(character(len=file_out_len)::filename_out)
   write(filename_out,trim(format_char)) filename,"_",my_id,".h5"
   !> open / close hdf5 file and save arrays in it
-  call HDF5_open_or_create(trim(filename_out),H5P_DEFAULT_F,file_id,ierr,H5F_ACC_TRUNC_F)
+  call HDF5_open_or_create(trim(filename_out),file_id,ierr,file_access=H5F_ACC_TRUNC_F)
   call HDF5_array3D_saving(file_id,light_positions,n_x,n_lights,n_lens_points,'contributing_light_positions')
   call HDF5_array3D_saving(file_id,light_intensities,n_spectra,n_lights,n_lens_points,&
   'contributing_light_intensities')
@@ -650,7 +650,7 @@ subroutine write_pinholes_planes_directions_in_hdf5(filename,my_id,camera_inout,
   allocate(character(len=file_out_len)::filename_out)
   write(filename_out,trim(format_char)) filename,"_",my_id,".h5"
   !> open / close hdf5 file and save arrays in it
-  call HDF5_open_or_create(trim(filename_out),H5P_DEFAULT_F,file_id,ierr,H5F_ACC_TRUNC_F)
+  call HDF5_open_or_create(trim(filename_out),file_id,ierr,file_access=H5F_ACC_TRUNC_F)
   call HDF5_array1D_saving_int(file_id,camera_inout%n_pixels_spectra,3,'n_pixels_n_spectra')
   call HDF5_array3D_saving(file_id,camera_inout%x,camera_inout%n_x,camera_inout%n_vertices,camera_inout%n_times,'point_on_lens_positions')
   call HDF5_array3D_saving(file_id,camera_inout%image_plane,camera_inout%n_x,&

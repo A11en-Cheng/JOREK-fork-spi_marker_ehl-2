@@ -66,7 +66,7 @@ zeta  = time_evol_zeta * 2.0d0 * tstep / (tstep + tstep_prev)
 
 Zbig = 1.d12
 
-c_angle = 0.0174524d0 ! --- 1 degree angle factor for minimum heat and particle flux
+c_angle = min_sheath_angle * PI/180.d0 ! --- angle factor for minimum heat and particle fluxes (in radians here)
 
 
 !--------------------- reorder the nodes to have the same direction as full element (maybe not necesary)

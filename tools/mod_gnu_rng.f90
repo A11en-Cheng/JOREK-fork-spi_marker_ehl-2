@@ -11,6 +11,7 @@ public :: set_seed_sys_time
 ! gnu_rng_interval: template interface for the
 ! gnu_rng_interval implementation
 interface gnu_rng_interval
+  module procedure gnu_rng_char_table_single
   module procedure gnu_rng_int_interval_single
   module procedure gnu_rng_int_interval_1d
   module procedure gnu_rng_int_interval_2d
@@ -111,6 +112,37 @@ end subroutine set_seed_sys_time_2vars_1d
 
 
 ! Uniform RNG ------------------------------------------------
+! gnu_rng_char_table_single compute a
+! random string from a given table of
+! strings. All strings in the table
+! must have length 1.
+! inputs:
+!   char_len:   (integer) length of the random string
+!               to be generated
+!   table_size: (integer) size of the character tables
+!   char_table: (character(1))(table_size) table from which
+!               characteres are randomly picked up
+! outputs:
+!   rnc: (char_len) random string
+subroutine gnu_rng_char_table_single(char_len,table_size,&
+char_table,rnc)
+  implicit none
+
+  !> inputs: 
+  integer,intent(in) :: char_len,table_size
+  character(len=1),dimension(table_size),intent(in) :: char_table
+  !> outputs:
+  character(len=char_len),intent(out) :: rnc
+  !> variables
+  integer :: ii,id
+
+  !> compute random string of length char_len
+  rnc = ''
+  do ii=1,char_len
+    call gnu_rng_int_interval_single((/1,table_size/),id)
+    rnc = trim(rnc)//trim(char_table(id))
+  enddo
+end subroutine gnu_rng_char_table_single
 
 ! gnu_rng_int_interval_single computes a
 ! random integer from uniform distribution

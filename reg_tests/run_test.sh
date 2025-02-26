@@ -321,6 +321,9 @@ if [ "$runit" == "yes" ]; then
   if [ "$initialrun" == "yes" ] && [ "$binaries_initial" != "" ]; then
     cp $binaries_initial $tmpdir                          || exit 1
   fi
+  if [ -n "$extra_restart" ] && [ "$initialrun" == "no" ]; then
+    cp "$extra_restart" $tmpdir                           || exit 1
+  fi
   cd $tmpdir                                              || exit 1
 
   # --- Some preparations
@@ -346,6 +349,9 @@ if [ "$runit" == "yes" ]; then
     echo "${restart_file} ${result_file}"
     initial_run                                           || exit 1
     cp $restart_file ${testcasedir}/begin.h5              || exit 1
+    if [ -n "$extra_restart" ]; then
+      cp "$extra_restart" ${testcasedir}/                 || exit 1
+    fi
     restart_run                                           || exit 1
     cp $result_file ${testcasedir}/end.h5                 || exit 1
   fi

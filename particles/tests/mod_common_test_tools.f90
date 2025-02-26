@@ -4,7 +4,7 @@ module mod_common_test_tools
 implicit none
 
 private
-public :: omp_initialize_rngs
+public :: omp_initialize_rngs,remove_file
 
 contains
 !> Procedures -------------------------------------------------------------
@@ -39,5 +39,20 @@ subroutine omp_initialize_rngs(n_points_loc,n_rngs,rngs,use_xor_time_pid_in)
   n_streams=n_threads,i_stream=thread_id,ierr=ifail)
   !$omp end parallel 
 end subroutine omp_initialize_rngs
+
+!> remove a file to the give path
+!> inputs:
+!>   filename: (character) name to the file to be removed
+!>   rank:     (integer)(optional) rank of the mpi task
+!>             default: 0
+subroutine remove_file(filename,rank_in)
+  implicit none
+  character(len=*),intent(in) :: filename
+  integer,intent(in),optional :: rank_in
+  integer :: rank
+  rank = 0; if(present(rank_in)) rank = rank_in
+  if(rank.eq.0) call system("rm "//filename)
+end subroutine remove_file
+
 !>-------------------------------------------------------------------------
 end module mod_common_test_tools

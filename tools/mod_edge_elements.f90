@@ -216,7 +216,7 @@ function find_edge_element(this, i_elm, s, t, phi) result(i_elm_edge)
   integer                                :: i_elm_edge
 
   integer :: side, i_edge, n_edge, n_edge_elm, i
-  real*8  :: s_edge
+  real*8  :: s_edge, phi_bounded
   ! See [[mod_boundary]] for an explanation
   if (s .gt. t) then
     if (1.d0 - s .gt. t) then
@@ -242,14 +242,23 @@ function find_edge_element(this, i_elm, s, t, phi) result(i_elm_edge)
   i_edge = minloc([(i,i=1,n_edge)], mask=(this%edge%i_elm .eq. i_elm .and. this%edge%i_side .eq. side),dim=1)
   if (i_edge .eq. 0) then
     i_elm_edge = -999 ! not found
+    write(*,*) 'PROBLEM: particle lost in find edge element'
     return
   end if
-  s_edge = s_edge*this%edge%direction(i_edge) ! flip direction if the element is cw
-  ! i_edge is the number of the edge domain index. This is related to real element numbers by nsub, nsub_toroidal and n_plane
+
   if (s_edge .ge. 1.d0) s_edge = 0.9999999999d0 ! bad stuff if exactly 1
-  i_elm_edge = 1+ (i_edge-1) * this%nsub * n_plane*this%nsub_toroidal + &
-               floor(s_edge*real(this%nsub,8)) * n_plane*this%nsub_toroidal + & 
-               floor(mod(phi, TWOPI/n_period) /TWOPI * real(n_period*n_plane*this%nsub_toroidal,8)) ! Modulus needed for unbounded phi
+  if (s_edge .le. 0.d0) s_edge = 0.0000000001d0 ! sometimes s and/or t can be -1e-30, leading to errors
+  s_edge = s_edge*this%edge%direction(i_edge) ! flip direction if the element is cw (clock-wise)
+
+  !for the calculation we need the bounded phi \in [0,TWOPI/n_period) but maybe this should be done in the pusher to avoid problems in similar routines
+  phi_bounded = mod(phi, TWOPI/n_period)
+  if (phi_bounded .le. 0.d0) phi_bounded = phi_bounded + TWOPI/n_period ! correct for negative phi
+  
+  ! i_edge is the number of the edge domain index. This is related to real element numbers by nsub, nsub_toroidal and n_plane
+  i_elm_edge = (i_edge-1) * this%nsub * n_plane*this%nsub_toroidal + &  ! shift along poloidal elements
+               floor(s_edge*real(this%nsub,8)) * n_plane*this%nsub_toroidal + & ! shift along poloidal subdivisions
+               floor(phi_bounded/TWOPI * real(n_period*n_plane*this%nsub_toroidal,8)) + 1 ! shift in toroidal direction (+1 for index 1)
+
 end function find_edge_element
 
 

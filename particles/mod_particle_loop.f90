@@ -98,6 +98,12 @@ if (sim%my_id .eq. 0) then
   write(*,'(A,e14.6)') ' M_norm   : ',M_norm
   write(*,'(A,e14.6)') ' E_norm   : ',E_norm
 endif
+
+if(use_manual_random_seed) then
+  !$ call omp_set_schedule(omp_sched_static,10)
+else
+  !$ call omp_set_schedule(omp_sched_dynamic,10)
+end if
 #ifdef __GFORTRAN__
    !$omp parallel do default(shared) &
    !$omp shared(sim, n_steps, timesteps, rng, particle_start_time, &
@@ -113,7 +119,7 @@ endif
    !$omp         R_g, R_s, R_t, Z_g, Z_s, Z_t, xjac, HH, HH_s, HH_t, HZ, index_lm, &
    !$omp         ifail, CX_rate, CX_prob, CX_source, CX_energy, v, &
    !$omp         particle_source, velocity_par_source, energy_source, v_temp, K_eV, T_eV, cx_ran) &
-   !$omp schedule(dynamic,10) &
+   !$omp schedule(runtime) &
    !$omp reduction(+:feedback_rhs)
 
    do j=1,size(particles,1)

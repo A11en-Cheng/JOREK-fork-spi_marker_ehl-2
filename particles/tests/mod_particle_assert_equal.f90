@@ -3,16 +3,21 @@
 module mod_particle_assert_equal
 use fruit
 use mod_particle_types, only: particle_base
+use mod_particle_sim,   only: particle_group
 implicit none
 
 private
-public :: assert_equal_particle
+public :: assert_equal_particle,assert_equal_particle_group
 
 !> Variables ------------------------------------------------------
 real*4,parameter :: tol_real4_preset=real(1.d-5,kind=4)
 real*8,parameter :: tol_real8_preset=1.d-15
 
 !> Interfaces -----------------------------------------------------
+
+interface assert_equal_particle_group
+  module procedure assert_equal_particle_group_list
+end interface assert_equal_particle_group
 
 interface assert_equal_particle
   module procedure assert_equal_particle_single
@@ -23,6 +28,36 @@ contains
 
 !> Procedures -----------------------------------------------------
 
+!> compare two lists of groups
+subroutine assert_equal_particle_group_list(n_groups,group_list_1,group_list_2,&
+tol_real4_in,tol_real8_in,enable_openmp_in)
+  implicit none
+  type(particle_group),dimension(:),intent(in)           :: group_list_1,group_list_2
+  integer,             intent(in)                        :: n_groups
+  real*4,              intent(in),optional               :: tol_real4_in
+  real*8,              dimension(15),intent(in),optional :: tol_real8_in
+  logical,             intent(in),optional               :: enable_openmp_in
+  integer                                                :: ii
+  real*4                                                 :: tol_real4
+  real*8,              dimension(15)                     :: tol_real8
+  logical                                                :: enable_openmp
+  !> test that two groups are the same
+  tol_real4 = tol_real4_preset; if(present(tol_real4_in)) tol_real4 = tol_real4_in
+  tol_real8 = tol_real8_preset; if(present(tol_real8_in)) tol_real8 = tol_real8_in
+  enable_openmp = .false.; if(present(enable_openmp_in)) enable_openmp = enable_openmp_in
+  do ii=1,n_groups
+    call assert_equal_particle(size(group_list_1(ii)%particles),group_list_1(ii)%particles,&
+    group_list_2(ii)%particles,tol_real4_in=tol_real4,tol_real8_in=tol_real8,&
+    enable_openmp_in=enable_openmp)
+    call assert_equals(group_list_1(ii)%mass,group_list_2(ii)%mass,tol_real8(15),&
+    "Error groups are different: mass mismatch!")
+    call assert_equals(group_list_1(ii)%Z,group_list_2(ii)%Z,&
+    "Error groups are different: Z mismatch!")
+    call assert_equals(group_list_1(ii)%ad%suffix,group_list_2(ii)%ad%suffix,&
+    "Error groups are different: adas suffix mismatch!")
+  enddo
+end subroutine assert_equal_particle_group_list
+
 !> compare two particle lists
 subroutine assert_equal_particle_list(n_particles,particle_list_1,&
 particle_list_2,tol_real4_in,tol_real8_in,enable_openmp_in)
@@ -31,11 +66,11 @@ particle_list_2,tol_real4_in,tol_real8_in,enable_openmp_in)
   class(particle_base),dimension(n_particles),intent(in) :: particle_list_2
   integer,intent(in)                                     :: n_particles
   real*4,intent(in),optional                             :: tol_real4_in
-  real*8,dimension(14),intent(in),optional               :: tol_real8_in
+  real*8,dimension(15),intent(in),optional               :: tol_real8_in
   logical,intent(in),optional                            :: enable_openmp_in
   integer                                                :: ii
   real*4                                                 :: tol_real4
-  real*8,dimension(14)                                   :: tol_real8
+  real*8,dimension(15)                                   :: tol_real8
   logical                                                :: enable_openmp
   tol_real4 = tol_real4_preset; if(present(tol_real4_in)) tol_real4 = tol_real4_in
   tol_real8 = tol_real8_preset; if(present(tol_real8_in)) tol_real8 = tol_real8_in
@@ -62,9 +97,9 @@ tol_real4_in,tol_real8_in)
   implicit none
   class(particle_base),intent(in)          :: particle_1,particle_2
   real*4,intent(in),optional               :: tol_real4_in
-  real*8,dimension(14),intent(in),optional :: tol_real8_in
+  real*8,dimension(15),intent(in),optional :: tol_real8_in
   real*4                                   :: tol_real4
-  real*8,dimension(14)                     :: tol_real8
+  real*8,dimension(15)                     :: tol_real8
   logical,dimension(8)                     :: lfails
   tol_real4 = tol_real4_preset; if(present(tol_real4_in)) tol_real4 = tol_real4_in
   tol_real8 = tol_real8_preset; if(present(tol_real8_in)) tol_real8 = tol_real8_in

@@ -683,7 +683,7 @@ accepted_label,soft_orbit_filename_in,Bfield_error_filename_in)
   enddo
   !$omp end parallel do
   !> Open SOFT-JOREK magnetic field error
-  call HDF5_open_or_create(trim(Bfield_error_filename_in)//".h5",H5P_DEFAULT_F,file_id,ierr,H5F_ACC_TRUNC_F)
+  call HDF5_open_or_create(trim(Bfield_error_filename_in)//".h5",file_id,ierr,file_access=H5F_ACC_TRUNC_F)
   call HDF5_array2D_saving(file_id,x_loc,n_vec,n_soft_points,'x')
   call HDF5_array2D_saving(file_id,RZPhi_loc,n_vec,n_soft_points,'RZPhi')
   call HDF5_array1D_saving(file_id,error_Bvec(1,:),n_soft_points,'error_BR')
@@ -1078,7 +1078,7 @@ subroutine write_particles_in_hdf5(my_id,filename,n_cpus,n_vec,sim)
   call MPI_gather(pperp,n_particles,MPI_REAL8,pperp_glob,n_particles,MPI_REAL8,0,MPI_COMM_WORLD,ierr)
   !> write data in hdf5
   if(my_id.eq.0) then
-    call HDF5_open_or_create(trim(filename//'.h5'),H5P_DEFAULT_F,file_id,ierr,H5F_ACC_TRUNC_F)
+    call HDF5_open_or_create(trim(filename//'.h5'),file_id,ierr,file_access=H5F_ACC_TRUNC_F)
     call HDF5_array2D_saving(file_id,x_pos_glob,n_vec,n_cpus*n_particles,'x')
     call HDF5_array1D_saving(file_id,ppar_glob,n_cpus*n_particles,'ppar')
     call HDF5_array1D_saving(file_id,pperp_glob,n_cpus*n_particles,'pperp')

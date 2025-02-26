@@ -25,8 +25,9 @@ public :: eckstein_coeff_set, eckstein_sputter_yield, eckstein_sputtered_energy_
 
 !> Eckstein angle dependency fit coefficients, determining the function
 !> \[
-!>   \frac{Y(E_0,\theta_0)}{Y(E_0,0)} = \left( \cos\left[\left(\frac{\pi \theta}{2 theta^*}\right)^c\right] \right)^{-f}
-!>     \exp\left[b\left(1 - \left(\cos\left[\left(\frac{\pi\theta_0}{2\theta^*}\right)^c\right]\right)^{-1}\right]
+!>   \frac{Y(E_0,\theta_0)}{Y(E_0,0)} = \left( \cos\left[\left(\frac{\pi \theta_0}{2 \theta^*}
+!>      \right)^c\right] \right)^{-f} \exp\left[b\left(1 - \left(\cos\left[\left(\frac{\pi\theta_0}
+!>      {2\theta^*}\right)^c\right]\right)^{-1}\right)\right]
 !> \]
 !> where $\theta$ is in degrees, but $\theta^*$ is in radians.
 !> See [[evaluate_eckstein_formula]] for an implementation
@@ -327,6 +328,15 @@ subroutine read(this)
       allocate(temp(2*size(yn,1)))
       temp(:size(yn,1)) = yn
       call move_alloc(temp, yn) ! temp gets deallocated
+    end if
+
+    if (abs(yn(i)%theta_star) .lt. 1.d-6) then
+      if(my_id .eq. 0) then
+        write(*,*) 'problem in loading eckstein data file ',file
+        write(*,'(A16,I2,A4,ES12.2,A30)') 'theta_star at i=',i,' is ',yn(i)%theta_star,' leading to divide by 0 issues'
+        write(*,*) 'setting theta_star(i) to 1.d-6 instead'
+      end if
+      yn(i)%theta_star = 1.d-6
     end if
 
     ! Ignore this line if it is a duplicate

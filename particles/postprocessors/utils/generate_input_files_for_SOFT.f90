@@ -367,7 +367,7 @@ magnetic_field,poloidal_flux,mag_name,description)
   enddo
   !> write SOFT magnetic input file
   if(my_id.eq.0) then
-    call HDF5_open_or_create(trim(filename//'.h5'),H5P_DEFAULT_F,file_id,ierr,H5F_ACC_TRUNC_F)
+    call HDF5_open_or_create(trim(filename//'.h5'),file_id,ierr,file_access=H5F_ACC_TRUNC_F)
     call HDF5_array1D_saving(file_id,RZ_axis,2,'maxis')         !< write magnetic axis
     call HDF5_array1D_saving(file_id,R_mesh,n_cpus*n_R_loc,'r') !< write radial mesh
     call HDF5_array1D_saving(file_id,Z_mesh,n_Z,'z')            !< write vertical mesh
@@ -734,7 +734,7 @@ n_momenta,n_pitch,minor_radii_task,momentum_mesh,cospitch_mesh,pdf)
   real*8,dimension(:,:,:),allocatable       :: pdf_local
 
   !> open the hdf5 file 
-  if(my_id.eq.0) call HDF5_open_or_create(trim(filename//'.h5'),H5P_DEFAULT_F,file_id,ierr,H5F_ACC_TRUNC_F)
+  if(my_id.eq.0) call HDF5_open_or_create(trim(filename//'.h5'),file_id,ierr,file_access=H5F_ACC_TRUNC_F)
   !> gather the minor radius from all mpi tasks
   call mpi_gather(minor_radii_task,n_radii_per_task,MPI_REAL8,minor_radii_global,&
   n_radii_per_task,MPI_REAL8,0,MPI_COMM_WORLD,ierr)

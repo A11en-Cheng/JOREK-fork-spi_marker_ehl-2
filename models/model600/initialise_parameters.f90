@@ -215,6 +215,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 alpha_Newton, vacuum_min, strumpack_matching,       &
                 visco_old_setup, visco_heating, eta_coul_log_dep,   &
                 export_polar_boundary, xpoint_search_tries,         &
+                use_manual_random_seed, manual_seed,                &
                 loop_voltage, export_aux_node_list,                 &
                 use_puffing, fueling_rate, valve_r,                 &
                 R_laser_loc, Z_laser_loc, PHI_laser_loc,            &
@@ -285,6 +286,7 @@ if (my_id .eq. 0) then
 
   if (sum(nstep_n) .gt. 0) then
     nstep = sum(nstep_n)
+    tstep = tstep_n(1)
   else
     tstep_n    = 0.d0
     tstep_n(1) = tstep

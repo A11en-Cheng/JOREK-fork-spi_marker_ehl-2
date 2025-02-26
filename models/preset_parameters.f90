@@ -906,6 +906,8 @@ Z_valve       = 0.d0
 R_valve_loc2  = 0.d0
 Z_valve2      = 0.d0
 
+use_manual_random_seed = .false.
+manual_seed = 498932990          !< chosen arbitarily
 
 
 end subroutine preset_parameters

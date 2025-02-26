@@ -86,7 +86,6 @@ DIRS := diagnostics				\
 	diagnostics/new_diag			\
 	diagnostics/postproc			\
 	tools					\
-	tools/rng				\
 	tools/fruit				\
 	tools/tests				\
 	non_regression_tests/unit_tests		\

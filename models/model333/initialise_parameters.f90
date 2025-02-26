@@ -128,6 +128,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 CARIDDI_mode, use_newton, maxNewton, gamma_Newton,  &
                 alpha_Newton, vacuum_min, strumpack_matching,       &
                 export_aux_node_list, xpoint_search_tries,          &
+                use_manual_random_seed, manual_seed,                &
                 bgf_rpolar, bgf_tht
 
 
@@ -197,6 +198,7 @@ if (my_id .eq. 0) then
 
   if (sum(nstep_n) .gt. 0) then
     nstep = sum(nstep_n)
+    tstep = tstep_n(1)
   else
     tstep_n    = 0.d0
     tstep_n(1) = tstep

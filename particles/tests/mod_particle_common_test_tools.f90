@@ -29,6 +29,7 @@ integer,dimension(2),parameter   :: rng_seed_interval=(/-1234,9876/)
 integer,dimension(2),parameter   :: q_interval=(/1,100/)
 integer,dimension(2),parameter   :: i_elm_interval=(/1,1000000/)
 integer,dimension(2),parameter   :: i_life_interval=(/1,1000000/)
+integer,dimension(2),parameter   :: Z_interval=(/1,100000/)
 real*8,dimension(2),parameter    :: sim_time_interval=(/0.d0,1.d3/)
 real*8,dimension(2),parameter    :: t_birth_interval=(/0.d0,3.45d4/)
 real*8,dimension(2),parameter    :: st_interval=(/0.d0,1.d0/)
@@ -47,6 +48,9 @@ real*8,dimension(3),parameter    :: ABE_uppbnd=(/0.78d0,2.35d0,5.67d0/)
 real*8,dimension(3),parameter    :: RZPhi_lowbnd=(/0.d0,-1.5d0,0.d0/)
 real*8,dimension(3),parameter    :: RZPhi_uppbnd=(/1.d0,1.5d0,2.d0*PI/)
 real*8,dimension(2),parameter    :: Rminmax=(/2.5d0,3.8d0/)
+character(len=1),dimension(36),parameter :: char_table=(/'1','2','3','4',&
+'5','6','7','8','9','0','q','w','e','r','t','y','u','i','o','p',&
+'a','s','d','f','g','h','j','k','l','z','x','c','v','b','n','m'/)
 !> parameter for tets electric and magnetic fields
 real*8,parameter :: B0=3.5d0 !< toroidal magnetic field on axis
 real*8,parameter :: R0=3.d0  !< axis major radius
@@ -435,12 +439,13 @@ subroutine fill_groups_seq(n_groups,groups)
   integer,intent(in) :: n_groups
   type(particle_group),dimension(n_groups),intent(inout) :: groups
   !> variables
-  integer :: ii
-  real*8 :: rn_real
+  integer :: ii,char_len,table_size
+  char_len = len(groups(1)%ad%suffix); table_size = size(char_table)
   call set_seed_sys_time(rng_seed_interval,1)
   do ii=1,n_groups
-    call gnu_rng_interval(mass_interval,rn_real)
-    groups(ii)%mass = rn_real
+    call gnu_rng_interval(mass_interval,groups(ii)%mass)
+    call gnu_rng_interval(Z_interval,groups(ii)%Z) 
+    call gnu_rng_interval(char_len,table_size,char_table,groups(ii)%ad%suffix)
   enddo
 end subroutine fill_groups_seq
 
@@ -459,23 +464,31 @@ subroutine fill_groups_mpi(n_groups,groups,rank,ifail)
   !> input-outputs
   integer,intent(inout) :: ifail
   !> variables
-  integer :: ii
-  real*8 :: rn_real
-  real*8,dimension(n_groups) :: val_to_bcst
+  integer :: ii,char_len,table_size,buffer_size,buffer_position
+  character(len=:),allocatable :: buffer
+  char_len = len(groups(1)%ad%suffix); table_size = size(char_table)
+  buffer_size = (12+char_len)*n_groups; buffer_position = 0;
+  allocate(character(buffer_size)::buffer)
   if(rank.eq.0) then
     call set_seed_sys_time(rng_seed_interval,rank)
     do ii=1,n_groups
-      call gnu_rng_interval(mass_interval,rn_real)
-      groups(ii)%mass = rn_real
-      val_to_bcst(ii) = groups(ii)%mass
+      call gnu_rng_interval(mass_interval,groups(ii)%mass)
+      call MPI_PACK(groups(ii)%mass,1,MPI_DOUBLE_PRECISION,buffer,buffer_size,buffer_position,MPI_COMM_WORLD,ifail)
+      call gnu_rng_interval(Z_interval,groups(ii)%Z)
+      call MPI_PACK(groups(ii)%Z,1,MPI_INTEGER,buffer,buffer_size,buffer_position,MPI_COMM_WORLD,ifail)
+      call gnu_rng_interval(char_len,table_size,char_table,groups(ii)%ad%suffix)
+      call MPI_PACK(groups(ii)%ad%suffix,char_len,MPI_CHARACTER,buffer,buffer_size,buffer_position,MPI_COMM_WORLD,ifail)
     enddo
   endif
-  call MPI_Bcast(val_to_bcst,n_groups,MPI_REAL8,0,MPI_COMM_WORLD,ifail)
+  call MPI_Bcast(buffer,buffer_size,MPI_PACKED,0,MPI_COMM_WORLD,ifail)
   if(rank.ne.0) then
     do ii=1,n_groups
-      groups(ii)%mass = val_to_bcst(ii)
+      call MPI_UNPACK(buffer,buffer_size,buffer_position,groups(ii)%mass,1,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,ifail)
+      call MPI_UNPACK(buffer,buffer_size,buffer_position,groups(ii)%Z,1,MPI_INTEGER,MPI_COMM_WORLD,ifail)
+      call MPI_UNPACK(buffer,buffer_size,buffer_position,groups(ii)%ad%suffix,char_len,MPI_CHARACTER,MPI_COMM_WORLD,ifail)
     enddo
   endif
+  deallocate(buffer)
 end subroutine fill_groups_mpi
 
 !> fill the group mass with the electron mass in AMU is particle

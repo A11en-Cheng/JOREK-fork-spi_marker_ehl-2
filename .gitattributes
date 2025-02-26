@@ -7,6 +7,7 @@
 *.f     text
 *.h     text
 *.c     text
+*.py    text
 *.nml   text
 input   text
 *.sh    text

@@ -367,14 +367,14 @@ mpi_required = 0
   !***********************************************************************
   !*                  define grid / equilibrium                          *
   !***********************************************************************
-#if JOREK_MODEL == 180
-  call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list)
-#else
   if_not_restart: if (.not. restart) then
 
     call tr_resetfile()
     call init_node_list(node_list, n_nodes_max, node_list%n_dof, n_var)
 
+#if JOREK_MODEL == 180
+    call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list)
+#else
     if_not_regrid_from_rz: if(.not. regrid_from_rz) then
       
       ! --- allocate values of nodes
@@ -467,8 +467,8 @@ mpi_required = 0
       write(*,'(A,12e16.8)') ' initial energies : ', W_mag, W_kin
 
     end if ! (my_id == 0)
-  end if if_not_restart
 #endif
+  end if if_not_restart
   
   ! --- Print some grid information
   if ( my_id == 0 ) call log_grid_info(.false., node_list, element_list)

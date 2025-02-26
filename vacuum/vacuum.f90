@@ -617,7 +617,7 @@ module vacuum
     integer   :: n_diag_coil = 0, n_pf_coil = 0, n_rmp_coil = 0
     character :: t_freeboundary, t_resistive_wall
     real*8, allocatable :: t_diag_coil_curr(:,:), t_pf_coil_curr(:,:), t_rmp_coil_curr(:,:)
-    character, allocatable :: t_diag_coil_name(:), t_pf_coil_name(:), t_rmp_coil_name(:)
+    character(len=COIL_NAME_LEN), allocatable :: t_diag_coil_name(:), t_pf_coil_name(:), t_rmp_coil_name(:)
     real*8, allocatable :: t_net_tor_wall_curr(:)   
     real*8, allocatable :: t_vert_FB_response(:,:)
  
@@ -674,7 +674,7 @@ module vacuum
             diag_coil_curr(1:index_start,:) = t_diag_coil_curr(1:index_start,:)
             deallocate(t_diag_coil_curr)
 
-            allocate( t_diag_coil_name(n_diag_coil*COIL_NAME_LEN) )
+            allocate( t_diag_coil_name(n_diag_coil) )
             call HDF5_array1D_reading_char(file_id,t_diag_coil_name,"diag_coil_name")
             allocate( diag_coil_name(n_diag_coil) )
             diag_coil_name = transfer(t_diag_coil_name,diag_coil_name)
@@ -695,7 +695,7 @@ module vacuum
             pf_coil_curr(1:index_start,:) = t_pf_coil_curr(1:index_start,:)
             deallocate(t_pf_coil_curr)
 
-            allocate( t_pf_coil_name(n_pf_coil*COIL_NAME_LEN) )
+            allocate( t_pf_coil_name(n_pf_coil) )
             call HDF5_array1D_reading_char(file_id,t_pf_coil_name,"pf_coil_name")
             allocate( pf_coil_name(n_pf_coil) )
             pf_coil_name = transfer(t_pf_coil_name,pf_coil_name)
@@ -716,7 +716,7 @@ module vacuum
             rmp_coil_curr(1:index_start,:) = t_rmp_coil_curr(1:index_start,:)
             deallocate(t_rmp_coil_curr)
 
-            allocate( t_rmp_coil_name(n_rmp_coil*COIL_NAME_LEN) )
+            allocate( t_rmp_coil_name(n_rmp_coil) )
             call HDF5_array1D_reading_char(file_id,t_rmp_coil_name,"rmp_coil_name")
             allocate( rmp_coil_name(n_rmp_coil) )
             rmp_coil_name = transfer(t_rmp_coil_name,rmp_coil_name)
@@ -881,9 +881,9 @@ module vacuum
         call HDF5_integer_saving(file_id,sr%n_diag_coils,"n_diag_coil"//char(0))
         call HDF5_integer_saving(file_id,sr%n_pol_coils,"n_pf_coil"//char(0))
         call HDF5_integer_saving(file_id,sr%n_rmp_coils,"n_rmp_coil"//char(0))
-        if(sr%n_diag_coils .gt. 0) call HDF5_array1D_saving_char(file_id,diag_coil_name,sr%n_diag_coils*COIL_NAME_LEN,"diag_coil_name"//char(0))
-        if(sr%n_pol_coils  .gt. 0) call HDF5_array1D_saving_char(file_id,pf_coil_name,  sr%n_pol_coils* COIL_NAME_LEN,"pf_coil_name"//char(0))
-        if(sr%n_rmp_coils  .gt. 0) call HDF5_array1D_saving_char(file_id,rmp_coil_name, sr%n_rmp_coils* COIL_NAME_LEN,"rmp_coil_name"//char(0))
+        if(sr%n_diag_coils .gt. 0) call HDF5_array1D_saving_char(file_id,diag_coil_name,sr%n_diag_coils,"diag_coil_name"//char(0))
+        if(sr%n_pol_coils  .gt. 0) call HDF5_array1D_saving_char(file_id,pf_coil_name,  sr%n_pol_coils,"pf_coil_name"//char(0))
+        if(sr%n_rmp_coils  .gt. 0) call HDF5_array1D_saving_char(file_id,rmp_coil_name, sr%n_rmp_coils,"rmp_coil_name"//char(0))
         
 
         if ( index_now > 0) then        

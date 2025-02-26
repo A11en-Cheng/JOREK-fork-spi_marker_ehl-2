@@ -499,7 +499,7 @@ subroutine test_compute_particle_from_full_syncrhotron_light()
   class(particle_base),dimension(:),allocatable :: particle_test
   integer                                       :: ii,jj,kk,counter
   real*8,dimension(n_mhd_sol)                   :: mhd_fields
-  real*8,dimension(14)                          :: tol_real8_particle_from_light
+  real*8,dimension(15)                          :: tol_real8_particle_from_light
   !> set tolerance
   tol_real8_particle_from_light    = tol_real8
   tol_real8_particle_from_light(4) = tol2_real8 !< tolerance on momentum

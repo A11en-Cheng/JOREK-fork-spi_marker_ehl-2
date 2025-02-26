@@ -775,7 +775,8 @@ module mod_expression
         ! --- Elements and nodes
         element  = pol_pos%element
         nodes(:) = pol_pos%nodes(:)
-        if(export_aux_node_list .and. associated(aux_node_list)) then
+
+        if(export_aux_node_list .and. (size(aux_node_list%node) > 0)) then
            aux_nodes(:) = aux_node_list%node(pol_pos%element%vertex(:))
         endif
         
@@ -858,8 +859,8 @@ module mod_expression
                 hhz_pp = HZ_pp(i_tor)
                 vv(:)  = 0.d0
                 vv(1:n_var)  = nodes(i)%values(i_tor,j,:)
-		va(:)  = 0.d0
-                if(export_aux_node_list .and. associated(aux_node_list)) then
+		            va(:)  = 0.d0
+                if(export_aux_node_list .and. (size(aux_node_list%node) > 0)) then
                    va(1:n_var)  = aux_nodes(i)%values(i_tor,j,:)
                 endif
                 

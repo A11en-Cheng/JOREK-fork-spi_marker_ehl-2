@@ -493,7 +493,7 @@ subroutine test_particle_from_gyroaverage_synchrotron_lights()
   !> variables
   class(particle_base),dimension(:),allocatable :: particles_test
   real*8,dimension(n_mhd_sol)                   :: mhd_fields
-  real*8,dimension(14)                          :: tol_real8_particle_from_light
+  real*8,dimension(15)                          :: tol_real8_particle_from_light
   integer                                       :: kk,jj,ii,counter
   !> set tolerance for particle comparison
   tol_real8_particle_from_light    = tol_real8

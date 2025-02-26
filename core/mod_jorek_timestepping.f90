@@ -14,7 +14,7 @@ use equil_info
 implicit none
 
 private
-public jorek_timestep_action, new_jorek_timestep_action
+public jorek_timestep_action, new_jorek_timestep_action, get_tstep_n
 
 #ifdef USE_FFTW
   include 'fftw3.f03'

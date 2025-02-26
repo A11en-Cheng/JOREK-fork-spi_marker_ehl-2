@@ -149,7 +149,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 nsubstep_particles, restart_particles,              &
                 filter_perp,    filter_hyper,    filter_par,        &
                 filter_perp_n0, filter_hyper_n0, filter_par_n0,     &
-                use_kn_cx, use_kn_sputtering, use_kn_ionisation,             &
+                use_kn_cx, use_kn_sputtering, use_kn_ionisation,    &
                 use_ncs, use_pcs, use_ccs, use_pcs_full, use_rcs,   &
                 restart_particles,                                  &
                 use_kn_recombination, use_kn_puffing,use_kn_line_radiation,  &
@@ -159,7 +159,8 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 CARIDDI_mode, use_newton, maxNewton, gamma_Newton,  &
                 alpha_Newton, vacuum_min, strumpack_matching,       &        
                 xpoint_search_tries, export_aux_node_list,          &
-                bgf_rpolar, bgf_tht,                                &
+                use_manual_random_seed, manual_seed,                &
+                bgf_rpolar, bgf_tht, min_sheath_angle,              &
                 use_puffing, fueling_rate, valve_r,                 &
                 R_laser_loc, Z_laser_loc, PHI_laser_loc,            &
                 initial_E, puffing_direction, puffing_timestep,     &
@@ -232,6 +233,7 @@ if (my_id .eq. 0) then
 
   if (sum(nstep_n) .gt. 0) then
     nstep = sum(nstep_n)
+    tstep = tstep_n(1)
   else
     tstep_n    = 0.d0
     tstep_n(1) = tstep

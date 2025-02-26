@@ -190,6 +190,7 @@ write(*,*) '***************************************'
 call flush_it(6)
 
 allocate(node_list)
+allocate(aux_node_list) 
 allocate(element_list)
 allocate(bnd_elm_list)
 allocate(bnd_node_list)
