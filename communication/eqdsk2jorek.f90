@@ -329,6 +329,36 @@ else if (tokamak_name == 'CFEDR') then
     stop
   endif
 
+else if (tokamak_name == 'BEST') then
+
+  !--------------------close fit to ITER wall
+  if (boundary_type == 'CLOSE_WALL_FIT') then
+    ellip  = 2.0
+    tria_u = 0.5
+    tria_l = 0.65
+    quad_u = -0.12
+    quad_l = 0.12
+    n_tht  = 257
+    r0     = 3.6  * R_scale
+    z0     = 0.0  * R_scale
+    a0     = 1.3 * R_scale
+
+  !-------------------- contour outside ITER wall
+  else if(boundary_type == 'OUTSIDE_WALL') then
+    ellip  = 1.95
+    tria_u = 0.5
+    tria_l = 0.65!0.65
+    quad_u = -0.12!-0.12
+    quad_l = 0.12!-0.1
+    n_tht  = 257
+    r0     = 3.6   * R_scale
+    z0     = 0.0   * R_scale!-0.05 * R_scale
+    a0     = 1.50  * R_scale!2.75  * R_scale
+  else
+    write(*,*) 'JOREK boundary not or wrongly specified, stopping'
+    stop
+  endif
+
 else if (tokamak_name == 'JET') then
   
   !-------------------- contour outside JET wall
