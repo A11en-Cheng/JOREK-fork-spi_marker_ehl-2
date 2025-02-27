@@ -39,7 +39,8 @@ GCPP ?= cpp
 
 # Default flags for GCC
 ifeq ($(COMPILER_FAMILY), gnu)
-  FLAGS += -cpp -fopenmp
+  GCPP = $(FC) -cpp -E # use gfortran precompiler to generate dependencies with  __GFORTRAN__  flag
+  FLAGS += -cpp -fopenmp 
   FLAGS += -Wall -Wextra
   FLAGS += -Wno-unused-variable
   FFLAGS += -Wintrinsics-std
