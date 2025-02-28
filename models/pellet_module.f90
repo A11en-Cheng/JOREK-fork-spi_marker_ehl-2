@@ -582,6 +582,10 @@ module pellet_module
         xtime_spi_ablation_rate(i_p,index_now) = pellets(i_p)%spi_abl * pellets(i_p)%spi_species
         xtime_spi_ablation_bg_rate(i_p,index_now) = pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
       end if
+
+    pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R
+    pellets(i_p)%spi_Vel_Z   = pellets(i_p)%spi_Vel_Z
+    pellets(i_p)%spi_Vel_RxZ = pellets(i_p)%spi_Vel_RxZ
   
     end do loop_over_shards
   
