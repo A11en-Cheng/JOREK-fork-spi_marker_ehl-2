@@ -969,6 +969,7 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
      write(*,LOGI_FMT) 'spi_plume_hdf5      ',  spi_plume_hdf5
      write(*,INTG_FMT) 'spi_rnd_seed        ',  spi_rnd_seed
      write(*,INTG_FMT) 'spi_abl_model       ',  spi_abl_model
+     write(*,INTG_FMT) 'spi_rocket_model    ',  spi_rocket_model
      do i = 1,n_inj
        write(*,CHAR_FMT2) 'spi_shard_file(',i,')    ',  trim(spi_shard_file(i))
      end do
