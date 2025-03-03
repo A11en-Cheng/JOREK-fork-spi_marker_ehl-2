@@ -584,10 +584,12 @@ module pellet_module
       end if
 
 
-      if (spi_rocket_model(i_inj) == 0) then !Could remove, but kept for completeness
+      if (spi_rkt_model(i_inj) == 0) then !Could remove, but kept for completeness
         pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R
         pellets(i_p)%spi_Vel_Z   = pellets(i_p)%spi_Vel_Z
         pellets(i_p)%spi_Vel_RxZ = pellets(i_p)%spi_Vel_RxZ
+      else if (spi_rkt_model(i_inj) == 1) then ! Constant velocity change
+      else if (spi_rkt_model(i_inj) == 2) then ! Constant force
       end if
   
     end do loop_over_shards
