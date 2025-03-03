@@ -373,6 +373,11 @@ if ( my_id == 0 ) then
     stop
   endif
 
+  if (use_marker .and. use_rcs) then
+    write(*,*) "WARNNING! Currently do not support both use_marker and use_rcs enabled at the same time! Those are two distinct particle approaches and should not co-exist. EXITING!"
+    stop
+  endif
+
   call initialise_reference_parameters()
 
 end if

@@ -5293,7 +5293,7 @@ subroutine construct_imp_charge_states()
   ! We estimate coefficients assuming a density of 10^20/m^3.
   ! Later maybe we should implement an iterative method.
 
-  if (allocated(imp_adas(1)%ionisation_energy) .and. (.not. use_marker)) then
+  if (allocated(imp_adas(1)%ionisation_energy) .and. (.not. (use_marker .or. use_rcs))) then
 
      call imp_cor(1)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ), &
           p_out=P_imp,p_Te_out=dP_imp_dT,z_avg=Z_imp,z_avg_Te=dZ_imp_dT,                     &
@@ -5317,7 +5317,7 @@ subroutine construct_imp_charge_states()
      dE_ion_dT = dE_ion_dT * dTe_corr_eV_dT * EL_CHG / K_BOLTZ ! Convert gradient from /K to /JOREK unit     
      E_ion_bg  = E_ion_bg * EL_CHG*MU_ZERO*central_density*1.d20
 
-  else if (.not. use_marker) then
+  else if (.not. (use_marker .or. use_rcs)) then
 
      call imp_cor(1)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ), &
           p_out=P_imp,p_Te_out=dP_imp_dT,                                                    &
