@@ -2276,51 +2276,6 @@ module exec_commands
   end subroutine energy3d
   
   
-  !> Output radiation TPF according to marker's projection.
-  subroutine rad_TPF_marker(command, first_step, ierr)
-    
-    use mod_int3d_wproj
-
-    ! --- Routine parameters
-    type(type_command), intent(in)  :: command     !< Command to be executed
-    logical,            intent(in)  :: first_step  !< First time step of a for loop?
-    integer,            intent(out) :: ierr        !< Error flag
-    
-    ! --- Local variables
-    integer :: i_file, i, units
-    character(len=1024) :: filename
-    character(len=1024) :: filename_proj
-    real*8, allocatable :: res(:)
-    character(len=23)   :: s
-    type (type_node_list)   ,     pointer :: aux_node_list
-    allocate(aux_node_list)
-
-    ierr = 0
-
-    ! --- Some checks
-    call check_args(command%n_args,ierr,0,1);  if ( ierr /= 0 ) return
-    call check_step_imported(ierr);            if ( ierr /= 0 ) return
-    units = get_int_setting('units', ierr)
-
-    allocate(res(expr_list%n_expr+1))
-    res = 0.d0   
-    
-    write(filename_proj,'(a,i5.5,a)') 'projections', istep_now, '.h5'
-    call import_hdf5_restart_aux(aux_node_list, filename_proj, rst_format, ierr)
-    if (ierr .ne. 0) then
-       write(*,*) 'ERROR: Cannot find projection restart file. Check if proj_basename is set properly.'
-       stop
-    end if
- 
-    call int3d_wproj(0, node_list, element_list, bnd_node_list, bnd_elm_list, aux_node_list, expr_list, res, units)        
-
-    if(associated(aux_node_list)) deallocate(aux_node_list)
-    if(allocated(res)) deallocate(res)
-  end subroutine rad_TPF_marker
- 
-
-
-
   !> Output current density normal to the jorek boundary as a function of Rbnd
   !! and Zbnd
   subroutine jnorm_bnd_RZ(command, ierr)
