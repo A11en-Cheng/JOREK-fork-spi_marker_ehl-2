@@ -36,7 +36,7 @@ contains
   type(sobseq_rng) function empty_sobseq_rng()
   end function empty_sobseq_rng
 
-  subroutine initialize_sobseq_rng(rng, n_dims, seed, n_streams, i_stream, ierr)
+  subroutine initialize_sobseq_rng(rng, n_dims, seed, n_streams, i_stream, ierr, round_off_n_streams_in)
     use mpi
     implicit none
     class(sobseq_rng), intent(inout) :: rng
@@ -44,10 +44,16 @@ contains
     integer, intent(in)  :: seed !< Seed for the RNG if required
     integer, intent(in)  :: n_streams !< Number of output streams needed (not used)
     integer, intent(in)  :: i_stream !< Index of this output stream (sequence number)
+    logical, intent(in),  optional :: round_off_n_streams_in !> If true n_streams is rounded-off to 2**ceil
     integer, intent(out), optional :: ierr !< Error code. If present returns, otherwise calls MPI_ABORT
 
-    integer :: i, ifail, mpi_err
-    real*8 :: DUMMY_REAL
+    integer :: i, ifail, mpi_err, n_streams_loc
+    real*8  :: DUMMY_REAL
+    logical :: round_off_n_streams
+
+    !> check if the number of streams must be rounded-off
+    n_streams_loc = n_streams; round_off_n_streams = .false.;
+    if(present(round_off_n_streams_in)) round_off_n_streams = round_off_n_streams_in
 
     ifail = 0
     if (n_dims .le. 0) then
@@ -56,18 +62,23 @@ contains
     else if (n_dims .gt. 8) then
       write(*,*) "Number of dimensions greater than 8 not implemented yet"
       ifail = 6
-    else if (n_streams .le. 0) then
+    else if (n_streams_loc .le. 0) then
       write(*,*) "Number of streams must be greater than zero"
       ifail = 3
     else if (i_stream .le. 0) then
       write(*,*) "Index of this stream must be greater than zero"
       ifail = 4
-    else if (i_stream .gt. n_streams) then
+    else if (i_stream .gt. n_streams_loc) then
       write(*,*) "Index of this stream must be less than number of streams"
       ifail = 5
-    else if (n_streams .lt. 2**ilog2_b_ceil(n_streams)) then
-      write(*,*) "Number of streams must be a power of 2"
-      ifail = 6
+    else if (n_streams_loc .lt. 2**ilog2_b_ceil(n_streams_loc)) then
+      if(round_off_n_streams) then
+        write(*,*) "Number of streams must be a power of 2: round-off n_streams"
+        n_streams_loc = 2**ilog2_b_ceil(n_streams_loc)
+      else
+        write(*,*) "Number of streams must be a power of 2"
+        ifail = 6
+      endif
     endif
     if (present(ierr)) ierr = ifail
     if (ifail .gt. 0) then
@@ -80,12 +91,12 @@ contains
 
     if (allocated(rng%state)) deallocate(rng%state)
     allocate(rng%state(n_dims))
-    rng%n_streams = n_streams
+    rng%n_streams = n_streams_loc
     rng%i_stream = i_stream
 
     ! Seed with default values
     do i=1,n_dims
-      call rng%state(i)%initialize(s(i), a(i), m(:,i), stride=ilog2_b_ceil(n_streams))
+      call rng%state(i)%initialize(s(i), a(i), m(:,i), stride=ilog2_b_ceil(n_streams_loc))
       DUMMY_REAL = rng%state(i)%skip_ahead(i_stream)
     end do
   end subroutine initialize_sobseq_rng
