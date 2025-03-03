@@ -40,7 +40,6 @@ module exec_commands
   integer :: loop_min_step              !< Smallest timestep index of for loop
   integer :: loop_max_step              !< Largest timestep index of for loop
   integer :: loop_inc_step              !< Timestep index step width of for loop
-  integer :: istep_now                  !< Only used to pass the current time step in rad_TPF_marker to import proj
   real*8  :: loop_min_time              !< Smallest time of for loop
   real*8  :: loop_max_time              !< Largest time of for loop
   real*8  :: loop_inc_time              !< Timestep time interval width of for loop
@@ -173,8 +172,6 @@ module exec_commands
           call help(command, ierr)
         case ( 'I_halo_TPF' )
           call I_halo_TPF(command, first_step, ierr)
-        case ( 'rad_TPF_marker' )
-          call rad_TPF_marker(command, first_step, ierr)
         case ( 'jnorm_bnd_curr' )
           call jnorm_bnd_RZ(command, ierr)
         case ( 'jorek-units' )
@@ -249,7 +246,7 @@ module exec_commands
           'jorek-units', 'jnorm_bnd_curr', 'si-units', 'grid', 'grid_diagnostics', 'rectangle',    &
           'rectangular_torus', 'energy_spectrum', 'average_h5', 'I_halo_TPF', 'spi-state',         &
           'shards', 'zeroD_quantities', 'boundary_quantities', 'find_q_surface', 'midplane2d',     &
-          'expressions_four', 'RHS_terms_vtk', 'rad_TPF_marker')
+          'expressions_four', 'RHS_terms_vtk')
           call add_to_command_queue(command, ierr)
         case ( 'help' )
           call help(command, ierr)
@@ -312,7 +309,6 @@ module exec_commands
     real*8            :: minRad
     
     ierr = 0
-    istep_now = istep
 
     write(file_name,'(a,i5.5)') 'jorek', istep
     if ( rst_hdf5 .ne. 0 ) then
