@@ -476,7 +476,7 @@ Tie_min_neg = 0.5*T_min_neg
 !$omp          ns_phi, ns_radius, ns_deltaphi, ns_delta_minor_rad, ns_tor_norm, spi_tor_rot, local_E_ion,     &
 !$omp          t_now, A_Dmv, K_Dmv, V_Dmv, P_Dmv, t_ns, L_tube, JET_MGI,ASDEX_MGI, local_P_ion,               &
 !$omp          local_radiation, local_radiation_phi, imp_cor, imp_adas, imp_type, local_P_ei,                 &
-!$omp          n_adas, nimp_bg, local_radiation_bg,                                                           &
+!$omp          n_adas, nimp_bg,                                                                               &
 #endif
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
 !$omp          use_imp_adas,                                                                                  &
