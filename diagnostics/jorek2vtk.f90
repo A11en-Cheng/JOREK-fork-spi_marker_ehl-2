@@ -382,6 +382,7 @@ end if
 
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
   if (include_neutral_dens) then
+    call add_vtk_entry('Joule       ', 'Joule_Wm-3  ',  ineu(4), n_scalars, si_units, scalar_names) 
     call add_vtk_entry('IonN_s-1    ', 'IonN_s-1    ',  ineu(6), n_scalars, si_units, scalar_names) 
     call add_vtk_entry('RecN_s-1    ', 'RecN_s-1    ',  ineu(7), n_scalars, si_units, scalar_names) 
   endif
@@ -389,11 +390,10 @@ end if
 
 if (include_radiation) then
 
-#if (defined WITH_Neutrals) && (!defined WITH_Impurities)
+#if (defined WITH_Neutrals)
   call add_vtk_entry('Nt_Ionis    ', 'NtIonis_Wm-3',    ineu(1), n_scalars, si_units, scalar_names) 
   call add_vtk_entry('Lin_rad     ', 'Lin_radWm-3 ',    ineu(2), n_scalars, si_units, scalar_names) 
   call add_vtk_entry('Brems       ', 'Brems_Wm-3  ',    ineu(3), n_scalars, si_units, scalar_names) 
-  call add_vtk_entry('Joule       ', 'Joule_Wm-3  ',    ineu(4), n_scalars, si_units, scalar_names) 
 #endif
 
 #ifdef WITH_Impurities
@@ -1479,9 +1479,9 @@ enddo  ! n_elements
      case('Ne')
        m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u
      case('Fe')
-       m_i_over_m_imp = central_mass/56. ! Neon mass = 56 u
+       m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u
      case('W')
-       m_i_over_m_imp = central_mass/184. ! Neon mass = 184 u
+       m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u
      case default
        write(*,*) '!! Gas type "', trim(imp_type(index_main_imp)), '" unknown (in mod_injection_source.f90) !!'
        write(*,*) '=> We assume the gas is D2.'
@@ -1595,6 +1595,7 @@ enddo  ! n_elements
 
      frad_bg = 0.
      do i_imp =1, n_adas
+       if (i_imp == index_main_imp) cycle
        r_imp_bg = nimp_bg(i_imp) / (1.d20 * central_density)  ! Background impurity density in JU     
        if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. r_imp_bg > 0) then
          Lrad_imp = 0.0
@@ -1613,6 +1614,28 @@ enddo  ! n_elements
      scalars(i,iimp(5)) = Z_eff
      scalars(i,iimp(6)) = beta_imp
      scalars(i,ibg_tot) = ne_JOREK * frad_bg
+
+#if (defined WITH_Neutrals) /* only aimed for w.imp. and w.neut. */
+     coef_ion_3 = 27.2d0*EL_CHG*MU_ZERO*central_density*1.d20
+     coef_ion_2 = 0.232d0
+     coef_ion_1 = (MU_ZERO*central_mass*MASS_PROTON)**(0.5d0)*0.2917d-13*(central_density*1.d20)**(1.5d0)
+     S_ion_puiss = 3.9d-1
+
+     ksiion = ksi_ion * central_density * 1.d20
+     rn0_real8 = scalars(i,var_rhon)
+
+     if ( with_TiTe ) then
+        call atomic_coeff_deuterium(T_real8, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
+                                  LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT,ne_JOREK,rn0_real8,.true. ) !< add scalars(i,var_rho) as last optional parameter for density dependence
+     else
+        call atomic_coeff_deuterium(0.5d0*T_real8, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
+                                  LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT,ne_JOREK,rn0_real8,.true. ) 
+     endif
+
+     scalars(i,ineu(1)) = ksiion * ne_JOREK * scalars(i,var_rhon) * Sion_T
+     scalars(i,ineu(2)) = ne_JOREK * scalars(i,var_rhon) * LradDrays_T
+     scalars(i,ineu(3)) = LradDcont_T * ne_JOREK**2.d0
+#endif /* only aimed for w.imp. and w.neut. */
 
    end do
  endif
@@ -1734,7 +1757,7 @@ if (SI_units) then
     if (with_Vpar) then
        scalars(i,var_Vpar) = scalars(i,var_Vpar) /t_norm/1.e3
     endif
-#if (defined WITH_Neutrals) && (!defined WITH_Impurities)
+#if (defined WITH_Neutrals)
     !===================================== Neutral density in 1e20m-3
     scalars(i,var_rhon) = scalars(i,var_rhon) * central_density
 #endif
@@ -1865,6 +1888,15 @@ if (SI_units) then
      scalars(i,iibg(i_imp)) = scalars(i,iibg(i_imp)) / ((GAMMA-1.d0)*MU_ZERO**1.5d0*(central_mass*MASS_PROTON*central_density*1.d20)**0.5d0)
    end do
   end if
+#if (defined WITH_Neutrals) /* only aimed for w.imp. and w.neut. */
+  coef_ion_1 = (MU_ZERO*central_mass*MASS_PROTON)**(0.5d0)*(central_density*1.d20)**(1.5d0)
+  coef_rad_1 = (gamma-1.d0)*MU_ZERO**1.5d0*(central_mass*MASS_PROTON)**0.5d0*(central_density*1.d20)**2.5d0
+ 
+  scalars(i,ineu(1)) = scalars(i,ineu(1)) * (1.5d0)/(MU_zero*central_density*1.d20) * 1.d20 * 1.d20 / coef_ion_1
+  scalars(i,ineu(2)) = scalars(i,ineu(2)) * 1.d20 * 1.d20/ coef_rad_1
+  scalars(i,ineu(3)) = scalars(i,ineu(3)) * 1.d20 * 1.d20/ coef_rad_1
+
+#endif /* only aimed for w.imp. and w.neut. */
 #endif /* WITH_Impurities */
   if (include_saw_ene) then
     scalars(i,i_saw) = scalars(i,i_saw)/(2*MU_ZERO)

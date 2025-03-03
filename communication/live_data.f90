@@ -239,6 +239,9 @@ module live_data
     if (allocated(npart_tot_t)) call tr_deallocate(npart_tot_t,"npart_tot_t",CAT_UNKNOWN)
     if (nstep .gt. 0) call tr_allocate(npart_tot_t,1,index_start+nstep,"npart_tot_t",CAT_UNKNOWN)
 
+    if (allocated(impart_tot_t)) call tr_deallocate(impart_tot_t,"impart_tot_t",CAT_UNKNOWN)
+    if (nstep .gt. 0) call tr_allocate(impart_tot_t,1,index_start+nstep,"impart_tot_t",CAT_UNKNOWN)
+
     if (allocated(dnpart_tot_dt)) call tr_deallocate(dnpart_tot_dt,"dnpart_tot_dt",CAT_UNKNOWN)
     if (nstep .gt. 0) call tr_allocate(dnpart_tot_dt,1,index_start+nstep,"dnpart_tot_dt",CAT_UNKNOWN)
 
@@ -666,7 +669,7 @@ module live_data
     write(LIVE_DATA_HANDLE,'(A)') '@betas: %"time"           "beta poloidal"       "beta toroidal"       "beta normalized"'
     write(LIVE_DATA_HANDLE,*)
     
-    write(LIVE_DATA_HANDLE,'(A,I5)') '@n_particlecontent: ', 4 
+    write(LIVE_DATA_HANDLE,'(A,I5)') '@n_particlecontent: ', 5 
     write(LIVE_DATA_HANDLE,'(A)') '@particlecontent_xlabel: normalized time'
     write(LIVE_DATA_HANDLE,'(A)') '@particlecontent_xlabel_si: time [ms]'
     write(LIVE_DATA_HANDLE,'(A)') '@particlecontent_ylabel: particle content'
@@ -674,11 +677,7 @@ module live_data
     write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@particlecontent_x2si: ', sqrt_mu0_rho0*1.e3
     write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@particlecontent_y2si: ', 1.0
     write(LIVE_DATA_HANDLE,'(A)') '@particlecontent_logy: 0'
-#ifdef WITH_Impurities
-    write(LIVE_DATA_HANDLE,'(A)') '@particlecontent: %"time"  "Total main ions" "Main ions inside LCFS"  "Main ions outside LCFS" "Total impurities"'
-#else    
-    write(LIVE_DATA_HANDLE,'(A)') '@particlecontent: %"time"  "Total ions" "Ions inside LCFS"  "Ions outside LCFS" "Total neutrals"'
-#endif
+    write(LIVE_DATA_HANDLE,'(A)') '@particlecontent: %"time"  "Total main ions" "Main ions inside LCFS"  "Main ions outside LCFS" "Total D neutrals" "Total impurities"'
     write(LIVE_DATA_HANDLE,*)
     
     write(LIVE_DATA_HANDLE,'(A,I5)') '@n_thermalenergy: ', 2 
@@ -737,7 +736,7 @@ module live_data
       thmwork_tot_t, viscopar_dissip_tot_t, viscopar_flux_t, li3_t, friction_dissip_tot_t,     &
       li3_tot_t, part_src_tot_t, heat_src_tot_t, volume_t, area_t, mag_ener_src_tot, eta_ohmic, eta, &
       dpart_tot_dt, part_flux_Dpar_t, part_flux_Dperp_t, part_flux_vpar_t, part_flux_vperp_t, &
-      dnpart_tot_dt, npart_tot_t, npart_flux_t, density_tot_t, flux_poynting_t, xtime_rad_power, Px_t, Py_t, dPx_dt, dPy_dt, &
+      dnpart_tot_dt, npart_tot_t, impart_tot_t, npart_flux_t, density_tot_t, flux_poynting_t, xtime_rad_power, Px_t, Py_t, dPx_dt, dPy_dt, &
       xtime_E_ion_power, thermal_e_tot_t, thermal_i_tot_t, xtime_P_ei, visco_par, visco_par_heating,&
       thmwork_e_tot_t, thmwork_i_tot_t, visco_dissip_tot_t, visco, visco_heating
 
@@ -822,8 +821,8 @@ module live_data
 
     write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@current: ', xtime(index), Ip_tot_t(index), current_t(index), Ip_tot_t(index)-current_t(index)
     write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@betas: ', xtime(index), beta_p_t(index), beta_t_t(index), beta_n_t(index)
-    write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@particlecontent: ', xtime(index),density_tot_t(index), density_in_t(index), density_out_t(index), &
-                                                                npart_tot_t(index)
+    write(LIVE_DATA_HANDLE,'(A,6ES17.9)') '@particlecontent: ', xtime(index),density_tot_t(index), density_in_t(index), density_out_t(index), &
+                                                                npart_tot_t(index), impart_tot_t(index)
     write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@thermalenergy: ', xtime(index), pressure_in_t(index), pressure_out_t(index)
     write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@heatingpower: ', xtime(index), heat_src_tot_t(index), heat_src_in_t(index), heat_src_out_t(index)
     write(LIVE_DATA_HANDLE,'(A,5ES17.9)') '@particlesource: ', xtime(index), part_src_tot_t(index), part_src_in_t(index), part_src_out_t(index)

@@ -47,10 +47,6 @@ function proj_Lz(sim, group, particle)
   prb = sim%groups(group)%ad%PRB%interp_linear(q, log_n_e, log_T_e)
   plt = sim%groups(group)%ad%PLT%interp_linear(q, log_n_e, log_T_e)
   proj_Lz      = (prb + plt) * n_e
-#ifdef WITH_Neutrals
-  prc = sim%groups(group)%ad%PRC%interp_linear(q, log_n_e, log_T_e)
-  proj_Lz      = proj_Lz + prc * n_n
-#endif
 end function proj_Lz
 
 function get_Lz(sim, group, iz, n_e, T_e, n_neutral)
@@ -77,10 +73,6 @@ function get_Lz(sim, group, iz, n_e, T_e, n_neutral)
   prb = sim%groups(group)%ad%PRB%interp_linear(iz, log_n_e, log_T_e)
   plt = sim%groups(group)%ad%PLT%interp_linear(iz, log_n_e, log_T_e)
   get_Lz      = (prb + plt) * n_e
-#ifdef WITH_Neutrals
-  prc = sim%groups(group)%ad%PRC%interp_linear(iz, log_n_e, log_T_e)
-  get_Lz      = get_Lz + prc * n_n
-#endif
 end function get_Lz
 
 function get_PRB(sim, group, iz, n_e, T_e, n_n)

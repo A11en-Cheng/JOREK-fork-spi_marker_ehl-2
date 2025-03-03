@@ -875,8 +875,7 @@ module phys_module
     Magwork_tot_t(:), thmwork_tot_t(:), viscopar_dissip_tot_t(:), viscopar_flux_t(:), li3_t(:),      &
     li3_tot_t(:), part_src_tot_t(:), heat_src_tot_t(:), volume_t(:), area_t(:), mag_ener_src_tot(:), &
     dpart_tot_dt(:), part_flux_Dpar_t(:), part_flux_Dperp_t(:), part_flux_vpar_t(:), part_flux_vperp_t(:), & 
-    dnpart_tot_dt(:), npart_tot_t(:), npart_flux_t(:), density_tot_t(:), flux_poynting_t(:), & 
-    Px_t(:), Py_t(:), dPx_dt(:), dPy_dt(:), &
+    dnpart_tot_dt(:), npart_tot_t(:), impart_tot_t(:), npart_flux_t(:), density_tot_t(:), flux_poynting_t(:),  Px_t(:), Py_t(:), dPx_dt(:), dPy_dt(:), &
     thermal_e_tot_t(:), thermal_i_tot_t(:), thmwork_e_tot_t(:), thmwork_i_tot_t(:), visco_dissip_tot_t(:)
 
   !> @name gmres parameters
