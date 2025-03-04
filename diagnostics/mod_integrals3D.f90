@@ -1209,7 +1209,7 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
         ! Get coefficient:  Prad,SI = coef_prad_si * Prad,jorek
         coef_prad_si = 1./((GAMMA-1)*MU_ZERO*(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**0.5) 
       
-        ksiion = central_density * 1.d20 * ksi_ion   ! Normalisation of the ionization energy cost for Deuterium
+        ksi_ion_norm = central_density * 1.d20 * ksi_ion   ! Normalisation of the ionization energy cost for Deuterium
 
         local_radiation_phi(mp) = local_radiation_phi(mp) + (ne_JOREK * rn0_corr  * LradDrays_T      &
                                    + ne_JOREK ** 2 * LradDcont_T) * coef_prad_si                     & 
@@ -1217,7 +1217,7 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
         local_radiation(3)      = local_radiation(3) + (ne_JOREK * rn0_corr  * LradDrays_T           &
                                    + ne_JOREK ** 2 * LradDcont_T) * coef_prad_si                     & 
                                    * bigR * xjac * wst * delta_phi 
-        local_P_ion             = local_P_ion + ksiion * ne_JOREK * rn0_corr * Sion_T * coef_prad_si &
+        local_P_ion             = local_P_ion + ksi_ion_norm * ne_JOREK * rn0_corr * Sion_T * coef_prad_si &
                                    * bigR * xjac * wst * delta_phi
 
 #endif /* WITH_Neutrals and w. imp. */
