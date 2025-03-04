@@ -1621,7 +1621,7 @@ enddo  ! n_elements
      coef_ion_1 = (MU_ZERO*central_mass*MASS_PROTON)**(0.5d0)*0.2917d-13*(central_density*1.d20)**(1.5d0)
      S_ion_puiss = 3.9d-1
 
-     ksiion = ksi_ion * central_density * 1.d20
+     ksi_ion_norm = ksi_ion * central_density * 1.d20
      rn0_real8 = scalars(i,var_rhon)
 
      if ( with_TiTe ) then
@@ -1632,7 +1632,7 @@ enddo  ! n_elements
                                   LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT,ne_JOREK,rn0_real8,.true. ) 
      endif
 
-     scalars(i,ineu(1)) = ksiion * ne_JOREK * scalars(i,var_rhon) * Sion_T
+     scalars(i,ineu(1)) = ksi_ion_norm * ne_JOREK * scalars(i,var_rhon) * Sion_T
      scalars(i,ineu(2)) = ne_JOREK * scalars(i,var_rhon) * LradDrays_T
      scalars(i,ineu(3)) = LradDcont_T * ne_JOREK**2.d0
 #endif /* only aimed for w.imp. and w.neut. */
