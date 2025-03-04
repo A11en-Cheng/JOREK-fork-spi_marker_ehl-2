@@ -1723,11 +1723,11 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
           Vol_surface(i_surface) = Vol_surface(i_surface) + xjac * BigR * wst * delta_phi
 #ifdef WITH_Impurities
 #ifdef WITH_TiTe
-          De_surface(i_surface)  = De_surface(i_surface)  + (r0+alpha_e*rn0) * xjac * BigR * wst * delta_phi
-          Pe_surface(i_surface)  = Pe_surface(i_surface)  + (r0+alpha_e*rn0) * Te0 * xjac * BigR * wst * delta_phi
+          De_surface(i_surface)  = De_surface(i_surface)  + (r0+alpha_e*rimp0) * xjac * BigR * wst * delta_phi
+          Pe_surface(i_surface)  = Pe_surface(i_surface)  + (r0+alpha_e*rimp0) * Te0 * xjac * BigR * wst * delta_phi
 #else /* WITH_TiTe */
-          De_surface(i_surface)  = De_surface(i_surface)  + (r0+alpha_imp*rn0) * xjac * BigR * wst * delta_phi
-          Pe_surface(i_surface)  = Pe_surface(i_surface)  + (r0+alpha_imp*rn0)*Te0 * xjac * BigR * wst * delta_phi
+          De_surface(i_surface)  = De_surface(i_surface)  + (r0+alpha_imp*rimp0) * xjac * BigR * wst * delta_phi
+          Pe_surface(i_surface)  = Pe_surface(i_surface)  + (r0+alpha_imp*rimp0)*Te0 * xjac * BigR * wst * delta_phi
 #endif /* WITH_TiTe */
 #else /* WITH_Impurities */
           De_surface(i_surface)  = De_surface(i_surface)  + r0 * xjac * BigR * wst * delta_phi
