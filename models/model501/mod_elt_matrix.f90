@@ -893,6 +893,12 @@ do ms=1, n_gauss
      dZ_imp_dT = dZ_imp_dT / (2.d0*EL_CHG*MU_ZERO*central_density*1.d20)
      dZ_imp_dT = dZ_imp_dT * dT0_corr_dT
 
+     ! Convert gradient in T(K) in to gradient in T (eV)
+     d2Z_imp_dT2 = d2Z_imp_dT2 * (EL_CHG / K_BOLTZ)**2.
+     ! Derivative wrt to T, with T in JOREK units
+     d2Z_imp_dT2 = d2Z_imp_dT2 / ((EL_CHG*MU_ZERO*central_density*1.d20)**2.)
+     d2Z_imp_dT2 = d2Z_imp_dT2 * d2T0_corr_dT2
+
      if (Te_corr_eV < 0.1) then
        Z_imp = 0.
        dZ_imp_dT = 0.
