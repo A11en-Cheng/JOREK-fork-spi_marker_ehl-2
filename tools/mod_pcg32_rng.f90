@@ -19,7 +19,7 @@ type, extends(type_rng) :: pcg32_rng
 end type
 
 contains
-  subroutine initialize_pcg32_rng(rng, n_dims, seed, n_streams, i_stream, ierr)
+  subroutine initialize_pcg32_rng(rng, n_dims, seed, n_streams, i_stream, ierr, round_off_n_streams_in)
     use mpi
     implicit none
     class(pcg32_rng), intent(inout) :: rng
@@ -27,6 +27,7 @@ contains
     integer, intent(in)  :: seed !< Seed for the RNG if required
     integer, intent(in)  :: n_streams !< Number of output streams needed (not used)
     integer, intent(in)  :: i_stream !< Index of this output stream (sequence number)
+    logical, intent(in),  optional :: round_off_n_streams_in !< If true n_streams is rounded-off to 2**ceil
     integer, intent(out), optional :: ierr !< Error code. Exit on error if not present
     integer :: ifail, mpi_err
 
