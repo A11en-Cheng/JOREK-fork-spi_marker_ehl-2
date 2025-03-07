@@ -219,7 +219,8 @@ module pellet_module
     real*8  :: n_SI, T_eV, n_corr, T_corr, n_imp_SI, ne_SI
     real*8  :: t_norm, B0, nu
     real*8  :: spi_delta_phi, spi_Vel_R_tmp, spi_Vel_phi_tmp, spi_phi_inj
-    real*8  :: spi_density_tmp
+    real*8  :: spi_Acc_R_tmp, spi_Acc_Z_tmp, spi_Acc_RxZ_tmp
+    real*8  :: spi_density_tmp, spi_frag_mass_tmp
     real*8  :: V_ns
     real*8  :: xjac, psi_R, psi_Z
     
@@ -584,13 +585,35 @@ module pellet_module
       end if
 
 
-      if (spi_rkt_model(i_inj) == 0) then !Could remove, but kept for completeness
-        pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R
-        pellets(i_p)%spi_Vel_Z   = pellets(i_p)%spi_Vel_Z
-        pellets(i_p)%spi_Vel_RxZ = pellets(i_p)%spi_Vel_RxZ
+!> Note that the velocity R, Z, RxZ is defined by the coordinate at the INJECTOR location, essentially a Cartisian coordinate, while the R, Z, phi of the rocket effect is defined by the coordinate at each FRAGMENT location, since users might be interested in the rocket effect along the local major radial direction. This necessitate a coordinate conversion here!      
+      if (spi_rkt_model(i_inj) == 0) then !No rocket effect
+        spi_Acc_R_tmp   =   0.d0
+        spi_Acc_Z_tmp   =   0.d0
+        spi_Acc_RxZ_tmp =   0.d0
       else if (spi_rkt_model(i_inj) == 1) then ! Constant velocity change
+        spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
+                          - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
+        spi_Acc_Z_tmp   =   spi_rkt_str_Z(i_inj)
+        spi_Acc_RxZ_tmp =   spi_rkt_str_R(i_inj)*sin(spi_delta_phi) &
+                          + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
       else if (spi_rkt_model(i_inj) == 2) then ! Constant force
+        spi_frag_mass_tmp = (4*Pi/3)*(pellets(i_p)%spi_radius**3.) * spi_density_tmp * 1.d20 &
+                            * ( pellets(i_p)%spi_species*central_mass/mu_imp                 &
+                               +(1.-pellets(i_p)%spi_species)*central_mass                  )&
+                            * MASS_PROTON
+        spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
+                          - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
+        spi_Acc_R_tmp   =   spi_Acc_R_tmp / spi_frag_mass_tmp
+        spi_Acc_Z_tmp   =   spi_rkt_str_Z(i_inj)
+        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp / spi_frag_mass_tmp
+        spi_Acc_RxZ_tmp =   spi_rkt_str_R(i_inj)*sin(spi_delta_phi) &
+                          + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
+        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp / spi_frag_mass_tmp
       end if
+
+      pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R + spi_Acc_R_tmp * tstep * t_norm
+      pellets(i_p)%spi_Vel_Z   = pellets(i_p)%spi_Vel_Z + spi_Acc_Z_tmp * tstep * t_norm
+      pellets(i_p)%spi_Vel_RxZ = pellets(i_p)%spi_Vel_RxZ + spi_Acc_RxZ_tmp * tstep * t_norm
   
     end do loop_over_shards
   
