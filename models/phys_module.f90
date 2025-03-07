@@ -502,9 +502,9 @@ module phys_module
                                        !< 0 for no rocket effect, 1 for constant velocity change (SI),
                                        !< 2 for constant force (SI), 3 for gradient rocket effect.
                                        !< 4 for Roman rocket effect (drift), 5 for 3+4
-  real*8  :: spi_rkt_str_R(n_inj_max)  !< The strength of rocket effect in R, in SI unit
-  real*8  :: spi_rkt_str_Z(n_inj_max)  !< The strength of rocket effect in Z, in SI unit
-  real*8  :: spi_rkt_str_RxZ(n_inj_max)  !< The strength of rocket effect in RxZ, in SI unit
+  real*8  :: spi_rkt_str_R(n_inj_max)  !< The strength of rocket effect in R of each frag., in SI unit
+  real*8  :: spi_rkt_str_Z(n_inj_max)  !< The strength of rocket effect in Z of each frag., in SI unit
+  real*8  :: spi_rkt_str_phi(n_inj_max)  !< The strength of rocket effect in phi of each frag., in SI unit
   integer :: spi_rnd_seed(40)   !< Random seed array used for the generation of the SPI velocity spread
 
   character(len=256) :: spi_shard_file(n_inj_max)!< The name of the shard size file

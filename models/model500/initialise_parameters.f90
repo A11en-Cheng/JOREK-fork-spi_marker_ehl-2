@@ -121,7 +121,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 spi_Vel_Rref,spi_Vel_Zref, using_spi, n_spi, n_inj, &
                 spi_Vel_RxZref, spi_quantity, spi_abl_model,        &
                 spi_rkt_model,                                      &
-                spi_rkt_str_R, spi_rkt_str_Z, spi_rkt_str_RxZ,      &
+                spi_rkt_str_R, spi_rkt_str_Z, spi_rkt_str_phi,      &
                 ns_radius_ratio, ns_radius_min, spi_angle,          &
                 spi_L_inj, spi_L_inj_diff,                          &
                 drift_distance, energy_teleported,                  &
