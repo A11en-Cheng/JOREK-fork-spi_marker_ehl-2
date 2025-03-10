@@ -597,10 +597,10 @@ module pellet_module
         spi_Acc_RxZ_tmp =   spi_rkt_str_R(i_inj)*sin(spi_delta_phi) &
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
       else if (spi_rkt_model(i_inj) == 2) then ! Constant force
-        spi_frag_mass_tmp = (4*Pi/3)*(pellets(i_p)%spi_radius**3.) * spi_density_tmp * 1.d20 &
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
                             * ( pellets(i_p)%spi_species*central_mass/mu_imp                 &
                                +(1.-pellets(i_p)%spi_species)*central_mass                  )&
-                            * MASS_PROTON
+                            * MASS_PROTON * spi_density_tmp * 1.d20
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
         spi_Acc_R_tmp   =   spi_Acc_R_tmp / spi_frag_mass_tmp
@@ -610,10 +610,10 @@ module pellet_module
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 3) then ! Constant pressure asymmetry, see Eq.(2) of PHYSICAL REVIEW LETTERS 134, 035101 (2025)
-        spi_frag_mass_tmp = (4*Pi/3)*(pellets(i_p)%spi_radius**3.) * spi_density_tmp * 1.d20 &
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
                             * ( pellets(i_p)%spi_species*central_mass/mu_imp                 &
                                +(1.-pellets(i_p)%spi_species)*central_mass                  )&
-                            * MASS_PROTON
+                            * MASS_PROTON * spi_density_tmp * 1.d20
 
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
