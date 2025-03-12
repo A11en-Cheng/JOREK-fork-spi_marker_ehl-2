@@ -1651,6 +1651,7 @@ do i=1,n_vertex_max
 
                          + zeta * v * (r0_corr + rimp0_corr*alpha_i) * delta_g(mp,var_Ti,ms,mt) * BigR * xjac         * factor(var_Ti,9)   &
                          + zeta * v * Ti0      * delta_g(mp,var_rho,ms,mt) * BigR                * xjac         * factor(var_Ti,9)   &
+                         -        v * delta_alpha_imp * T0 * rimp0         * BigR                * xjac &   
                          ! Energy exchange term
                          + v * BigR * dTi_e                                                            * xjac * tstep * factor(var_Ti,11)   &
                          ! heating  source for small temperatures
@@ -1743,6 +1744,7 @@ do i=1,n_vertex_max
   
                          + zeta * v * (r0_corr+rimp0_corr*alpha_e_bis) * delta_g(mp,var_Te,ms,mt)* BigR  * xjac         * factor(var_Te,10)  &
                          + zeta * v * Te0      * delta_g(mp,var_rho,ms,mt) * BigR                * xjac         * factor(var_Te,10)  &
+                         -        v * delta_alpha_e * Te0 * rimp0          * BigR                * xjac &   
                          ! Energy exchange term
                          + v * BigR * dTe_i                                                      * xjac * tstep * factor(var_Te,11)  &
                          ! implicit heating source

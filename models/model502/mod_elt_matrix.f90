@@ -1773,7 +1773,7 @@ do ms=1, n_gauss
                     + zeta * v * (r0 + rn0 * alpha_e_bis) * delta_g(mp,9,ms,mt) * BigR                 * xjac &
                     + zeta * v * Te0 * delta_g(mp,5,ms,mt) * BigR                                      * xjac &
                     + zeta * v * alpha_e * Te0 * delta_g(mp,8,ms,mt) * BigR                            * xjac &   
-                    !-        v * delta_alpha_e * Te0 * rn0 * BigR                                      * xjac &   
+                    -        v * delta_alpha_e * Te0 * rn0 * BigR                                      * xjac &   
                     !+ zeta * v * delta_alpha_e * Te0 * rn0 * BigR                                      * xjac &   
                     ! For the projected Z_imp, the delta of Z_imp is missing here and I don't know how to 
                     ! implement it for now......
