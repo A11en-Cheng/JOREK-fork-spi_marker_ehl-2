@@ -470,8 +470,12 @@ mpi_comm_in,mpi_info_in,test_in)
     call HDF5_real_reading(file_id,sim%groups(ii)%mass,trim(group_name)//"mass")
     call HDF5_char_reading(file_id,sim%groups(ii)%ad%suffix,trim(group_name)//"adas_suffix")
     if((len_trim(sim%groups(ii)%ad%suffix).gt.0).and.(.not.test)) then
-      sim%groups(ii)%ad  = read_adf11(sim%my_id,sim%groups(ii)%ad%suffix)
-      sim%groups(ii)%cor = coronal(sim%groups(ii)%ad) 
+      if (trim(adas_dir) .eq. '') then
+        sim%groups(ii)%ad = read_adf11(sim%my_id,sim%groups(ii)%ad%suffix)
+      else
+        sim%groups(ii)%ad = read_adf11(sim%my_id,sim%groups(ii)%ad%suffix,trim(adas_dir))
+      endif
+        sim%groups(ii)%cor = coronal(sim%groups(ii)%ad) 
     endif
     !> compute the number of particles per processor and allocate particle array
     call HDF5_get_dataset_rank_dims(file_id,trim(group_name)//"i_elm",&
