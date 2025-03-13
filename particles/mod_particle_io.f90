@@ -2,6 +2,7 @@
 !> TODO: add metadata and/or use H5MD format (http://nongnu.org/h5md/h5md.html)
 !> The documentation of the module is at link: https://www.jorek.eu/wiki/doku.php?id=jorek-particles_i_o
 module mod_particle_io
+use phys_module, only: adas_dir
 implicit none
 private
 public write_simulation_hdf5,read_simulation_hdf5,get_simulation_hdf5_time
