@@ -475,7 +475,7 @@ mpi_comm_in,mpi_info_in,test_in)
       else
         sim%groups(ii)%ad = read_adf11(sim%my_id,sim%groups(ii)%ad%suffix,trim(adas_dir))
       endif
-        sim%groups(ii)%cor = coronal(sim%groups(ii)%ad) 
+      sim%groups(ii)%cor = coronal(sim%groups(ii)%ad) 
     endif
     !> compute the number of particles per processor and allocate particle array
     call HDF5_get_dataset_rank_dims(file_id,trim(group_name)//"i_elm",&
