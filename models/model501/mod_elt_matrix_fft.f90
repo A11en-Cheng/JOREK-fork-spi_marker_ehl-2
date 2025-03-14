@@ -2194,7 +2194,7 @@ do ms=1, n_gauss
 
 
              amat_66 =   v * (r0 + rn0 * alpha_imp_bis) * T * BigR * xjac * (1.d0 + zeta)                        &
-                       + v * rn0 * delta_alpha_imp      * T * BigR * xjac * (1.d0 + zeta)                     &
+                       !+ v * rn0 * delta_alpha_imp      * T * BigR * xjac * (1.d0 + zeta)                     &
 !=============== The ionization potential energy term=========================
                        + (GAMMA - 1.) * v * rn0 * dE_ion_dT  * T * BigR * xjac * (1.d0 + zeta)                        &
                        - (GAMMA - 1.) * v * rn0 * dE_ion_dT * BigR**2 * (T_s*u0_t - T_t*u0_s)         * theta * tstep &
@@ -2387,7 +2387,7 @@ do ms=1, n_gauss
 
      
              amat_68 =   v * rhon * alpha_imp * T0 * BigR * xjac * (1.d0 + zeta)                              &
-                       + v * rhon * delta_alpha_imp * T0  * BigR * xjac * (1.d0 + zeta)                       &
+                       !+ v * rhon * delta_alpha_imp * T0  * BigR * xjac * (1.d0 + zeta)                       &
 !=============== The ionization potential energy term=========================
                        + (GAMMA - 1.) * v * rhon * (E_ion - E_ion_bg) * BigR * xjac * (1.d0 + zeta)                &
                        - (GAMMA - 1.) * v * rhon * dE_ion_dT * BigR**2 * (T0_s*u0_t - T0_t*u0_s)    * theta * tstep&
