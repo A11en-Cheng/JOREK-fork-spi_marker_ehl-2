@@ -3578,6 +3578,7 @@ do i=1,n_vertex_max
   
   
                     amat(var_Te,var_Te) = v * (r0_corr + rimp0_corr * alpha_e_bis) * Te  * BigR * xjac * (1.d0 + zeta)     &
+                                        + v * rimp0_corr * delta_alpha_e           * Te  * BigR * xjac * (1.d0 + zeta)     &
                     !=============== The ionization potential energy term=========================
                               + (GAMMA-1.) * v * rimp0 * dE_ion_dT  * Te * BigR * xjac * (1.d0 + zeta)                &
                               - (GAMMA-1.) * v * rimp0 * dE_ion_dT * BigR**2 * (Te_s*u0_t - Te_t*u0_s)  * theta * tstep &
@@ -3763,6 +3764,7 @@ do i=1,n_vertex_max
                     endif
                     if (with_impurities) then
                       amat(var_Te,var_rhoimp) = v * rhoimp * alpha_e * Te0 * BigR * xjac * (1.d0 + zeta)          &
+                                              + v * rhoimp * delta_alpha_e * Te0  * BigR * xjac * (1.d0 + zeta) &
                       !=============== The ionization potential energy term=========================
                             + (GAMMA-1.) * v * rhoimp * (E_ion - E_ion_bg) * BigR * xjac * (1.d0 + zeta)                &
      
@@ -4089,6 +4091,7 @@ do i=1,n_vertex_max
                                     * (     + F0 / BigR * v_p)                         * xjac * theta * tstep * tstep
   
                     amat(var_T,var_T) = v * (r0_corr + rimp0_corr * alpha_imp_bis) * T  * BigR * xjac * (1.d0 + zeta)  &
+                                      + v * rimp0_corr * delta_alpha_imp           * T  * BigR * xjac * (1.d0 + zeta)  &
                          -implicit_heat_source*(gamma-1.d0)*v                                                          &
                          *(exp( (min(T0,T_min_neg)-T_min_neg)/(0.5d0*T_min_neg) ) -1.d0)*T* xjac*theta*tstep*BigR      &
                     !=============== The ionization potential energy term=========================
@@ -4300,6 +4303,7 @@ do i=1,n_vertex_max
                       
                     if (with_impurities) then
                       amat(var_T,var_rhoimp) = v * rhoimp * alpha_imp * T0 * BigR * xjac * (1.d0 + zeta)&
+                                             + v * rhoimp * delta_alpha_imp * T0  * BigR * xjac * (1.d0 + zeta)    &
                       !=============== The ionization potential energy term=========================
                      + (GAMMA - 1.) * v * rhoimp * (E_ion - E_ion_bg) * BigR * xjac * (1.d0 + zeta)                &
                      - (GAMMA - 1.) * v * rhoimp * dE_ion_dT * BigR**2 * (T0_s*u0_t - T0_t*u0_s)    * theta * tstep&

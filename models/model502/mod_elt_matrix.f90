@@ -1773,10 +1773,10 @@ do ms=1, n_gauss
                     + zeta * v * (r0 + rn0 * alpha_e_bis) * delta_g(mp,9,ms,mt) * BigR                 * xjac &
                     + zeta * v * Te0 * delta_g(mp,5,ms,mt) * BigR                                      * xjac &
                     + zeta * v * alpha_e * Te0 * delta_g(mp,8,ms,mt) * BigR                            * xjac &   
+                    ! These are corrections for the changing projected Z_imp
                     -        v * delta_alpha_e * Te0 * rn0 * BigR                                      * xjac &   
-                    !+ zeta * v * delta_alpha_e * Te0 * rn0 * BigR                                      * xjac &   
-                    ! For the projected Z_imp, the delta of Z_imp is missing here and I don't know how to 
-                    ! implement it for now......
+                    !- zeta * v * delta_alpha_e * delta_g(mp,var_Te,ms,mt) * rn0 * BigR                 * xjac & 
+                    !- zeta * v * delta_alpha_e * Te0 * delta_g(mp,var_rhoimp,ms,mt) * BigR             * xjac &
 
 !===================== Additional terms from ionization energy terms============
                     + (GAMMA-1.) * zeta * v * E_ion * delta_g(mp,8,ms,mt) *BigR                           * xjac &
@@ -2855,7 +2855,7 @@ do ms=1, n_gauss
 
 
                  amat_98 =   v * rhon * alpha_e * Te0 * BigR * xjac * (1.d0 + zeta)                              &
-                           !+ v * rhon * delta_alpha_e * Te0  * BigR                             * xjac * theta &
+                           + v * rhon * delta_alpha_e * Te0  * BigR * xjac * (1.d0 + zeta) &
 !=============== The ionization potential energy term=========================
                            + (GAMMA-1.) * v * rhon * (E_ion - E_ion_bg) * BigR * xjac * (1.d0 + zeta)                &
 
@@ -2928,7 +2928,7 @@ do ms=1, n_gauss
 
 
                  amat_99 =   v * (r0 + rn0 * alpha_e_bis) * Te * BigR * xjac * (1.d0 + zeta)                     &
-                           !+ v * rn0 * delta_alpha_e * Te      * BigR * xjac * theta                             &
+                           + v * rn0 * delta_alpha_e      * Te * BigR * xjac * (1.d0 + zeta)                     &
 !=============== The ionization potential energy term=========================
                            + (GAMMA-1.) * v * rn0 * dE_ion_dT  * Te * BigR * xjac * (1.d0 + zeta)                &
                            - (GAMMA-1.) * v * rn0 * dE_ion_dT * BigR**2 * (Te_s*u0_t - Te_t*u0_s)  * theta * tstep &
