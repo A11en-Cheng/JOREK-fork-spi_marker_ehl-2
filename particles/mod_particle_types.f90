@@ -661,7 +661,7 @@ Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr,particle_type_str)
     allocate(character(len=18)::particle_type_str); particle_type_str="particle_fieldline";
     type is (particle_marker)
     allocate(v_2d_arr(size(p%V_prev,1),n_particles));
-    allocate(P_imp_arr(Z_particles+1,n_particles))
+    allocate(P_imp_arr(0:Z_particles,n_particles))
     allocate(character(len=18)::particle_type_str); particle_type_str="particle_marker";
     type is (particle_gc)
     allocate(E_arr(n_particles)); allocate(mu_arr(n_particles));
@@ -720,7 +720,7 @@ Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr,particle_type_str)
       B_hat_prev_arr(:,ii)  = p%B_hat_prev
       type is (particle_marker)
       v_2d_arr(:,ii)        = p%V_prev
-      P_imp_arr(1:Z_particles+1,ii)  = p%P_imp(0:Z_particles)
+      P_imp_arr(:,ii)  = p%P_imp
       type is (particle_gc)
       E_arr(ii)             = p%E; 
       mu_arr(ii)            = p%mu; 
@@ -762,9 +762,9 @@ Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr,particle_type_str)
 end subroutine particle_arrays_from_list
 
 ! initialise a particle list to 0
-subroutine initialize_particle_list_to_zero(n_particles,particle_list,ierr)
+subroutine initialize_particle_list_to_zero(n_particles,particle_list,particle_Z,ierr)
   !> inputs:
-  integer,intent(in) :: n_particles
+  integer,intent(in) :: n_particles,particle_Z
   !> outputs:
   class(particle_base),dimension(:),allocatable,intent(inout)  :: particle_list
   !> inputs-outputs:
@@ -776,7 +776,7 @@ subroutine initialize_particle_list_to_zero(n_particles,particle_list,ierr)
     write(*,*) "WARNING: particle list not allocated: exit!"
     ierr = 1; return;
   endif
-  !$omp parallel do default(none) private(ii),firstprivate(n_particles) &
+  !$omp parallel do default(none) private(ii),firstprivate(n_particles,particle_Z) &
   !$omp shared(particle_list)
   do ii=1,n_particles
     particle_list(ii)%i_elm=0;    particle_list(ii)%i_life=0; 
@@ -786,6 +786,7 @@ subroutine initialize_particle_list_to_zero(n_particles,particle_list,ierr)
       type is (particle_fieldline)
       p%v=0d0; p%B_hat_prev=0d0;
       type is (particle_marker)
+      if(.not. allocated(p%P_imp)) allocate(p%P_imp(0:particle_Z))
       p%V_prev=0.d0; p%P_imp=0.d0; p%P_imp(0)=1.d0;
       type is (particle_gc)
       p%E=0d0; p%mu=0d0; p%q=int(0,kind=1);
@@ -861,7 +862,7 @@ Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr)
       if(present(B_hat_prev_arr)) then; if(allocated(B_hat_prev_arr)) p%B_hat_prev = B_hat_prev_arr(:,ii);  endif;
       type is (particle_marker)
       if(present(v_2d_arr))       then; if(allocated(v_2d_arr))       p%V_prev     = v_2d_arr(:,ii);        endif;
-      if(present(P_imp_arr))      then; if(allocated(P_imp_arr))      p%P_imp(0:Z_particles) = P_imp_arr(1:Z_particles+1,ii);  endif;
+      if(present(P_imp_arr))      then; if(allocated(P_imp_arr))      p%P_imp      = P_imp_arr(:,ii);  endif;
       type is (particle_gc)
       if(present(E_arr))          then; if(allocated(E_arr))          p%E          = E_arr(ii);             endif;
       if(present(mu_arr))         then; if(allocated(mu_arr))         p%mu         = mu_arr(ii);            endif;

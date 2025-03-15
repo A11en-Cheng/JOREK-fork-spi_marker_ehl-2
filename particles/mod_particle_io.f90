@@ -510,7 +510,7 @@ mpi_comm_in,mpi_info_in,test_in)
       write(*,*) "Error: missing type name declaration ",trim(particle_type_str)," for reading: ABORT!"
       call MPI_Abort(mpi_comm_loc,errorcode,ierr)
     end select
-    call initialize_particle_list_to_zero(n_particles_per_proc(sim%my_id+1),sim%groups(ii)%particles,ierr)
+    call initialize_particle_list_to_zero(n_particles_per_proc(sim%my_id+1),sim%groups(ii)%particles,sim%groups(ii)%Z,ierr)
     !> Read particle base datasets from HDF5 and fill the particle lists: integer 1D array
     call HDF5_allocatable_array1D_reading_int(file_id,i_elm_arr,trim(group_name)//"i_elm",&
     reqdims_in=[n_particles_hsizet],start=[offset])
