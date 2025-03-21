@@ -862,7 +862,11 @@ Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr)
       if(present(B_hat_prev_arr)) then; if(allocated(B_hat_prev_arr)) p%B_hat_prev = B_hat_prev_arr(:,ii);  endif;
       type is (particle_marker)
       if(present(v_2d_arr))       then; if(allocated(v_2d_arr))       p%V_prev     = v_2d_arr(:,ii);        endif;
-      if(present(P_imp_arr))      then; if(allocated(P_imp_arr))      p%P_imp      = P_imp_arr(:,ii);  endif;
+      if(present(P_imp_arr))      then
+        if(allocated(p%P_imp)) deallocate(p%P_imp)
+        allocate(p%P_imp(0:Z_particles))
+        if(allocated(P_imp_arr))      p%P_imp(0:Z_particles) = P_imp_arr(:,ii);  
+      endif
       type is (particle_gc)
       if(present(E_arr))          then; if(allocated(E_arr))          p%E          = E_arr(ii);             endif;
       if(present(mu_arr))         then; if(allocated(mu_arr))         p%mu         = mu_arr(ii);            endif;
