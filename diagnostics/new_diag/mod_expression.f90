@@ -640,7 +640,8 @@ module mod_expression
     real*8  :: LradDrays_T, LradDcont_T, Sion_T, Srec_T
     real*8  :: dLradDrays_dT, dLradDcont_dT, dSion_dT, dSrec_dT
     real*8  :: ne_SI, ne_JOREK                              ! Electron density used in radiation rate
-    real*8  :: Lrad_imp, r_imp_bg, i_imp, frad_bg
+    real*8  :: Lrad_imp, r_imp_bg, frad_bg
+    integer :: i_imp
 #endif
 #if (defined WITH_Neutrals)
     real*8  :: Arad_bg, Brad_bg, Crad_bg
