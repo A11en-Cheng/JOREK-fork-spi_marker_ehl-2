@@ -777,7 +777,7 @@ module mod_expression
         element  = pol_pos%element
         nodes(:) = pol_pos%nodes(:)
 
-        if(export_aux_node_list .and. (size(aux_node_list%node) > 0)) then
+        if(export_aux_node_list .and. allocated(aux_node_list%node)) then
            aux_nodes(:) = aux_node_list%node(pol_pos%element%vertex(:))
         endif
         
@@ -861,7 +861,7 @@ module mod_expression
                 vv(:)  = 0.d0
                 vv(1:n_var)  = nodes(i)%values(i_tor,j,:)
 		            va(:)  = 0.d0
-                if(export_aux_node_list .and. (size(aux_node_list%node) > 0)) then
+              if(export_aux_node_list .and. allocated(aux_node_list%node)) then
                    va(1:n_var)  = aux_nodes(i)%values(i_tor,j,:)
                 endif
                 
