@@ -162,6 +162,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 nonlocal_abl, n_nonlocal_array,                     &
                 ns_radius_ratio, ns_radius_min, spi_angle,          &
                 spi_L_inj, spi_L_inj_diff, restart_spi,             &
+                spi_abl_mag_reduction,                              &
                 drift_distance, energy_teleported,                  &
                 K_Dmv, A_Dmv, L_tube, V_Dmv, P_Dmv,                 &
                 spi_Vel_diff, t_ns, JET_MGI, ASDEX_MGI,             &

@@ -795,6 +795,7 @@ subroutine preset_parameters
   spi_shard_file(:) = 'none'
   spi_plume_file(:) = 'none'
   spi_plume_hdf5  = .false.
+  spi_abl_mag_reduction  = .false.
   spi_tor_rot     = .false.
   spi_num_vol     = .true.
   using_spi       = .false.
