@@ -519,14 +519,14 @@ subroutine initialise_particles_marker(particles, node_list, element_list, field
             end if
           end do
 #endif 
-#ifdef WITH_Neutrals
-          source_tmp = 0.d0; source_bg_arr = 0.d0
-          source_bg_drift_arr = 0.d0
-          call total_neutral_source(R,Z,phi,P(1),source_bg_arr,source_bg_drift_arr) 
-          do i_inj = 1,n_inj
-            source_tmp = source_tmp + source_bg_drift_arr(i_inj)
-          end do
-#endif 
+!#ifdef WITH_Neutrals
+!          source_tmp = 0.d0; source_bg_arr = 0.d0
+!          source_bg_drift_arr = 0.d0
+!          call total_neutral_source(R,Z,phi,P(1),source_bg_arr,source_bg_drift_arr) 
+!          do i_inj = 1,n_inj
+!            source_tmp = source_tmp + source_bg_drift_arr(i_inj)
+!          end do
+!#endif 
           if (present(transform_rej_f)) then
             if (ran(4) .lt. transform_rej_f(source_tmp,(phys_source*t_norm/n_norm))) then
               particles(j)%x = [r, z, phi]
