@@ -501,7 +501,7 @@ module phys_module
   integer :: spi_rkt_model(n_inj_max)  !< Determine which type of rocket effect is used.
                                        !< 0 for no rocket effect, 1 for constant velocity change (SI),
                                        !< 2 for constant force (SI), 3 for constant pressure asymmetry
-                                       !< 4 for gradient rocket effect.
+                                       !< 4 for gradient rocket effect (PRL 134, 035101, 2025).
                                        !< 5 for Roman rocket effect (drift), 6 for 4+5
   real*8  :: spi_rkt_str_R(n_inj_max)  !< The strength of rocket effect in R of each frag., in SI unit
   real*8  :: spi_rkt_str_Z(n_inj_max)  !< The strength of rocket effect in Z of each frag., in SI unit

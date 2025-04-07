@@ -221,6 +221,8 @@ module pellet_module
     real*8  :: spi_delta_phi, spi_Vel_R_tmp, spi_Vel_phi_tmp, spi_phi_inj
     real*8  :: spi_Acc_R_tmp, spi_Acc_Z_tmp, spi_Acc_RxZ_tmp
     real*8  :: spi_density_tmp, spi_frag_mass_tmp
+    real*8  :: chalmers_a, chalmers_b, E_rel, q_rel, p_star, f_p, a_star, mass_eff, Q_frac, E_bc0, q_bc0
+    real*8, dimension(3) :: p_asymm
     real*8  :: V_ns
     real*8  :: xjac, psi_R, psi_Z
     
@@ -623,6 +625,21 @@ module pellet_module
         spi_Acc_RxZ_tmp =   spi_rkt_str_R(i_inj)*sin(spi_delta_phi) &
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+      else if (spi_rkt_model(i_inj) == 4) then ! Chalmers rocket effect, see PHYSICAL REVIEW LETTERS 134, 035101 (2025)
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
+                            * ( pellets(i_p)%spi_species*central_mass/mu_imp                 &
+                               +(1.-pellets(i_p)%spi_species)*central_mass                  )&
+                            * MASS_PROTON * spi_density_tmp * 1.d20
+
+        chalmers_a = 2.45 ! Zeroth order value, see PRL 134, 035101 (2025)
+        chalmers_b = -1.18! Zeroth order value, see PRL 134, 035101 (2025)
+        f_p        = 0.15 ! See PRL 134, 035101 (2025)
+        a_star     = 1.1d-16 ! See PRL 134, 035101 (2025)
+        Q_frac     = 0.7  ! See PRL 134, 035101 (2025), but weak power dependence anyway
+        
+        E_bc0      = 2. * T_eV ! In eV
+        q_bc0      = 2. * ne_SI * Sqrt((T_eV*EL_CHG)**3/(2*PI*MASS_ELECTRON)) ! In SI unit
+
       end if
 
       pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R + spi_Acc_R_tmp * tstep * t_norm
