@@ -229,7 +229,7 @@ module pellet_module
     real*8  :: n_imp_SI_R, n_imp_SI_Z, n_imp_SI_phi, n_SI_R, n_SI_Z, n_SI_phi
     
     !   -Mean impurity ionization state and related quantities
-    real*8  :: Z_imp, beta_imp, mu_imp
+    real*8  :: Z_imp, dZ_imp_dT, d2Z_imp_dT2, beta_imp, mu_imp
 
     integer, intent(in) :: i_inj
     integer, intent(in) :: n_spi_begin
@@ -474,10 +474,18 @@ module pellet_module
                                      * ((ne_SI*1.d-6)**0.455) * (T_eV**1.679)
             case('Ar')
               if (T_eV >= 1.) then
-                ! As with element_matrix, mimick density as 1.d20
-                call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp)
+                if (.not. use_marker) then
+                  ! As with element_matrix, mimick density as 1.d20
+                  call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                else
+                  Z_imp = 0. ! Placeholder
+                  dZ_imp_dT = 0.d0
+                  d2Z_imp_dT2 0.d0
+                endif
               else
                 Z_imp = 0.
+                dZ_imp_dT = 0.d0
+                d2Z_imp_dT2 0.d0
               end if
               mu_imp             = central_mass/40. ! Argon mass = 40 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
@@ -495,10 +503,18 @@ module pellet_module
             ! Using general scaling law of Sergeev for Neon
             case('Ne')
               if (T_eV >= 1.) then
-                ! As with element_matrix, mimick density as 1.d20
-                call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp)
+                if (.not. use_marker) then
+                  ! As with element_matrix, mimick density as 1.d20
+                  call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                else
+                  Z_imp = 0. ! Placeholder
+                  dZ_imp_dT = 0.d0
+                  d2Z_imp_dT2 0.d0
+                endif
               else
                 Z_imp = 0.
+                dZ_imp_dT = 0.d0
+                d2Z_imp_dT2 0.d0
               end if
               mu_imp             = central_mass/20. ! Neon mass = 20 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
@@ -540,10 +556,18 @@ module pellet_module
                                      * ((n_SI*1.d-20)**(1./3.)) * ((T_eV/2.d3)**(5./3.)) / 4.0282
             case('Ar')  ! Argon and H2/D2 formed separately
               if (T_eV >= 1.) then
-                ! As with element_matrix, mimick density as 1.d20
-                call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp)
+                if (.not. use_marker) then
+                  ! As with element_matrix, mimick density as 1.d20
+                  call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                else
+                  Z_imp = 0. ! Placeholder
+                  dZ_imp_dT = 0.d0
+                  d2Z_imp_dT2 0.d0
+                endif
               else
                 Z_imp = 0.
+                dZ_imp_dT = 0.d0
+                d2Z_imp_dT2 0.d0
               end if
               mu_imp             = central_mass/40. ! Argon mass = 40 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
@@ -560,10 +584,18 @@ module pellet_module
               end if
             case('Ne')  ! Neond and H2/D2 mixed together
               if (T_eV >= 1.) then
-                ! As with element_matrix, mimick density as 1.d20
-                call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp)
+                if (.not. use_marker) then
+                  ! As with element_matrix, mimick density as 1.d20
+                  call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                else
+                  Z_imp = 0. ! Placeholder
+                  dZ_imp_dT = 0.d0
+                  d2Z_imp_dT2 0.d0
+                endif
               else
                 Z_imp = 0.
+                dZ_imp_dT = 0.d0
+                d2Z_imp_dT2 0.d0
               end if
               mu_imp             = central_mass/20. ! Neon mass = 20 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
