@@ -221,8 +221,8 @@ module pellet_module
     real*8  :: spi_delta_phi, spi_Vel_R_tmp, spi_Vel_phi_tmp, spi_phi_inj
     real*8  :: spi_Acc_R_tmp, spi_Acc_Z_tmp, spi_Acc_RxZ_tmp
     real*8  :: spi_density_tmp, spi_frag_mass_tmp
-    real*8  :: chalmers_a, chalmers_b, E_rel, q_rel, p_star, f_p, a_star, mass_eff, Q_frac, E_bc0, q_bc0
-    real*8, dimension(3) :: p_asymm
+    real*8  :: chalmers_a, chalmers_b, p_star, f_p, a_star, mass_eff, Q_frac, E_bc0, q_bc0
+    real*8, dimension(3) :: p_asymm, E_rel, q_rel
     real*8  :: V_ns
     real*8  :: xjac, psi_R, psi_Z
     real*8  :: T_eV_R, T_eV_Z, T_eV_phi, ne_SI_R, ne_SI_Z, ne_SI_phi
@@ -477,6 +477,8 @@ module pellet_module
                 if (.not. use_marker) then
                   ! As with element_matrix, mimick density as 1.d20
                   call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                  dZ_imp_dT   = dZ_imp_dT * EL_CHG / K_BOLTZ
+                  d2Z_imp_dT2 = d2Z_imp_dT2 * (EL_CHG / K_BOLTZ)**2.
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
@@ -490,6 +492,9 @@ module pellet_module
               mu_imp             = central_mass/40. ! Argon mass = 40 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
               ne_SI              = n_SI + beta_imp * n_imp_SI
+              ne_SI_R            = n_SI_R + beta_imp * n_imp_SI_R + mu_imp*dZ_imp_dT * T_eV_R * n_imp_SI
+              ne_SI_Z            = n_SI_Z + beta_imp * n_imp_SI_Z + mu_imp*dZ_imp_dT * T_eV_Z * n_imp_SI
+              ne_SI_phi          = n_SI_phi + beta_imp * n_imp_SI_phi + mu_imp*dZ_imp_dT * T_eV_phi * n_imp_SI
   
               if (ne_SI<0.) ne_SI = 0.        
               ! The scaling law is in gauss unit
@@ -506,6 +511,8 @@ module pellet_module
                 if (.not. use_marker) then
                   ! As with element_matrix, mimick density as 1.d20
                   call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                  dZ_imp_dT   = dZ_imp_dT * EL_CHG / K_BOLTZ
+                  d2Z_imp_dT2 = d2Z_imp_dT2 * (EL_CHG / K_BOLTZ)**2.
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
@@ -519,6 +526,9 @@ module pellet_module
               mu_imp             = central_mass/20. ! Neon mass = 20 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
               ne_SI              = n_SI + beta_imp * n_imp_SI
+              ne_SI_R            = n_SI_R + beta_imp * n_imp_SI_R + mu_imp*dZ_imp_dT * T_eV_R * n_imp_SI
+              ne_SI_Z            = n_SI_Z + beta_imp * n_imp_SI_Z + mu_imp*dZ_imp_dT * T_eV_Z * n_imp_SI
+              ne_SI_phi          = n_SI_phi + beta_imp * n_imp_SI_phi + mu_imp*dZ_imp_dT * T_eV_phi * n_imp_SI
   
               if (ne_SI<0.) ne_SI = 0.
               ! The scaling law is in gauss unit
@@ -552,13 +562,20 @@ module pellet_module
         else if (spi_abl_model(i_inj) == 3 .and. with_impurities) then
           select case ( trim(imp_type(index_main_imp)) )
             case('D2') ! We temporarily wusing D2 ablation rate for H2 ablation here
+              ne_SI     = n_SI
+              ne_SI_R   = n_SI_R
+              ne_SI_Z   = n_SI_Z
+              ne_SI_phi = n_SI_phi
+
               pellets(i_p)%spi_abl = 39.0023 * 2. * MOLE_NUMBER * ((pellets(i_p)%spi_radius*1.d2 / 0.2)**(4./3.)) &
-                                     * ((n_SI*1.d-20)**(1./3.)) * ((T_eV/2.d3)**(5./3.)) / 4.0282
+                                     * ((ne_SI*1.d-20)**(1./3.)) * ((T_eV/2.d3)**(5./3.)) / 4.0282
             case('Ar')  ! Argon and H2/D2 formed separately
               if (T_eV >= 1.) then
                 if (.not. use_marker) then
                   ! As with element_matrix, mimick density as 1.d20
                   call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                  dZ_imp_dT   = dZ_imp_dT * EL_CHG / K_BOLTZ
+                  d2Z_imp_dT2 = d2Z_imp_dT2 * (EL_CHG / K_BOLTZ)**2.
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
@@ -572,6 +589,9 @@ module pellet_module
               mu_imp             = central_mass/40. ! Argon mass = 40 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
               ne_SI              = n_SI + beta_imp * n_imp_SI
+              ne_SI_R            = n_SI_R + beta_imp * n_imp_SI_R + mu_imp*dZ_imp_dT * T_eV_R * n_imp_SI
+              ne_SI_Z            = n_SI_Z + beta_imp * n_imp_SI_Z + mu_imp*dZ_imp_dT * T_eV_Z * n_imp_SI
+              ne_SI_phi          = n_SI_phi + beta_imp * n_imp_SI_phi + mu_imp*dZ_imp_dT * T_eV_phi * n_imp_SI
   
               if (ne_SI<0.) ne_SI = 0.
               ! The scaling law is in gauss unit
@@ -587,6 +607,8 @@ module pellet_module
                 if (.not. use_marker) then
                   ! As with element_matrix, mimick density as 1.d20
                   call imp_cor(index_main_imp)%interp(density=20.,temperature=log10(T_eV*EL_CHG/K_BOLTZ),z_out=Z_imp,z_Te_out=dZ_imp_dT,z_TeTe_out=d2Z_imp_dT2)
+                  dZ_imp_dT   = dZ_imp_dT * EL_CHG / K_BOLTZ
+                  d2Z_imp_dT2 = d2Z_imp_dT2 * (EL_CHG / K_BOLTZ)**2.
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
@@ -600,6 +622,9 @@ module pellet_module
               mu_imp             = central_mass/20. ! Neon mass = 20 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
               ne_SI              = n_SI + beta_imp * n_imp_SI
+              ne_SI_R            = n_SI_R + beta_imp * n_imp_SI_R + mu_imp*dZ_imp_dT * T_eV_R * n_imp_SI
+              ne_SI_Z            = n_SI_Z + beta_imp * n_imp_SI_Z + mu_imp*dZ_imp_dT * T_eV_Z * n_imp_SI
+              ne_SI_phi          = n_SI_phi + beta_imp * n_imp_SI_phi + mu_imp*dZ_imp_dT * T_eV_phi * n_imp_SI
   
               if (ne_SI<0.) ne_SI = 0.
               ! The scaling law is in gauss unit
@@ -697,12 +722,25 @@ module pellet_module
 
         p_star     = f_p * (E_bc0)**(1.7/3.) * (mass_eff*(Q_frac*q_bc0)**2/(a_star*max(pellets(i_p)%spi_radius,1.d-4)))**(1./3.)
 
-        if (with_impurities) then
+        E_rel(1)   = pellets(i_p)%spi_radius * T_eV_R / max(T_eV,1)
+        E_rel(2)   = pellets(i_p)%spi_radius * T_eV_Z / max(T_eV,1)
+        E_rel(3)   = pellets(i_p)%spi_radius * T_eV_phi / max(T_eV,1)
+        q_rel(1)   = pellets(i_p)%spi_radius * (1.5 * T_eV_R / max(T_eV,1) + ne_SI_R/max(ne_SI,1.d16))
+        q_rel(2)   = pellets(i_p)%spi_radius * (1.5 * T_eV_Z / max(T_eV,1) + ne_SI_Z/max(ne_SI,1.d16))
+        q_rel(3)   = pellets(i_p)%spi_radius * (1.5 * T_eV_phi / max(T_eV,1) + ne_SI_phi/max(ne_SI,1.d16))
 
-        else 
+        p_asymm(1) = chalmers_a * p_star * (E_rel(1)-chalmers_b*q_rel(1))
+        p_asymm(2) = chalmers_a * p_star * (E_rel(2)-chalmers_b*q_rel(2))
+        p_asymm(3) = chalmers_a * p_star * (E_rel(3)-chalmers_b*q_rel(3))
 
-        endif
-
+        spi_Acc_R_tmp   =   p_asymm(1)*cos(spi_delta_phi) &
+                          - p_asymm(3)*sin(spi_delta_phi)
+        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_Z_tmp   =   p_asymm(2)
+        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_RxZ_tmp =   p_asymm(1)*sin(spi_delta_phi) &
+                          + p_asymm(3)*cos(spi_delta_phi)
+        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
       end if
 
       pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R + spi_Acc_R_tmp * tstep * t_norm
