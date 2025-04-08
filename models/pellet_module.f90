@@ -225,6 +225,8 @@ module pellet_module
     real*8, dimension(3) :: p_asymm
     real*8  :: V_ns
     real*8  :: xjac, psi_R, psi_Z
+    real*8  :: T_eV_R, T_eV_Z, T_eV_phi, ne_SI_R, ne_SI_Z, ne_SI_phi
+    real*8  :: n_imp_SI_R, n_imp_SI_Z, n_imp_SI_phi, n_SI_R, n_SI_Z, n_SI_phi
     
     !   -Mean impurity ionization state and related quantities
     real*8  :: Z_imp, beta_imp, mu_imp
@@ -420,19 +422,37 @@ module pellet_module
         !T_eV           = T_corr / (2.d0* EL_CHG * MU_ZERO * central_density * 1.d20)
         
         n_SI           = P(1) * 1.d20 * central_density
+        n_SI_R         = (  P_s(1) * Z_t - P_t(1) * Z_s ) * 1.d20 * central_density / xjac
+        n_SI_Z         = (- P_s(1) * R_t + P_t(1) * R_s ) * 1.d20 * central_density / xjac
+        n_SI_phi       = P_phi(1) * 1.d20 * central_density
+
         if (n_SI < 0.) n_SI = 0.
   
 #ifdef WITH_TiTe
         T_eV           = P(2) / (EL_CHG * MU_ZERO * central_density * 1.d20)
+        T_eV_R         = (  P_s(2) * Z_t - P_t(2) * Z_s ) / (xjac *EL_CHG * MU_ZERO * central_density * 1.d20)
+        T_eV_Z         = (- P_s(2) * R_t + P_t(2) * R_s ) / (xjac *EL_CHG * MU_ZERO * central_density * 1.d20)
+        T_eV_phi       = P_phi(2) / (EL_CHG * MU_ZERO * central_density * 1.d20)
 #else
-        T_eV           = P(2) / (2.d0* EL_CHG * MU_ZERO * central_density * 1.d20)
+        T_eV           = P(2) / (2.d0 * EL_CHG * MU_ZERO * central_density * 1.d20)
+        T_eV_R         = (  P_s(2) * Z_t - P_t(2) * Z_s ) / (2.0 * xjac *EL_CHG * MU_ZERO * central_density * 1.d20)
+        T_eV_Z         = (- P_s(2) * R_t + P_t(2) * R_s ) / (2.0 * xjac *EL_CHG * MU_ZERO * central_density * 1.d20)
+        T_eV_phi       = P_phi(2) / (2.0 * EL_CHG * MU_ZERO * central_density * 1.d20)
 #endif
         if (T_eV < 0.) T_eV = 0.
   
         ! This is only used for 501 as impurity density, 500 don't use this
         ! variable
         n_imp_SI           = 0.
-        if (with_impurities) n_imp_SI = P(4) * 1.d20 * central_density
+        n_imp_SI_R         = 0.
+        n_imp_SI_Z         = 0.
+        n_imp_SI_phi       = 0.
+        if (with_impurities) then
+          n_imp_SI      = P(4) * 1.d20 * central_density
+          n_imp_SI_R    = (  P_s(4) * Z_t - P_t(4) * Z_s ) * 1.d20 * central_density / xjac
+          n_imp_SI_Z    = (- P_s(4) * R_t + P_t(4) * R_s ) * 1.d20 * central_density / xjac
+          n_imp_SI_phi  = P_phi(4) * 1.d20 * central_density
+        endif
         if (n_imp_SI < 0.) n_imp_SI = 0.      
   
         ! NGS model
@@ -445,7 +465,10 @@ module pellet_module
         else if (spi_abl_model(i_inj) == 2 .and. with_impurities) then
           select case ( trim(imp_type(index_main_imp)) )
             case('D2')
-              ne_SI   = n_SI
+              ne_SI     = n_SI
+              ne_SI_R   = n_SI_R
+              ne_SI_Z   = n_SI_Z
+              ne_SI_phi = n_SI_phi
               ! The scaling law is in gauss unit
               pellets(i_p)%spi_abl = 3.9d14 * ((pellets(i_p)%spi_radius*1.d2)**1.455) &
                                      * ((ne_SI*1.d-6)**0.455) * (T_eV**1.679)
@@ -599,10 +622,10 @@ module pellet_module
         spi_Acc_RxZ_tmp =   spi_rkt_str_R(i_inj)*sin(spi_delta_phi) &
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
       else if (spi_rkt_model(i_inj) == 2) then ! Constant force
+        mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
+                            +(1.-pellets(i_p)%spi_species)*central_mass
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
-                            * ( pellets(i_p)%spi_species*central_mass/mu_imp                 &
-                               +(1.-pellets(i_p)%spi_species)*central_mass                  )&
-                            * MASS_PROTON * spi_density_tmp * 1.d20
+                            * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
         spi_Acc_R_tmp   =   spi_Acc_R_tmp / spi_frag_mass_tmp
@@ -612,10 +635,10 @@ module pellet_module
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 3) then ! Constant pressure asymmetry, see Eq.(2) of PHYSICAL REVIEW LETTERS 134, 035101 (2025)
+        mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
+                            +(1.-pellets(i_p)%spi_species)*central_mass
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
-                            * ( pellets(i_p)%spi_species*central_mass/mu_imp                 &
-                               +(1.-pellets(i_p)%spi_species)*central_mass                  )&
-                            * MASS_PROTON * spi_density_tmp * 1.d20
+                            * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
 
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
@@ -626,10 +649,10 @@ module pellet_module
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 4) then ! Chalmers rocket effect, see PHYSICAL REVIEW LETTERS 134, 035101 (2025)
+        mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
+                            +(1.-pellets(i_p)%spi_species)*central_mass
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
-                            * ( pellets(i_p)%spi_species*central_mass/mu_imp                 &
-                               +(1.-pellets(i_p)%spi_species)*central_mass                  )&
-                            * MASS_PROTON * spi_density_tmp * 1.d20
+                            * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
 
         chalmers_a = 2.45 ! Zeroth order value, see PRL 134, 035101 (2025)
         chalmers_b = -1.18! Zeroth order value, see PRL 134, 035101 (2025)
@@ -639,6 +662,14 @@ module pellet_module
         
         E_bc0      = 2. * T_eV ! In eV
         q_bc0      = 2. * ne_SI * Sqrt((T_eV*EL_CHG)**3/(2*PI*MASS_ELECTRON)) ! In SI unit
+
+        p_star     = f_p * (E_bc0)**(1.7/3.) * (mass_eff*(Q_frac*q_bc0)**2/(a_star*max(pellets(i_p)%spi_radius,1.d-4)))**(1./3.)
+
+        if (with_impurities) then
+
+        else 
+
+        endif
 
       end if
 
