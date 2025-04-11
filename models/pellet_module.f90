@@ -722,12 +722,12 @@ module pellet_module
 
         p_star     = f_p * (E_bc0)**(1.7/3.) * (mass_eff*(Q_frac*q_bc0)**2/(a_star*max(pellets(i_p)%spi_radius,1.d-4)))**(1./3.)
 
-        E_rel(1)   = pellets(i_p)%spi_radius * T_eV_R / max(T_eV,1)
-        E_rel(2)   = pellets(i_p)%spi_radius * T_eV_Z / max(T_eV,1)
-        E_rel(3)   = pellets(i_p)%spi_radius * T_eV_phi / max(T_eV,1)
-        q_rel(1)   = pellets(i_p)%spi_radius * (1.5 * T_eV_R / max(T_eV,1) + ne_SI_R/max(ne_SI,1.d16))
-        q_rel(2)   = pellets(i_p)%spi_radius * (1.5 * T_eV_Z / max(T_eV,1) + ne_SI_Z/max(ne_SI,1.d16))
-        q_rel(3)   = pellets(i_p)%spi_radius * (1.5 * T_eV_phi / max(T_eV,1) + ne_SI_phi/max(ne_SI,1.d16))
+        E_rel(1)   = pellets(i_p)%spi_radius * T_eV_R / max(T_eV,1.)
+        E_rel(2)   = pellets(i_p)%spi_radius * T_eV_Z / max(T_eV,1.)
+        E_rel(3)   = pellets(i_p)%spi_radius * T_eV_phi / max(T_eV,1.)
+        q_rel(1)   = pellets(i_p)%spi_radius * (1.5 * T_eV_R / max(T_eV,1.) + ne_SI_R/max(ne_SI,1.d16))
+        q_rel(2)   = pellets(i_p)%spi_radius * (1.5 * T_eV_Z / max(T_eV,1.) + ne_SI_Z/max(ne_SI,1.d16))
+        q_rel(3)   = pellets(i_p)%spi_radius * (1.5 * T_eV_phi / max(T_eV,1.) + ne_SI_phi/max(ne_SI,1.d16))
 
         p_asymm(1) = chalmers_a * p_star * (E_rel(1)-chalmers_b*q_rel(1))
         p_asymm(2) = chalmers_a * p_star * (E_rel(2)-chalmers_b*q_rel(2))
