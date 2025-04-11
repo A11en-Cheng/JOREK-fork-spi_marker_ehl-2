@@ -482,12 +482,12 @@ module pellet_module
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
-                  d2Z_imp_dT2 0.d0
+                  d2Z_imp_dT2 = 0.d0
                 endif
               else
                 Z_imp = 0.
                 dZ_imp_dT = 0.d0
-                d2Z_imp_dT2 0.d0
+                d2Z_imp_dT2 = 0.d0
               end if
               mu_imp             = central_mass/40. ! Argon mass = 40 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
@@ -516,12 +516,12 @@ module pellet_module
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
-                  d2Z_imp_dT2 0.d0
+                  d2Z_imp_dT2 = 0.d0
                 endif
               else
                 Z_imp = 0.
                 dZ_imp_dT = 0.d0
-                d2Z_imp_dT2 0.d0
+                d2Z_imp_dT2 = 0.d0
               end if
               mu_imp             = central_mass/20. ! Neon mass = 20 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
@@ -579,12 +579,12 @@ module pellet_module
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
-                  d2Z_imp_dT2 0.d0
+                  d2Z_imp_dT2 = 0.d0
                 endif
               else
                 Z_imp = 0.
                 dZ_imp_dT = 0.d0
-                d2Z_imp_dT2 0.d0
+                d2Z_imp_dT2 = 0.d0
               end if
               mu_imp             = central_mass/40. ! Argon mass = 40 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
@@ -612,12 +612,12 @@ module pellet_module
                 else
                   Z_imp = 0. ! Placeholder
                   dZ_imp_dT = 0.d0
-                  d2Z_imp_dT2 0.d0
+                  d2Z_imp_dT2 = 0.d0
                 endif
               else
                 Z_imp = 0.
                 dZ_imp_dT = 0.d0
-                d2Z_imp_dT2 0.d0
+                d2Z_imp_dT2 = 0.d0
               end if
               mu_imp             = central_mass/20. ! Neon mass = 20 u and main ion mass = central_mass u
               beta_imp           = mu_imp*Z_imp - 1.
