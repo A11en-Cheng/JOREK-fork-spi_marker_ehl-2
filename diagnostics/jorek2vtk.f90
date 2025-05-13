@@ -1626,11 +1626,11 @@ enddo  ! n_elements
      rn0_real8 = scalars(i,var_rhon)
 
      if ( with_TiTe ) then
-        call atomic_coeff_deuterium(T_real8, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
-                                  LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT,ne_JOREK,rn0_real8,.true. ) !< add scalars(i,var_rho) as last optional parameter for density dependence
+        call atomic_coeff_deuterium(T_real8, Sion_T, dSion_dT, Srec_T, dSrec_dT, LradDcont_T, dLradDcont_dT, &
+                                    LradDcont_corr, dLradDcont_dT_corr, LradDrays_T, dLradDrays_dT, r0_real8, rn0_real8, .true. )
      else
-        call atomic_coeff_deuterium(0.5d0*T_real8, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
-                                  LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT,ne_JOREK,rn0_real8,.true. ) 
+        call atomic_coeff_deuterium(0.5d0*T_real8, Sion_T, dSion_dT, Srec_T, dSrec_dT, LradDcont_T, dLradDcont_dT, &
+                                    LradDcont_corr, dLradDcont_dT_corr, LradDrays_T, dLradDrays_dT, r0_real8, rn0_real8, .true. )
      endif
 
      scalars(i,ineu(1)) = ksi_ion_norm * ne_JOREK * scalars(i,var_rhon) * Sion_T
