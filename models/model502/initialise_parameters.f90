@@ -162,7 +162,9 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 alpha_Newton, vacuum_min, strumpack_matching,       &
                 xpoint_search_tries, export_aux_node_list,          &
                 use_manual_random_seed, manual_seed,                &
-                bgf_rpolar, bgf_tht
+                bgf_rpolar, bgf_tht, use_marker,                    &
+                use_fixed_rng_value, fixed_rng_value
+
 
 if (my_id .eq. 0) then
   ! --- Preset input parameters to reasonable default values.

@@ -217,6 +217,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 visco_old_setup, visco_heating, eta_coul_log_dep,   &
                 export_polar_boundary, xpoint_search_tries,         &
                 use_manual_random_seed, manual_seed,                &
+                use_fixed_rng_value, fixed_rng_value,               &            
                 loop_voltage, export_aux_node_list
 
 

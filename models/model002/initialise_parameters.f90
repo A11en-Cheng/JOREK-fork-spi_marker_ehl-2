@@ -186,6 +186,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 use_kn_cx, use_kn_sputtering, use_kn_ionisation,             &
                 use_ncs, use_pcs, use_ccs,                          &
                 use_manual_random_seed, manual_seed,                &
+                use_fixed_rng_value, fixed_rng_value,               &
                 min_sheath_angle, bcs, cte_current_FB_fact, vacuum_min,      &
                 export_aux_node_list, xpoint_search_tries
 

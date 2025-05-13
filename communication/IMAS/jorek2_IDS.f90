@@ -289,7 +289,7 @@ program jorek2_IDS
         write(*,*) ' Could not open projections file where radiation is stored'
         stop
       endif
-      call fill_radiation_IDS(first_step, t_start*fact_time, radiation_ids)  
+      call fill_radiation_IDS(first_step, time_SI, radiation_ids)  
     endif
 
     ! --- Fill and export an SPI IDS

@@ -569,6 +569,10 @@ endif
       call tr_deallocate(xtime_rad_power,"xtime_rad_power",CAT_UNKNOWN)
     call tr_allocate(xtime_rad_power,1,index_start+nstep,"xtime_rad_power",CAT_UNKNOWN)
     read(21)  xtime_rad_power(1:index_start)
+    if (allocated(xtime_rad_cooling_power)) &
+      call tr_deallocate(xtime_rad_cooling_power,"xtime_rad_cooling_power",CAT_UNKNOWN)
+    call tr_allocate(xtime_rad_cooling_power,1,index_start+nstep,"xtime_rad_cooling_power",CAT_UNKNOWN)
+    read(21)  xtime_rad_cooling_power(1:index_start)
     if (allocated(xtime_E_ion)) &
       call tr_deallocate(xtime_E_ion,"xtime_E_ion",CAT_UNKNOWN)
     call tr_allocate(xtime_E_ion,1,index_start+nstep,"xtime_E_ion",CAT_UNKNOWN)
@@ -1858,6 +1862,10 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
       call tr_deallocate(xtime_rad_power,"xtime_rad_power",CAT_UNKNOWN)
     call tr_allocate(xtime_rad_power,1,index_start+nstep,"xtime_rad_power",CAT_UNKNOWN)
     call HDF5_array1D_reading(file_id,xtime_rad_power,"xtime_rad_power")
+    if (allocated(xtime_rad_cooling_power)) &
+    call tr_deallocate(xtime_rad_cooling_power,"xtime_rad_cooling_power",CAT_UNKNOWN)
+  call tr_allocate(xtime_rad_cooling_power,1,index_start+nstep,"xtime_rad_cooling_power",CAT_UNKNOWN)
+  call HDF5_array1D_reading(file_id,xtime_rad_cooling_power,"xtime_rad_cooling_power")
     if (allocated(xtime_E_ion)) &
       call tr_deallocate(xtime_E_ion,"xtime_E_ion",CAT_UNKNOWN)
     call tr_allocate(xtime_E_ion,1,index_start+nstep,"xtime_E_ion",CAT_UNKNOWN)
