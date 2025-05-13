@@ -1227,11 +1227,11 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
 #if (defined WITH_Neutrals)
         ! --- Get ionization, recombination and radiation coefficients for Deuterium 
 #ifdef WITH_TiTe
-        call atomic_coeff_deuterium  (   Te0, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
-                                            LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT, ne_JOREK, rn0, .true. ) 
+        call atomic_coeff_deuterium  (   Te0, Sion_T, dSion_dT, Srec_T, dSrec_dT, LradDcont_T, dLradDcont_dT, &
+                                         LradDcont_corr, dLradDcont_dT_corr, LradDrays_T, dLradDrays_dT, r0, rn0, .true. ) 
 #else
-        call atomic_coeff_deuterium(0.5d0*T0, Sion_T, dSion_dT, Srec_T, dSrec_dT,        &
-                                            LradDcont_T, dLradDcont_dT, LradDrays_T, dLradDrays_dT, ne_JOREK, rn0, .true. ) 
+        call atomic_coeff_deuterium(0.5d0*T0, Sion_T, dSion_dT, Srec_T, dSrec_dT, LradDcont_T, dLradDcont_dT, &
+                                         LradDcont_corr, dLradDcont_dT_corr, LradDrays_T, dLradDrays_dT, r0, rn0, .true. ) 
 #endif
      
         ! Get coefficient:  Prad,SI = coef_prad_si * Prad,jorek
