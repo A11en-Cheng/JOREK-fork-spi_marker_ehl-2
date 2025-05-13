@@ -14,6 +14,8 @@
   use_manual_random_seed = .true.
   manual_seed = 498932990
 
+  use_fixed_rng_value = .true.
+
   use_ncs = .true.
   use_pcs = .f.
   use_ccs = .f.

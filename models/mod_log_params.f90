@@ -1032,6 +1032,10 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
   if (use_manual_random_seed) then
     write(*,INTG_FMT) 'manual_seed,             ',manual_seed
   endif     
+  write(*,LOGI_FMT) 'use_fixed_rng_value,    ',use_fixed_rng_value
+  if (use_fixed_rng_value) then
+    write(*,REAL_FMT) 'fixed_rng_value,        ',fixed_rng_value
+  endif
 
 #ifdef USE_CATALYST
   write(*,CHAR_FMT) 'catalyst_scripts,   ',trim(catalyst_scripts)

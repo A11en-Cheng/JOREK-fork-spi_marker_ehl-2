@@ -51,6 +51,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 ZK_par, ZK_par_max, ZK_perp,                        &
                 ZK_i_par, ZK_e_par, ZK_i_perp, ZK_e_perp,           &
                 D_par, D_perp,                                      &
+                maintain_profiles,                                  &
                 particlesource, heatsource,                         &
                 heatsource_i, heatsource_e, tauIC,                  &
                 eta_num, visco_num, visco_par_num, D_perp_num,      &
@@ -124,7 +125,9 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 mode_families_modes, n_mode_families,               &
                 weights_per_family, autodistribute_ranks,           &
                 ranks_per_family,                                   &
-                use_manual_random_seed, manual_seed                
+                use_manual_random_seed, manual_seed,                &
+                use_fixed_rng_value, fixed_rng_value                
+
                 
 namelist /dommcoef/  R_domm, dcoef
 
