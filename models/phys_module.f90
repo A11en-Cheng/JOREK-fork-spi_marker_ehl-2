@@ -137,6 +137,9 @@ module phys_module
   logical :: use_mumps_eq         !< Use Mumps equilibrium solver
   logical :: use_pastix_eq        !< Use Pastix equilibrium solver
   logical :: use_strumpack_eq     !< Use Strumpack equilibrium solver  
+  logical :: use_mumps_prj        !< Use Mumps projection solver
+  logical :: use_pastix_prj       !< Use Pastix projection solver
+  logical :: use_strumpack_prj    !< Use Strumpack projection solver  
   logical :: use_wsmp             !< Use WSMP solver
   logical :: centralize_harm_mat  !< Centralize harmonic matrices on toridal master ranks; switch for STRUMPACK solver
   real*8  :: prev_FB_fact = 1.d0  !< FB_factor that had been applied when importing the restart file

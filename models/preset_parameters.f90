@@ -649,6 +649,10 @@ subroutine preset_parameters
   use_pastix_eq      = .false.              ! Use PASTIX equilibrium solver
   use_strumpack_eq   = .false.              ! Use STRUMPACK equilibrium olver  
   
+  use_mumps_prj      = .false.              ! Use MUMPS equilibrium solver
+  use_pastix_prj     = .false.              ! Use PASTIX equilibrium solver
+  use_strumpack_prj  = .false.              ! Use STRUMPACK equilibrium olver  
+
   refinement         = .false.              ! enable mesh refinement
   force_central_node = .true.               ! force all nodes in the grid center to have the same values in flux surface aligned grids
   fix_axis_nodes     = .false.              ! Fix t-derivative and cross st-derivative on axis to avoid noise

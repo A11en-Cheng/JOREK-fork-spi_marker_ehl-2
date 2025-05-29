@@ -36,6 +36,8 @@
   time_evol_scheme= 'Gears'
   use_mumps_eq  = .true.
   use_pastix_eq = .false.
+  use_pastix_prj = .false.
+  use_mumps_prj = .true.
   T_min_neg     = 4.d-4
   rho_min_neg   =  1.d-3
 

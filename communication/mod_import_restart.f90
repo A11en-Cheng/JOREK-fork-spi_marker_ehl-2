@@ -1,6 +1,9 @@
 !> Routines to import a restart file written out by a routine in [[export_restart]].
 module mod_import_restart
 implicit none
+
+character(len=20), parameter :: rst_file_ind_fmt(2) = (/'(a,i6.6)', '(a,i5.5)'/)
+
 contains
 !> Imports a restart file written out by the routine export_restart.
 
@@ -2524,5 +2527,43 @@ subroutine import_hdf5_restart_aux(aux_node_list, filename, format_rst, error)
 #endif
   return
 end subroutine import_hdf5_restart_aux
+
+
+
+
+
+
+!< Checks if a restart file exists in the current directory
+!< Returns -1 if not found, and the digit format index if found (1 for 6 digits), (2 for 5 digits)
+integer function restart_file_exists(i_step)
+
+  use phys_module, only : rst_hdf5
+
+  implicit none
+
+  integer, intent(in) :: i_step
+  integer             :: i_fmt
+  character(len=64)   :: file_name, extension
+  logical             :: file_exists
+
+  restart_file_exists = -1
+
+  ! Determine the file extension
+  extension = '.rst'
+  if (rst_hdf5 .ne. 0) extension = '.h5'
+
+  ! Check each possible format
+  do i_fmt = 1, size(rst_file_ind_fmt)
+    write(file_name, rst_file_ind_fmt(i_fmt)) 'jorek', i_step
+    inquire(file=trim(file_name) // extension, exist=file_exists)
+
+    if (file_exists) then
+      restart_file_exists = i_fmt
+      return
+    end if
+  end do
+
+end function restart_file_exists
+
 
 end module mod_import_restart

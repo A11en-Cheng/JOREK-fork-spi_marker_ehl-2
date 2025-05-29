@@ -78,6 +78,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 bc_natural_open, rot_file, D_perp_imp_file,         &
                 NEO, neo_file, aki_neo_const, amu_neo_const,        &
                 use_mumps_eq, use_pastix_eq, use_strumpack_eq,      &
+                use_mumps_prj, use_pastix_prj, use_strumpack_prj,   &
                 use_mumps, mumps_ordering,                          &
                 use_BLR_compression, epsilon_BLR, just_in_time_BLR, &
                 use_pastix, use_wsmp, n_tor_fft_thresh,             &
@@ -195,6 +196,12 @@ if (my_id .eq. 0) then
     read(5,in1)
   endif
 
+  if ( ( n_tor .eq. 1 ) .and. freeboundary .and. (.not. freeboundary_equil) ) then
+    write(*,*) 'WARNING: The parameter freeboundary is automatically changed to .false. since n_tor==1 and freeboundary_equil is .false.'
+    freeboundary= .false.
+  end if
+
+  
   ! --- Calculate normalisation factor for MGI source (related to its toroidal shape)
   ns_tor_norm = ns_deltaphi * PI**0.5 * ERF(PI/ns_deltaphi)
 

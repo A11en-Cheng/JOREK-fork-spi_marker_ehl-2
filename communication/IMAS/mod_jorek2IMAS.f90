@@ -2561,29 +2561,6 @@ module mod_jorek2IMAS
 
 
 
-  ! --- Checks if a restart file exists in the current directory
-  logical function restart_file_exists(i_step)
-
-    use phys_module, only : rst_hdf5
-
-    implicit none
-
-    integer,  intent(in) :: i_step
-    character(len=64)    :: file_name
-
-    write(file_name,'(a,i5.5)') 'jorek', i_step
-    if ( rst_hdf5 .ne. 0 ) then
-      inquire (file=trim(file_name)//'.h5', exist=restart_file_exists)
-    else
-      inquire (file=trim(file_name)//'.rst', exist=restart_file_exists)
-    end if
-
-  end function restart_file_exists
-
-
-
-
-
   !> Read one coils set from a STARWALL coil file
   subroutine read_coil_set_starwall(filename, coil_set)
     
