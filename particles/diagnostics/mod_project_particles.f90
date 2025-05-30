@@ -27,7 +27,7 @@ use mod_particle_types
 use mod_fields
 use mod_import_restart, only: rst_file_ind_fmt
 use mod_vtk
-use constants, only : el_chg, atomic_mass_unit, mu_zero
+use constants, only : el_chg, atomic_mass_unit
 use data_structure, only: type_SP_MATRIX, type_RHS
 use mod_sparse_data, only: type_SP_SOLVER, mumps, pastix, strumpack
 use mod_solve_sparse_projection, only: solve_sparse_projection_system
@@ -37,8 +37,7 @@ private
 public projection
 public new_projection !< The constructor function is also public since it provides better error handling than the real constructor
 public proj_f
-public proj_f_interface, proj_one, proj_q, proj_vR, proj_vZ, proj_vPhi, proj_Pressure 
-public proj_Ekin, proj_Ekin_keV, proj_jR, proj_jZ, proj_jPhi
+public proj_f_interface, proj_one, proj_q, proj_vR, proj_vZ, proj_vPhi, proj_Ekin, proj_Ekin_keV, proj_jR, proj_jZ, proj_jPhi
 public proj_R, proj_min_rad, proj_Z,proj_v,proj_vpar,proj_mu,proj_pow
 public write_particle_distribution_to_vtk, write_particle_distribution_to_h5 !< public for testing reasons, please don't use directly
 public prepare_mumps_par, prepare_mumps_par_n0, sample_rhs !< public for testing reasons
@@ -66,8 +65,8 @@ end interface proj_f
 !> You must use the (new_)projection() constructor to set this up.
 !> At construction time the matrix is solved.
 type, extends(io_action) :: projection
-  type(type_node_list),    pointer :: node_list => null() !< node lists to save particle projections in
-  type(type_element_list), pointer :: element_list => null()
+  type(type_node_list),    pointer :: node_list !< node lists to save particle projections in
+  type(type_element_list), pointer :: element_list
 
   real*8 :: filter                      !< Smoothing factor used for this projection (Laplacian, poloidal plane)
   real*8 :: filter_hyper                !< hyper-smoothing factor used for this projection (double Laplacian, poloidal plane)
@@ -80,9 +79,6 @@ type, extends(io_action) :: projection
   real*8 :: scaling_integral_weights    !< multiplication factor to subtract integral_weights from rhs(n=0)
 
   logical,public :: do_zonal = .false.  !< solve zonal flow system for n=0 (instead of usual projection)
-  logical,public :: do_ion_polarisation = .false.  !< add ion polarisation term to filter_perp (for gyro (guiding) centre particles)
-
-  real*8         :: ion_mass            !< ion mass used in the ion polarisation term
 
   !> Output storage (optional)
   type(vtk_grid), allocatable, private :: vtk_grid !< if allocated output to vtk
@@ -327,26 +323,6 @@ pure function proj_vPhi(sim, group, particle)
   end select
 end function proj_vPhi
 
-pure function proj_Pressure(sim, group, particle)
-  use mod_particle_types, only: particle_kinetic_leapfrog
-  type(particle_sim), intent(in) :: sim
-  integer, intent(in) :: group
-  class(particle_base), intent(in) :: particle
-  real*8 :: proj_Pressure
-  select type (p => particle)
-  type is (particle_kinetic)
-    proj_Pressure = sim%groups(group)%mass * atomic_mass_unit * dot_product(p%v,p%v)/3.d0
-  type is (particle_kinetic_leapfrog)
-    proj_Pressure = sim%groups(group)%mass * atomic_mass_unit * dot_product(p%v,p%v)/3.d0
-  type is (particle_gc_vpar)
-    proj_Pressure = sim%groups(group)%mass * atomic_mass_unit * (p%vpar**2 + 2.d0 * p%mu * p%B_norm)/3.d0
-  type is (particle_gc_Qin)
-    proj_Pressure = sim%groups(group)%mass * atomic_mass_unit * (p%vpar**2 + 2.d0 * p%mu * p%B_norm)/3.d0
-  class default
-    proj_Pressure = 0.d0
-  end select
-end function proj_Pressure
-
 !< Energy in joules
 pure function proj_Ekin(sim, group, particle) 
   use mod_particle_types, only: particle_kinetic_leapfrog
@@ -455,13 +431,12 @@ end function new_proj_f
 
 !> Constructor for project_particles
 !> Be sure to use keyword arguments when initializing, to avoid confusion
-function new_projection(node_list, element_list,                                                     &
-                        filter,    filter_hyper,    filter_parallel,                                 &
-                        filter_n0, filter_hyper_n0, filter_parallel_n0,                              &
-                        f, do_zonal, to_h5, to_vtk, index_h5,                                        &
-                        nsub, filename, basename, decimal_digits, fractional_digits, calc_integrals, &
-                        do_ion_polarisation, ion_mass, do_dirichlet                                  &
-                        ) result(new)
+function new_projection(node_list, element_list,                                                    &
+                        filter,    filter_hyper,    filter_parallel,                                &
+                        filter_n0, filter_hyper_n0, filter_parallel_n0,                             &
+                        f, do_zonal, to_h5, to_vtk, index_h5,                                       &
+                        nsub, filename, basename, decimal_digits, fractional_digits, calc_integrals,&
+                        do_dirichlet) result(new)
   use mpi_mod
   use phys_module, only: use_mumps_prj, use_pastix_prj, use_strumpack_prj
   !use mod_parameters, only n_node_max
@@ -481,8 +456,6 @@ function new_projection(node_list, element_list,                                
   integer, intent(in), optional          :: decimal_digits
   integer, intent(in), optional          :: fractional_digits
   logical, intent(in), optional          :: calc_integrals !< After projecting, calculate and print the integral of each projected quantity
-  logical, intent(in), optional          :: do_ion_polarisation
-  real*8,  intent(in), optional          :: ion_mass
   logical, intent(in), optional          :: do_dirichlet
 
   integer              :: ierr, my_nsub, inode, n_masters, i
@@ -551,11 +524,6 @@ function new_projection(node_list, element_list,                                
   if (present(filter_n0))          new%filter_n0          = filter_n0
   if (present(filter_hyper_n0))    new%filter_hyper_n0    = filter_hyper_n0
   if (present(filter_parallel_n0)) new%filter_parallel_n0 = filter_parallel_n0
-
-  new%do_ion_polarisation = .false.
-  new%ion_mass           = 0.d0
-  if (present(do_ion_polarisation)) new%do_ion_polarisation = do_ion_polarisation
-  if (present(ion_mass))            new%ion_mass          = ion_mass
 
   new%do_zonal = .false.
   if (present(do_zonal)) new%do_zonal = do_zonal
@@ -890,13 +858,9 @@ subroutine project_only(this, sim)
           index = this%node_list%node(i)%index(k)
 
           if (this%do_zonal) then
-             this%node_list%node(i)%deltas(1,k,i_var) = y_tmp(2*(index-1) + 1 + 2*this%n_dof*(i_var-1)) + y_tmp(2*(index-1) + 2 + 2*this%n_dof*(i_var-1)) - this%node_list%node(i)%values(1,k,i_var)
-             this%node_list%node(i)%deltas(1,k,2)     = y_tmp(2*(index-1) + 2 + 2*this%n_dof*(i_var-1)) - this%node_list%node(i)%values(1,k,2)
-
              this%node_list%node(i)%values(1,k,i_var) = y_tmp(2*(index-1) + 1 + 2*this%n_dof*(i_var-1)) + y_tmp(2*(index-1) + 2 + 2*this%n_dof*(i_var-1))
              this%node_list%node(i)%values(1,k,2)     = y_tmp(2*(index-1) + 2 + 2*this%n_dof*(i_var-1))
           else
-             this%node_list%node(i)%deltas(1,k,i_var) = y_tmp(2*(index-1) + 1 + 2*this%n_dof*(i_var-1)) - this%node_list%node(i)%values(1,k,i_var)
              this%node_list%node(i)%values(1,k,i_var) = y_tmp(2*(index-1) + 1 + 2*this%n_dof*(i_var-1))
           endif
 
@@ -913,10 +877,6 @@ subroutine project_only(this, sim)
         
         ! Check for NaNs in the projection
         if (any(ieee_is_nan(this%node_list%node(i)%values(:,:,i_var)))) then
-          found_nan = .true.
-        end if
-        ! Check for NaNs in the projection
-        if (any(ieee_is_nan(this%node_list%node(i)%deltas(:,:,i_var)))) then
           found_nan = .true.
         end if
       
@@ -1181,7 +1141,6 @@ use data_structure
 use basis_at_gaussian
 use mod_basisfunctions
 use mpi_mod
-use phys_module,  only : central_density
 use, intrinsic :: ieee_exceptions
 implicit none
 
@@ -1193,8 +1152,6 @@ real*8, intent(in)                   :: filter
 real*8, intent(in)                   :: filter_hyper
 real*8, intent(in)                   :: filter_parallel
 logical, intent(in), optional        :: skip_factorisation
-logical, intent(in), optional        :: do_ion_polarisation
-real*8, intent(in), optional         :: ion_mass ! [atomic_mass units]
 logical,intent(in),optional          :: apply_dirichlet_condition_in
 
 type (type_element)      :: element
@@ -1205,12 +1162,10 @@ real*8     :: wgauss2(n_gauss)
 real*8, dimension(n_gauss,n_gauss) :: x_g,   x_s,   x_t,   x_ss,   x_tt,   x_st
 real*8, dimension(n_gauss,n_gauss) :: y_g,   y_s,   y_t,   y_ss,   y_tt,   y_st
 real*8, dimension(n_gauss,n_gauss) :: psi_g, psi_s, psi_t, psi_ss, psi_tt, psi_st
-real*8, dimension(n_gauss,n_gauss) :: zn0_g, zn0_s, zn0_t, T0_g,   T0_s,   T0_t
 real*8     :: v, v_s, v_t, v_ss, v_st, v_tt, v_x, v_y, v_xx, v_yy, v_p
 real*8     :: p, p_s, p_t, p_ss, p_st, p_tt, p_x, p_y, p_xx, p_yy, p_p
-real*8     :: wst, area, volume, xjac, xjac_x, xjac_y, psi_x, psi_y, T0_x, T0_y, zn0_x, zn0_y
-real*8     :: Bgrad_p, Bgrad_v_star, BB2, t0, t1, filter_polarisation, v_pol_x, v_pol_y
-real*8     :: zn_norm, Tev_norm
+real*8     :: wst, area, volume, xjac, xjac_x, xjac_y, psi_x, psi_y
+real*8     :: Bgrad_p, Bgrad_v_star, BB2
 integer    :: i, j, k, l, m, in, im, ilarge, index_large_i, index_large_k, inode, knode
 integer    :: nz_AA, n_AA, nz_bnd, i_elm, index_ij, index_kl, im_index, in_index, index1
 integer    :: ms, mt, mp, my_id, my_id_n, my_id_master, ierr, MPI_COMM_MUMPS
@@ -1218,19 +1173,6 @@ logical    :: apply_dirichlet_condition
 logical    :: do_facto
 
 type (type_SP_MATRIX) :: a_mat  !< Projection matrix
-
-call cpu_time(t0)
-
-ivar_psi = var_psi
-ivar_rho = var_rho
-ivar_T   = var_T
-
-do_ion_pol = .false.
-if (present(do_ion_polarisation)) then
-  if (present(ion_mass)) then
-    if (do_ion_polarisation) do_ion_pol = .true.
-  endif
-endif
 
 ! We need a separate communicator to be able to run multiple MUMPSes
 call MPI_Comm_dup(this_mpi_comm_n, MPI_COMM_MUMPS, ierr)
@@ -1277,12 +1219,9 @@ if (my_id_n .eq. 0) then
   write(*,*) '**************************************************'
   write(*,'(A,i2,A)') ' * constructing particle projection matrix (n=',mode(i_tor_local),') *'
   write(*,*) '**************************************************'
-  write(*,*) mode(i_tor_local),' n_AA = ',n_AA, n_tor_local
-  write(*,*) mode(i_tor_local),' my_id, my_id_n (comm_mumps) : ',my_id, my_id_n
-  !write(*,*) mode(i_tor_local),' comm size                   : ',this_n_cpu, this_n_cpu_mumps
+  write(*,*) ' n_AA = ',n_AA, n_tor_local
   write(*,'(2i3,A,3e12.4)') my_id,my_id_n,'  filters       ',filter, filter_hyper, filter_parallel
 
-  if (do_ion_pol) write(*,'(2i3,A,3e12.4)') my_id,my_id_n,'  using ion polarisation term : ion mass =',ion_mass
   if (apply_dirichlet_condition) write(*,*) 'applying Dirichlet conditions'
 
   !$omp parallel do default(none) &
@@ -1403,16 +1342,6 @@ if (my_id_n .eq. 0) then
                 Bgrad_v_star = 0.d0
                 if (filter_parallel .gt. 0.d0) Bgrad_v_star = ( F0 / x_g(ms,mt) * v_p  +  v_x  * psi_y - v_y  * psi_x ) / x_g(ms,mt)
 
-              v_pol_x = 0.d0; v_pol_y = 0.d0
-              if (do_ion_pol) then
-                zn0_x = (  y_t(ms,mt) * zn0_s(ms,mt) - y_s(ms,mt) * zn0_t(ms,mt)) / xjac
-                zn0_y = (- x_t(ms,mt) * zn0_s(ms,mt) + x_s(ms,mt) * zn0_t(ms,mt)) / xjac
-                T0_x  = (  y_t(ms,mt) * T0_s(ms,mt)  - y_s(ms,mt) * T0_t(ms,mt))  / xjac
-                T0_y  = (- x_t(ms,mt) * T0_s(ms,mt)  + x_s(ms,mt) * T0_t(ms,mt))  / xjac
- 
-                v_pol_x = T0_g(ms,mt) * v_x + v * (T0_x - T0_g(ms,mt) * zn0_x / zn0_g(ms,mt)) 
-                v_pol_y = T0_g(ms,mt) * v_y + v * (T0_y - T0_g(ms,mt) * zn0_y / zn0_g(ms,mt)) 
-              endif
 
                 do k=1,n_vertex_max
                   do l=1,n_degrees
@@ -1622,12 +1551,11 @@ real*8, dimension(n_gauss,n_gauss) :: psi_g, psi_s, psi_t, psi_ss, psi_tt, psi_s
 real*8     :: v, v_s, v_t, v_ss, v_st, v_tt, v_x, v_y, v_xx, v_yy, v_p
 real*8     :: p, p_s, p_t, p_ss, p_st, p_tt, p_x, p_y, p_xx, p_yy, p_p
 real*8     :: wst, xjac, xjac_x, xjac_y, psi_x, psi_y
-real*8     :: Bgrad_p, Bgrad_v_star, BB2, t0, t1
+real*8     :: Bgrad_p, Bgrad_v_star, BB2
 real*8     :: filter_n0, filter_hyper_n0, filter_parallel_n0, zonal_factor
 integer    :: i, j, k, l, m, in, im, ilarge, index_large_i, index_large_k, inode, knode
 integer    :: nz_AA, n_AA, nz_bnd, i_elm, index_ij, index_kl, im_index, in_index, index1, index2, index_rhs
 integer    :: ms, mt, mp, my_id, my_id_n, my_id_master, ierr, MPI_COMM_MUMPS
-integer    :: this_n_cpu, this_n_cpu_mumps
 logical    :: halt(size(IEEE_USUAL,1)), do_facto
 logical    :: apply_dirichlet_condition, apply_zonal
 real*8, dimension(n_vertex_max,n_degrees) :: basisfunction_volume
