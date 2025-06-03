@@ -1431,7 +1431,6 @@ do i=1,n_vertex_max
                          - tgnum_u * 0.25d0 * w0 * BigR**3 * (r0_x_hat * u0_y - r0_y_hat * u0_x) &
                                    * ( v_x * u0_y - v_y * u0_x) * xjac * tstep * tstep * fact_conservative_u * factor(var_u,6) &
             !===============================End of NewTG_num terms==============================
-
                          - v * tauIC*2. * BigR**4 * (Pi0_s * w0_t - Pi0_t * w0_s)                                  * tstep * factor(var_u,7) &
 
                          - tauIC*2. * BigR**3 * Pi0_y * (v_x* u0_x + v_y * u0_y)                            * xjac * tstep * factor(var_u,7) &
@@ -1443,6 +1442,11 @@ do i=1,n_vertex_max
                          + visco_T   * bigR * W_dia * (v_xx + v_x/bigR + v_yy)                              * xjac * tstep * factor(var_u,8) &
 
                         - zeta * BigR * r0_hat * (v_x * delta_u_x + v_y * delta_u_y) * xjac * factor(var_u,9)      &
+
+                         + (1.d0 - delta_n_convection) * (   &
+                               + BigR**3*((r0+alpha_e*rimp0) * rn0 * Sion_T)*(v_x * u0_x + v_y * u0_y)  * xjac * tstep * factor(var_u,10) & ! Density source from ionization
+                               - BigR**3*((r0+alpha_e*rimp0) * (r0-rimp0) * Srec_T)*(v_x * u0_x + v_y * u0_y)  * xjac * tstep * factor(var_u,10) & ! Density sink by recombination
+                           )  &
 
                          ! Not to be included in conservative form
                          + BigR**3 * (particle_source(ms,mt)+source_pellet+source_bg_drift+source_imp_drift) * (v_x * u0_x + v_y * u0_y) * xjac* tstep* factor(var_u,10)  &
@@ -2458,7 +2462,13 @@ do i=1,n_vertex_max
                                 + dvisco_dT * Te * (v_x*u0_xpp + v_y*u0_ypp)   * BigR       * visco_fact_new * xjac * theta * tstep  &
 
                                 - d2visco_dT2*Te * bigR * W_dia   * (v_x*Ti0_x + v_y*Ti0_y)  * xjac * theta * tstep  &
-                                - dvisco_dT*Te   * bigR * W_dia   * (v_xx + v_x/bigR + v_yy) * xjac * theta * tstep
+                                - dvisco_dT*Te   * bigR * W_dia   * (v_xx + v_x/bigR + v_yy) * xjac * theta * tstep  &
+                                + (1 - delta_n_convection) * (  &
+                                - BigR**3 * ((r0+alpha_e*rimp0) * rn0 * dSion_dT * Te)        * (v_x * u0_x + v_y * u0_y) * xjac * theta * tstep  &
+                                + BigR**3 * ((r0+alpha_e*rimp0) * (r0-rimp0) * dSrec_dT * Te) * (v_x * u0_x + v_y * u0_y) * xjac * theta * tstep  &
+                                - BigR**3 * (dalpha_e_dT * rimp0 * rn0 * Sion_T * Te)         * (v_x * u0_x + v_y * u0_y) * xjac * theta * tstep  &
+                                + BigR**3 * (dalpha_e_dT * rimp0 * (r0-rimp0) * Srec_T * Te)  * (v_x * u0_x + v_y * u0_y) * xjac * theta * tstep  &
+                           )
 
                   else ! (with_TiTe = .f.), i.e. with single temperature *********************************
 
