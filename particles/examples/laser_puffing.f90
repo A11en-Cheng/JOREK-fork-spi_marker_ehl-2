@@ -645,7 +645,7 @@ do while (.not. sim%stop_now)
 
 ! --- Write a restart file every nout timesteps
   if (mod(index_now,nout) == 0) then
-    write(part_fileout,'(A4,i5.5,A3)') 'part',index_now,'.h5'
+    write(part_fileout,'(A4,i6.6,A3)') 'part',index_now,'.h5'
     partwriter = event(write_action(filename=trim(part_fileout)))
     call with(sim, partwriter)
     !call write_simulation_hdf5(sim, trim(part_fileout))
