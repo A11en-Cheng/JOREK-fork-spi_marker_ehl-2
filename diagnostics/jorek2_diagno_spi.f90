@@ -85,6 +85,7 @@ endif
 ! --- Initialize derived reference parameters
 call initialise_reference_parameters()  
 
+if (.not. associated(aux_node_list)) allocate(aux_node_list) 
 call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true., aux_node_list=aux_node_list)
 
 open(20,file='energies.txt')
