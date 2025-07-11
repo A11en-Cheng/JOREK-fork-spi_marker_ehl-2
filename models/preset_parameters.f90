@@ -641,15 +641,15 @@ subroutine preset_parameters
   current_prof_initialized = .false.
   
   use_mumps          = .false.              ! Use MUMPS solver
-  use_pastix         = .true.               ! Use PASTIX solver
-  use_strumpack      = .false.              ! Use STRUMPACK solver  
+  use_pastix         = .false.              ! Use PASTIX solver
+  use_strumpack      = .true.               ! Use STRUMPACK solver  
   use_wsmp           = .false.              ! Use WSMP solver (use with care, still in development!)
   
   use_mumps_eq       = .false.              ! Use MUMPS equilibrium solver
   use_pastix_eq      = .false.              ! Use PASTIX equilibrium solver
   use_strumpack_eq   = .false.              ! Use STRUMPACK equilibrium olver  
   
-  use_mumps_prj      = .false.              ! Use MUMPS equilibrium solver
+  use_mumps_prj      = .true.               ! Use MUMPS equilibrium solver
   use_pastix_prj     = .false.              ! Use PASTIX equilibrium solver
   use_strumpack_prj  = .false.              ! Use STRUMPACK equilibrium olver  
 
