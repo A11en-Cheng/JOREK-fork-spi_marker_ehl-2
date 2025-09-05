@@ -27,6 +27,8 @@ module mod_phase_space_project
   use mod_project_particles
   use hdf5
   use mod_import_restart, only: rst_file_ind_fmt
+  use mod_rhs_projections, only: proj_f
+
   implicit none
 
   private
@@ -55,10 +57,6 @@ module mod_phase_space_project
     module procedure new_proj_ndim_f !< The constructor for this type
   end interface proj_ndim_f
   
-  
-
-
-
   !> Type definition. In principle should not be accesed outside of this module.
   type, extends(io_action) :: phase_space_projection
 
@@ -76,7 +74,7 @@ module mod_phase_space_project
 
     ! Functions used to calculate the projected quantity and the grids/coordinates on which
     ! it is projected
-    type(proj_f)                                      :: f_proj
+    type(proj_f)                                       :: f_proj
     type(proj_ndim_f)                                  :: f_grids
 
     ! Quantities for defined particle shapes. 

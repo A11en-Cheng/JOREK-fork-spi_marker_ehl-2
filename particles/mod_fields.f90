@@ -212,7 +212,7 @@ pure subroutine calc_F_profile(fields,i_elm,s,t,phi,Fprof)
   !Internal variables
   integer           :: i,j,i_tor, iv, i_harm
   real*8            :: Fprof_temp
-  real*8            :: H(4,4), H_s(4,4),H_t(4,4),ss
+  real*8            :: H(n_vertex_max,n_degrees), H_s(n_vertex_max,n_degrees),H_t(n_vertex_max,n_degrees),ss
 #ifdef fullmhd
   Fprof_temp=0.d0
   call basisfunctions3(s,t,H,H_s,H_t)

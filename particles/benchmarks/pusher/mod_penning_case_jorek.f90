@@ -13,7 +13,7 @@ contains
 
 subroutine jorek_penning_fields(node_list, element_list, apply_dirichlet_in, &
 rank_in, master_in, ifail_out)
-  use mod_project_particles, only             : prepare_mumps_par_n0
+  use mod_uncoupled_projection, only: assemble_projection_matrix_n0
   use projection_helpers,   only              : calc_rhs_f
   use mod_projection_helpers_test_tools, only : broadcast_dmumps_project_struct
   use mod_projection_helpers_test_tools, only : map_matrix_to_MUMPS_datastructure
@@ -71,7 +71,7 @@ rank_in, master_in, ifail_out)
   i_tor_local = 1
   n_tor_local = 1
 
-  call prepare_mumps_par_n0(node_list, element_list, n_tor_local, i_tor_local, mpi_comm_world, mpi_comm_n, mpi_comm_master, &
+  call assemble_projection_matrix_n0(node_list, element_list, n_tor_local, i_tor_local, mpi_comm_world, mpi_comm_n, mpi_comm_master, &
                             a_mat,  area, volume, filter=0.d0, filter_hyper=0.d0, filter_parallel=0.d0, &
                             apply_dirichlet_condition_in=apply_dirichlet , integral_weights=integral_weights )
   

@@ -192,6 +192,7 @@ subroutine preset_parameters
   T_jropes       = 0.d0
 
   bootstrap = .false.
+  bootstrap_psin_cutoff = 0.9995
 
   ellip  = 1.d0
   tria_u = 0.d0

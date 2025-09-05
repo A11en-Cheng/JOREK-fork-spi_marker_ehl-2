@@ -79,6 +79,7 @@ module phys_module
   real*8  :: Z_xpoint_limit(2)    !< Search the lower X-point in the region Z < Z_xpoint_limit(1) and the upper X-point in the region Z > Z_xpoint_limit(2) 
   integer :: xpoint_search_tries  !< The number of candidate elements to check for being the element containing the upper or lower X-point.
   logical :: bootstrap            !< Evolve the Bootstrap current consistently with time?
+  real*8  :: bootstrap_psin_cutoff!< Bootstrap-current hard cutoff if simulating X-point plasma.
   real*8  :: minRad               !< Approximation of minor radius for bootstrap current calculation
   logical :: refinement           !< Use mesh refinement? (not presently available)
   logical :: force_central_node   !< Force all nodes in the center to have the same values in flux aligned grids or independent values?
