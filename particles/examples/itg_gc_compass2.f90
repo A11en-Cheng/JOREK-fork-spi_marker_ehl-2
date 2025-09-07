@@ -13,6 +13,7 @@ use mod_atomic_elements
 use mod_particle_io
 use mod_event
 use mod_project_particles
+use mod_rhs_projections
 use mod_particle_loop
 use mod_gc_variational
 use nodes_elements
