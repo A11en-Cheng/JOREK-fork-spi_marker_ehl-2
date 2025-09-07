@@ -214,6 +214,7 @@ contains
   end function proj_vPhi
 
   pure function proj_Pressure(sim, group, particle)
+    use constants, only: atomic_mass_unit
     use mod_particle_types, only: particle_kinetic_leapfrog
     type(particle_sim), intent(in) :: sim
     integer, intent(in) :: group
