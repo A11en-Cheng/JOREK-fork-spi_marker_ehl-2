@@ -62,6 +62,9 @@ subroutine preset_parameters
   rst_format   = 0             ! use 'old' format for restart import
   write_ps     = .true.           ! write postscript file at the end of the run 
   gvec_grid_import = .false.
+  extended_boundary = .false.
+  j_cutoff_rcoord = 99.0
+  j_cutoff_sig = 0.025
 
   freeboundary_equil = .false. ! use free or fixed boundary equilibrium
   freeboundary       = .false. ! use free or fixed boundary?

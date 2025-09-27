@@ -373,7 +373,14 @@ mpi_required = 0
     call init_node_list(node_list, n_nodes_max, node_list%n_dof, n_var)
 
 #if JOREK_MODEL == 180
-    call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list)
+    call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list, ierr)
+    if (ierr == 3) then
+      write(fileout,rst_file_ind_fmt(1)) 'jorek',0
+      call export_restart(node_list, element_list, fileout)
+      write(*,*) 'Restart file created, aborting.'
+      call MPI_Abort(MPI_COMM_WORLD, 3, ierr)
+      stop
+    end if
 #else
     if_not_regrid_from_rz: if(.not. regrid_from_rz) then
       
