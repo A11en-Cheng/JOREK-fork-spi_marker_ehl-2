@@ -352,7 +352,7 @@ subroutine initialise_particles_marker(particles, node_list, element_list, field
   timesteps      = 0.0
   uniform_sampling = .true.
 
-  t_norm = sqrt(MU_ZERO * central_mass * MASS_PROTON * central_density * 1.d20)
+  t_norm = sqrt(MU_ZERO * central_mass * ATOMIC_MASS_UNIT * central_density * 1.d20)
   n_norm = central_density * 1.d20
 
   select case (trim(imp_type(index_main_imp)))
