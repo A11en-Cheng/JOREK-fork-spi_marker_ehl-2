@@ -234,7 +234,7 @@ end subroutine calc_F_profile
 !> in the jorek element `i_elm` at `st`.
 subroutine calc_VBpsiU(fields, time, i_elm, st, phi, V, B, psi, U)
 use phys_module, only: F0, mode, central_mass, central_density
-use constants, only: mu_zero, mass_proton
+use constants, only: mu_zero, ATOMIC_MASS_UNIT
 use mod_coordinate_transforms, only: transform_derivatives_st_to_RZ
 ! Routine parameters
 class(fields_base), intent(in) :: fields
@@ -258,7 +258,7 @@ real*8             :: R, R_s, R_t, Z, Z_s, Z_t
 real*8             :: inv_st_jac, R_inv
 real*8             :: psi_R, psi_Z, U_R, U_Z, U_phi, t_norm
 
-t_norm  = sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
+t_norm  = sqrt(mu_zero * ATOMIC_MASS_UNIT * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
 
 ! Interpolate the fields to get psi and U at the current position (and the
 ! changes u_n - u(n-1))

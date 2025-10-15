@@ -365,7 +365,7 @@ type is (particle_kinetic_leapfrog)
           do i_tor=1,n_tor
             feedback_rhs(m,l,i_elm,i_tor,1) = feedback_rhs(m,l,i_elm,i_tor,1) &
                                                   
-                                            + HZ(i_tor) * v * particle_tmp%weight * sim%groups(1)%mass * mass_proton &
+                                            + HZ(i_tor) * v * particle_tmp%weight * sim%groups(1)%mass * ATOMIC_MASS_UNIT &
             
                                             * (1.d0/3.d0) * (particle_tmp%v(1)**2 + particle_tmp%v(2)**2 + particle_tmp%v(3)**2) * mu_zero
           enddo
@@ -499,7 +499,7 @@ subroutine loop_particle_gc_local(sim, jorek_feedback, rng, timesteps, n_steps, 
                 do i_tor=1,n_tor
                   feedback_rhs(m,l,p_orbit(i)%i_elm,i_tor,1) = feedback_rhs(m,l,p_orbit(i)%i_elm,i_tor,1) &
                                                     
-                                                + HZ(i_tor) * v * p_orbit(i)%weight * sim%groups(1)%mass * mass_proton &
+                                                + HZ(i_tor) * v * p_orbit(i)%weight * sim%groups(1)%mass * ATOMIC_MASS_UNIT &
 
                                                 * (1.d0/3.d0) * (p_orbit(i)%v(1)**2 + p_orbit(i)%v(2)**2 + p_orbit(i)%v(3)**2) * mu_zero  
                 enddo
