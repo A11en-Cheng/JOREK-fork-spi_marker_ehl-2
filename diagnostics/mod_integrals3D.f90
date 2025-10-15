@@ -1598,7 +1598,6 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
                         + 0.5 * vpar0**2 * BB2 * (source_bg_drift + source_imp_drift)
         fric_disp_tot = fric_disp_tot + fric_disp * BigR * xjac * wst * delta_phi 
 
-<<<<<<< HEAD
         ! Background species contribution in case of marker particles
         if (use_marker) then
           local_P_ion = local_P_ion + E_ion_bg * source_bg * (central_density * 1.d20 / sqrt(MU_zero * central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT))&
@@ -1610,13 +1609,6 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
 	                               * xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)
         ! Total impurities in particles
         local_n_particles(1)     = local_n_particles(1) + central_density * 1.d20 * rimp0 * m_i_over_m_imp * bigR * xjac * wst * delta_phi
-=======
-        ! Neutral injection rate in particles/s
-        local_n_particles_inj = local_n_particles_inj + 0.5d0 * central_density * 1.d20 * source_imp * m_i_over_m_imp * bigR &
-	                         * xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)
-        ! Total neutrals in particles
-        local_n_particles     = local_n_particles + central_density * 1.d20 * rimp0 * m_i_over_m_imp * bigR * xjac * wst * delta_phi
->>>>>>> origin/develop
 #endif
 
 #if STELLARATOR_MODEL
