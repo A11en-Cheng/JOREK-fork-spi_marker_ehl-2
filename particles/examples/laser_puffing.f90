@@ -25,7 +25,7 @@ use phys_module, only: CENTRAL_MASS, CENTRAL_DENSITY
 use phys_module, only: use_puffing, fueling_rate, valve_r, R_laser_loc, Z_laser_loc, PHI_laser_loc,   &
                        initial_E, puffing_direction, puffing_timestep, puff_starttime, puffingtime, &
                        phys_particles_puff
-use constants,   only: MU_ZERO, MASS_PROTON, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
+use constants,   only: MU_ZERO, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
 
 use mod_particle_sputtering, only: particle_sputter, sample_fluid_particle_energy
 use mod_projection_functions, only: proj_f_combined_density, &
@@ -100,7 +100,7 @@ else
 end if
 
 n_norm   = CENTRAL_DENSITY * 1.d20                              ! (number) density normalisation
-rho_norm = CENTRAL_MASS * MASS_PROTON * n_norm                  ! rho_SI = rho_norm * rho
+rho_norm = CENTRAL_MASS * ATOMIC_MASS_UNIT * n_norm                  ! rho_SI = rho_norm * rho
 t_norm   = sqrt((MU_ZERO * rho_norm))                           ! t_SI   = t_norm * t_jorek
 
 tstep_si  = tstep * t_norm
@@ -237,7 +237,7 @@ use mod_jorek_timestepping
 use mod_basisfunctions
 use phys_module, only: tstep, use_ncs, use_pcs, use_ccs, use_rcs
 use phys_module, only: CENTRAL_MASS, CENTRAL_DENSITY
-use constants,   only: MU_ZERO, MASS_PROTON, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
+use constants,   only: MU_ZERO, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
 use mod_integrals3D, only: int3d_new
 use mod_radiation, only: proj_Lz, get_Lz
 
@@ -273,7 +273,7 @@ real*8, allocatable :: coll_ran(:,:), v_b(:,:)
 integer(kind=1), parameter :: q_b = 1_1
 
 n_norm   = CENTRAL_DENSITY * 1.d20                              ! (number) density normalisation
-rho_norm = CENTRAL_MASS * MASS_PROTON * n_norm                  ! rho_SI = rho_norm * rho
+rho_norm = CENTRAL_MASS * ATOMIC_MASS_UNIT * n_norm                  ! rho_SI = rho_norm * rho
 t_norm   = sqrt((MU_ZERO * rho_norm))                           ! t_SI   = t_norm * t_jorek
 v_norm   = 1.d0 / t_norm                                        ! V_SI   = v_norm * v_jorek
 E_norm   = 1.5d0 / MU_ZERO                                      ! E_SI   = E_norm * E_jorek

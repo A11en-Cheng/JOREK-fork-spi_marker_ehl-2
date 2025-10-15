@@ -22,7 +22,7 @@ use phys_module, only: nout, R_geo, using_spi, spi_quantity, xtime_radiation, xt
 use phys_module, only: xtime_E_ion, xtime_E_ion_power, xtime_Ne_imp, index_main_imp, n_adas
 use phys_module, only: CENTRAL_MASS, CENTRAL_DENSITY, diff_diffusive_flux
 use mod_parameters, only: n_plane
-use constants,   only: MU_ZERO, MASS_PROTON, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG, PI, TWOPI
+use constants,   only: MU_ZERO, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG, PI, TWOPI
 
 use mod_projection_functions, only: proj_f_combined_density, &
                                     proj_f_combined_energy, proj_f_combined_par_momentum
@@ -77,7 +77,7 @@ fieldreader = event(read_jorek_fields_interp_linear(basename='jorek', i=-1))
 call with(sim, fieldreader)
 
 n_norm   = CENTRAL_DENSITY * 1.d20                              ! (number) density normalisation
-rho_norm = CENTRAL_MASS * MASS_PROTON * n_norm                  ! rho_SI = rho_norm * rho
+rho_norm = CENTRAL_MASS * ATOMIC_MASS_UNIT * n_norm                  ! rho_SI = rho_norm * rho
 t_norm   = sqrt((MU_ZERO * rho_norm))                           ! t_SI   = t_norm * t_jorek
 
 tstep_si  = tstep * t_norm
@@ -213,7 +213,7 @@ use phys_module, only: tstep, use_ncs, use_pcs, use_ccs, use_marker
 use phys_module, only: pellets, n_spi_tot, ns_amplitude, n_inj, t_ns, t_now, L_tube
 use phys_module, only: ns_radius_ratio, ns_radius, ns_radius_min, ns_R, ns_Z, ns_phi, D_prof_neg
 use phys_module, only: CENTRAL_MASS, CENTRAL_DENSITY, GAMMA
-use constants,   only: MU_ZERO, MASS_PROTON, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
+use constants,   only: MU_ZERO, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
 use mod_integrals3D, only: int3d_new
 use mod_radiation, only: proj_Lz, get_Lz
 use mod_impurity, only: radiation_function_linear
@@ -255,7 +255,7 @@ real*8    :: P_ion(2), P_rcb(2)
 integer   :: n_particles_add_local
 
 n_norm   = CENTRAL_DENSITY * 1.d20                              ! (number) density normalisation
-rho_norm = CENTRAL_MASS * MASS_PROTON * n_norm                  ! rho_SI = rho_norm * rho
+rho_norm = CENTRAL_MASS * ATOMIC_MASS_UNIT * n_norm                  ! rho_SI = rho_norm * rho
 t_norm   = sqrt((MU_ZERO * rho_norm))                           ! t_SI   = t_norm * t_jorek
 v_norm   = 1.d0 / t_norm                                        ! V_SI   = v_norm * v_jorek
 E_norm   = 1.d0 / (MU_ZERO * (GAMMA-1.))                       ! E_SI   = E_norm * E_jorek

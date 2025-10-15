@@ -27,7 +27,7 @@ use phys_module, only: CENTRAL_MASS, CENTRAL_DENSITY, xcase, xpoint, index_now, 
 use phys_module, only: n_particles, nstep_particles, nsubstep_particles, tstep_particles
 use phys_module, only: filter_perp, filter_hyper, filter_par, filter_perp_n0, filter_hyper_n0, filter_par_n0
 use phys_module, only: xtime, energies, mode, restart_particles
-use constants,   only: MU_ZERO, MASS_PROTON, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
+use constants,   only: MU_ZERO, ATOMIC_MASS_UNIT, K_BOLTZ, EL_CHG
 use mod_export_restart
 use live_data
 
@@ -137,7 +137,7 @@ if (sim%my_id .eq. 0) then
 endif
 
 zn_norm   = CENTRAL_DENSITY * 1.d20                              ! (number) density normalisation
-rho_norm  = CENTRAL_MASS * MASS_PROTON * zn_norm                 ! rho_SI = rho_norm * rho
+rho_norm  = CENTRAL_MASS * ATOMIC_MASS_UNIT * zn_norm                 ! rho_SI = rho_norm * rho
 t_norm    = sqrt((MU_ZERO * rho_norm))                           ! t_SI   = t_norm * t_jorek
 Tev_norm  = 1.d0 / (2.d0 * EL_CHG * MU_ZERO * zn_norm)           ! T_ev   = Tev_norm * T (factor 2 for electron temperature)
 
@@ -470,7 +470,7 @@ integer   :: ifail
 !$ w0 = omp_get_wtime()
 
 n_norm   = CENTRAL_DENSITY * 1.d20                              ! (number) density normalisation
-rho_norm = CENTRAL_MASS * MASS_PROTON * n_norm                  ! rho_SI = rho_norm * rho
+rho_norm = CENTRAL_MASS * ATOMIC_MASS_UNIT * n_norm                  ! rho_SI = rho_norm * rho
 t_norm   = sqrt((MU_ZERO * rho_norm))                           ! t_SI   = t_norm * t_jorek
 v_norm   = 1.d0 / t_norm                                        ! V_SI   = v_norm * v_jorek
 E_norm   = 1.5d0 / MU_ZERO                                      ! E_SI   = E_norm * E_jorek

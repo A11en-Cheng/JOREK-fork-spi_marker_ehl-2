@@ -1411,7 +1411,7 @@ enddo  ! n_elements
 #if (defined WITH_Neutrals) 
       coef_ion_3 = 27.2d0*EL_CHG*MU_ZERO*central_density*1.d20
       coef_ion_2 = 0.232d0
-      coef_ion_1 = (MU_ZERO*central_mass*MASS_PROTON)**(0.5d0)*0.2917d-13*(central_density*1.d20)**(1.5d0)
+      coef_ion_1 = (MU_ZERO*central_mass*ATOMIC_MASS_UNIT)**(0.5d0)*0.2917d-13*(central_density*1.d20)**(1.5d0)
       S_ion_puiss = 3.9d-1
 
       ksi_ion_norm = ksi_ion * central_density * 1.d20
@@ -1465,8 +1465,8 @@ enddo  ! n_elements
           Arad_bg = 2.4d-31
           Brad_bg = 20.
           Crad_bg = 0.8
-          frad_bg = (2./3.)*(1./(central_mass*MASS_PROTON))                               &
-                     *((MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**(1.5d0)) &
+          frad_bg = (2./3.)*(1./(central_mass*ATOMIC_MASS_UNIT))                               &
+                     *((MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**(1.5d0)) &
                      *nimp_bg(1)* Arad_bg*exp(-((log(Te_corr_eV)-log(Brad_bg))**2.)/Crad_bg**2.)
         else
           write(*,*) "WARNING: hard-coded fitting doesn't exist for  ", trim(imp_type(1)), ", use open adas instead!"
@@ -1638,7 +1638,7 @@ enddo  ! n_elements
 #if (defined WITH_Neutrals) /* only aimed for w.imp. and w.neut. */
      coef_ion_3 = 27.2d0*EL_CHG*MU_ZERO*central_density*1.d20
      coef_ion_2 = 0.232d0
-     coef_ion_1 = (MU_ZERO*central_mass*MASS_PROTON)**(0.5d0)*0.2917d-13*(central_density*1.d20)**(1.5d0)
+     coef_ion_1 = (MU_ZERO*central_mass*ATOMIC_MASS_UNIT)**(0.5d0)*0.2917d-13*(central_density*1.d20)**(1.5d0)
      S_ion_puiss = 3.9d-1
 
      ksi_ion_norm = ksi_ion * central_density * 1.d20
@@ -1696,7 +1696,7 @@ enddo  ! n_elements
 if (SI_units) then
 
   !===========================================================real values=============
-  rho_norm = central_density*1.d20 * central_mass * mass_proton
+  rho_norm = central_density*1.d20 * central_mass * ATOMIC_MASS_UNIT
   t_norm   = sqrt(MU_zero*rho_norm)
 
   !=================================================real values============
@@ -1834,8 +1834,8 @@ if (SI_units) then
       endif
 
 #if (defined WITH_Neutrals) 
-      coef_ion_1 = (MU_ZERO*central_mass*MASS_PROTON)**(0.5d0)*(central_density*1.d20)**(1.5d0)
-      coef_rad_1 = (gamma-1.d0)*MU_ZERO**1.5d0*(central_mass*MASS_PROTON)**0.5d0*(central_density*1.d20)**2.5d0
+      coef_ion_1 = (MU_ZERO*central_mass*ATOMIC_MASS_UNIT)**(0.5d0)*(central_density*1.d20)**(1.5d0)
+      coef_rad_1 = (gamma-1.d0)*MU_ZERO**1.5d0*(central_mass*ATOMIC_MASS_UNIT)**0.5d0*(central_density*1.d20)**2.5d0
 
       ksi_ion_norm = ksi_ion * central_density * 1.d20
       rn0_real8 = scalars(i,8)/central_density
@@ -1897,20 +1897,20 @@ if (SI_units) then
 #ifdef WITH_Impurities
   if (include_radiation) then
    scalars(i,iimp(1)) = scalars(i,iimp(1))/(K_BOLTZ*MU_ZERO)
-   scalars(i,iimp(2)) = scalars(i,iimp(2))/(2.d0/3.d0*MU_ZERO**1.5d0*(central_mass*MASS_PROTON*central_density*1.d20)**0.5d0)
-   scalars(i,iimp(3)) = scalars(i,iimp(3))/(2.d0/3.d0*((central_mass*MASS_PROTON*central_density*1.d20)**0.5)*(MU_ZERO**1.5)) 
+   scalars(i,iimp(2)) = scalars(i,iimp(2))/(2.d0/3.d0*MU_ZERO**1.5d0*(central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**0.5d0)
+   scalars(i,iimp(3)) = scalars(i,iimp(3))/(2.d0/3.d0*((central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**0.5)*(MU_ZERO**1.5)) 
    scalars(i,iimp(4)) = scalars(i,iimp(4)) ! Z_imp
    scalars(i,iimp(5)) = scalars(i,iimp(5)) ! Z_eff
    scalars(i,iimp(6)) = scalars(i,iimp(6)) ! beta_imp
    scalars(i,ibg_tot) = scalars(i,ibg_tot) &
-       /((GAMMA-1.d0)*MU_ZERO**1.5d0*(central_mass*MASS_PROTON*central_density*1.d20)**0.5d0)
+       /((GAMMA-1.d0)*MU_ZERO**1.5d0*(central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**0.5d0)
    do i_imp=1,n_adas
-     scalars(i,iibg(i_imp)) = scalars(i,iibg(i_imp)) / ((GAMMA-1.d0)*MU_ZERO**1.5d0*(central_mass*MASS_PROTON*central_density*1.d20)**0.5d0)
+     scalars(i,iibg(i_imp)) = scalars(i,iibg(i_imp)) / ((GAMMA-1.d0)*MU_ZERO**1.5d0*(central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**0.5d0)
    end do
   end if
 #if (defined WITH_Neutrals) /* only aimed for w.imp. and w.neut. */
-  coef_ion_1 = (MU_ZERO*central_mass*MASS_PROTON)**(0.5d0)*(central_density*1.d20)**(1.5d0)
-  coef_rad_1 = (gamma-1.d0)*MU_ZERO**1.5d0*(central_mass*MASS_PROTON)**0.5d0*(central_density*1.d20)**2.5d0
+  coef_ion_1 = (MU_ZERO*central_mass*ATOMIC_MASS_UNIT)**(0.5d0)*(central_density*1.d20)**(1.5d0)
+  coef_rad_1 = (gamma-1.d0)*MU_ZERO**1.5d0*(central_mass*ATOMIC_MASS_UNIT)**0.5d0*(central_density*1.d20)**2.5d0
  
   scalars(i,ineu(1)) = scalars(i,ineu(1)) * (1.5d0)/(MU_zero*central_density*1.d20) * 1.d20 * 1.d20 / coef_ion_1
   scalars(i,ineu(2)) = scalars(i,ineu(2)) * 1.d20 * 1.d20/ coef_rad_1

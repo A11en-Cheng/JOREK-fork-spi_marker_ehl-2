@@ -31,7 +31,7 @@ module phys_module
   real*8  :: TiTe_ratio           !< ratio to set ion and electron temperature from T (in model 180): Ti=TiTe_ratio*T; Te=(1.0-TiTe_ratio)*T
   real*8  :: F0                   !< Determines fixed toroidal magnetic field: \f$ B_\phi = F_0/R \f$
   real*8  :: central_density      !< particle density at the magnetic axis (in units of \f$10^{20} m^{-3}\f$)
-  real*8  :: central_mass         !< average ion mass in atomic mass units (constant in time and space)
+  real*8  :: central_mass         !< average ion mass in atomic mass units (constant in time and space, including electron mass)
   real*8  :: sqrt_mu0_rho0        !< Normalization factor \f$\sqrt(\mu_0 \rho_0)\f$ calculated from input
   real*8  :: sqrt_mu0_over_rho0   !< Normalization factor \f$\sqrt(\mu_0/\rho_0)\f$ calculated from input
   real*8  :: gamma                !< ratio of specific heat (typically 5/3)

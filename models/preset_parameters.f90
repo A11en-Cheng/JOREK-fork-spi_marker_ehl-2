@@ -51,8 +51,8 @@ subroutine preset_parameters
   visco_par_heating = 0.d0
   visco_old_setup   = .false.
   
-  central_density = 1.d0        ! the central density in units 10^20 m^-3
-  central_mass    = 2.d0        ! the central average ion mass (D)
+  central_density = 1.d0            ! the central density in units 10^20 m^-3
+  central_mass    = 2.01410177811d0 ! the central average mass (atomic mass of deuterium, including electron)
 
   n_tor_restart= 0
   restart      = .false.

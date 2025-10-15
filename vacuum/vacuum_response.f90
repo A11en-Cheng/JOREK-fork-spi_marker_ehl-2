@@ -95,7 +95,7 @@ module vacuum_response
           write(*,*) '        Thus, the input parameter wall_resistivity is ignored (WARNING).'
       end if
       wall_resistivity = wall_resistivity_fact * sr%eta_thin_w * &
-        sqrt( central_density * 1.d20 * central_mass * mass_proton / mu_zero )
+        sqrt( central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT / mu_zero )
     end if
    
     call MPI_BARRIER(MPI_COMM_WORLD, ierr)

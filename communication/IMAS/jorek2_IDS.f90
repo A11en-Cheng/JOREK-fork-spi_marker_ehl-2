@@ -194,7 +194,7 @@ program jorek2_IDS
   end if
 
   ! --- Time normalization
-  rho0       = central_density * 1.d20 * central_mass * mass_proton
+  rho0       = central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT
   fact_time  = sqrt( mu_zero * rho0 )
 
   first_step = .true.

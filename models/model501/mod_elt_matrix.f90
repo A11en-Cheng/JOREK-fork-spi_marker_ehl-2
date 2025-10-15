@@ -758,21 +758,21 @@ do ms=1, n_gauss
 
      select case ( trim(imp_type(index_main_imp)) )
        case('D2')
-         m_i_over_m_imp = central_mass/2.  ! Deuterium mass = 2 u
+         m_i_over_m_imp = central_mass/2. * (2.d0/2.01455279245d0)  ! Deuterium mass = 2 u
        case('C')
-         m_i_over_m_imp = central_mass/12.  ! Deuterium mass = 2 u
+         m_i_over_m_imp = central_mass/12. * (2.d0/2.01455279245d0) ! Deuterium mass = 2 u
        case('Ar')
-         m_i_over_m_imp = central_mass/40. ! Argon mass = 40 u
+         m_i_over_m_imp = central_mass/40. * (2.d0/2.01455279245d0)! Argon mass = 40 u
        case('Ne')
-         m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u
+         m_i_over_m_imp = central_mass/20. * (2.d0/2.01455279245d0) !backwards compatibility ! Neon mass = 20 u
        case('Fe')
-         m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u and main ion (D) mass = 2 u
+         m_i_over_m_imp = central_mass/56. * (2.d0/2.01455279245d0)! Iron mass = 56 u and main ion (D) mass = 2 u
        case('W')
-         m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u and main ion (D) mass = 2 u
+         m_i_over_m_imp = central_mass/184. * (2.d0/2.01455279245d0)! Tungsten mass = 184 u and main ion (D) mass = 2 u
        case default
          write(*,*) '!! Gas type "', trim(imp_type(index_main_imp)), '" unknown (in mod_injection_source.f90) !!'
          write(*,*) '=> We assume the gas is D2.'
-         m_i_over_m_imp = central_mass/2.
+         m_i_over_m_imp = central_mass/2. * (2.d0/2.01455279245d0)
      end select
 
      Z_imp = 0.

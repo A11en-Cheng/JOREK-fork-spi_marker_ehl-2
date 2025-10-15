@@ -939,7 +939,7 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
 #endif
      
         ! Get coefficient:  Prad,SI = coef_prad_si * Prad,jorek
-        coef_prad_si = 1./((GAMMA-1)*MU_ZERO*(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**0.5) 
+        coef_prad_si = 1./((GAMMA-1)*MU_ZERO*(MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**0.5) 
       
         ksi_ion_norm = central_density * 1.d20 * ksi_ion   ! Normalisation of the ionization energy cost for Deuterium
       
@@ -989,7 +989,7 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
             Arad_bg = 2.4d-31 
             Brad_bg = 20.
             Crad_bg = 0.8
-            frad_bg = (2./3.)*(1./(central_mass*MASS_PROTON))*((MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**(1.5d0))                &
+            frad_bg = (2./3.)*(1./(central_mass*ATOMIC_MASS_UNIT))*((MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**(1.5d0))                &
                             *nimp_bg(1)*Arad_bg*exp(-((log(Te_corr_eV)-log(Brad_bg))**2.)/Crad_bg**2.)
                     
             local_radiation_phi(mp) = local_radiation_phi(mp) + (r0_corr * rn0_corr  * LradDrays_T &
@@ -1023,25 +1023,25 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
 
         select case ( trim(imp_type(index_main_imp)) )
           case('D2')
-            m_i_over_m_imp = central_mass/2.  ! Deuterium mass = 2 u
+            m_i_over_m_imp = central_mass/2. * (2.d0/2.01455279245d0) ! Deuterium mass = 2 u
             m_imp          = 2.
           case('C')
-            m_i_over_m_imp = central_mass/12.
+            m_i_over_m_imp = central_mass/12. * (2.d0/2.01455279245d0)
             m_imp          = 12.
           case('Ar')
-            m_i_over_m_imp = central_mass/40. ! Argon mass = 40 u
+            m_i_over_m_imp = central_mass/40. * (2.d0/2.01455279245d0)! Argon mass = 40 u
             m_imp          = 40.
           case('Ne')
-            m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u
+            m_i_over_m_imp = central_mass/20. * (2.d0/2.01455279245d0)! Neon mass = 20 u
             m_imp          = 20.
           case('Fe')
-            m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u
+            m_i_over_m_imp = central_mass/56. * (2.d0/2.01455279245d0)! Iron mass = 56 u
           case('W')
-            m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u
+            m_i_over_m_imp = central_mass/184. * (2.d0/2.01455279245d0)! Tungsten mass = 184 u
           case default
             write(*,*) '!! Gas type "', trim(imp_type(index_main_imp)), '" unknown (in mod_injection_source.f90) !!'
             write(*,*) '=> We assume the gas is D2.'
-            m_i_over_m_imp = central_mass/2.
+            m_i_over_m_imp = central_mass/2. * (2.d0/2.01455279245d0)
             m_imp          = 2.
         end select
 
@@ -1214,7 +1214,7 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
         local_radiation_phi(mp) = local_radiation_phi(mp) &
                                   + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad + frad_bg)&
                                   * bigR * xjac * wst * delta_phi                                  &
-                                  + (aux_rad / (MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * MASS_PROTON * CENTRAL_DENSITY * 1.d20))) * bigR * xjac * wst * delta_phi 
+                                  + (aux_rad / (MU_ZERO * (GAMMA-1.) * sqrt(MU_ZERO * CENTRAL_MASS * ATOMIC_MASS_UNIT * CENTRAL_DENSITY * 1.d20))) * bigR * xjac * wst * delta_phi 
         local_radiation(1) = local_radiation(1) &
                              + ne_SI * (rimp0_corr * central_density * 1.d20 * Lrad)&
                              * bigR * xjac * wst * delta_phi 
@@ -1236,7 +1236,7 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
 #endif
      
         ! Get coefficient:  Prad,SI = coef_prad_si * Prad,jorek
-        coef_prad_si = 1./((GAMMA-1)*MU_ZERO*(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**0.5) 
+        coef_prad_si = 1./((GAMMA-1)*MU_ZERO*(MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**0.5) 
       
         ksi_ion_norm = central_density * 1.d20 * ksi_ion   ! Normalisation of the ionization energy cost for Deuterium
 
@@ -1265,13 +1265,13 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
         else
           lambda_e_bg  = 24. - log((ne_SI*1.d-6)**0.5*Te_corr_eV**(-1.0))
         endif
-        nu_e_imp     = 1.8d-19*(1.d6*MASS_ELECTRON*MASS_PROTON*m_imp) ** 0.5&
+        nu_e_imp     = 1.8d-19*(1.d6*MASS_ELECTRON*ATOMIC_MASS_UNIT*m_imp) ** 0.5&
                        * Z_eff_imp * (1.d14*central_density*rimp0_corr*m_i_over_m_imp) * lambda_e_imp &
-                       / (1.d3*(MASS_ELECTRON*Ti0_corr+Te0_corr*MASS_PROTON*m_imp)&
+                       / (1.d3*(MASS_ELECTRON*Ti0_corr+Te0_corr*ATOMIC_MASS_UNIT*m_imp)&
                        / (EL_CHG * MU_ZERO * central_density * 1.d20)) ** 1.5
-        nu_e_bg      = 1.8d-19*(1.d6*MASS_ELECTRON*MASS_PROTON*central_mass) ** 0.5&
+        nu_e_bg      = 1.8d-19*(1.d6*MASS_ELECTRON*ATOMIC_MASS_UNIT*central_mass) ** 0.5&
                        * (1.d14*central_density*(r0_corr-rimp0_corr)) * lambda_e_bg &
-                       / (1.d3*(MASS_ELECTRON*Ti0_corr+Te0_corr*MASS_PROTON*central_mass)&
+                       / (1.d3*(MASS_ELECTRON*Ti0_corr+Te0_corr*ATOMIC_MASS_UNIT*central_mass)&
                        / (EL_CHG * MU_ZERO * central_density * 1.d20)) ** 1.5 ! Assuming bg_charge is 1!
     
         if (nu_e_imp < 0.) nu_e_imp = 0.
@@ -1550,7 +1550,7 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
 
         ! Neutral injection rate in particles/s
         local_n_particles_inj(2) = local_n_particles_inj(2) + 0.5d0 * central_density * 1.d20 * source_neutral * bigR *&
-                                   xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)
+                                   xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)
         ! Total neutrals in particles
         local_n_particles(2)     = local_n_particles(2)     +  rn0 * central_density * 1.d20 * bigR * xjac * wst * delta_phi
         ! Frictional heat source
@@ -1598,17 +1598,25 @@ aux_q0    = 0.d0; aux_jx0   = 0.d0; aux_jy0   = 0.d0; aux_jz0   = 0.d0; aux_jz0_
                         + 0.5 * vpar0**2 * BB2 * (source_bg_drift + source_imp_drift)
         fric_disp_tot = fric_disp_tot + fric_disp * BigR * xjac * wst * delta_phi 
 
+<<<<<<< HEAD
         ! Background species contribution in case of marker particles
         if (use_marker) then
-          local_P_ion = local_P_ion + E_ion_bg * source_bg * (central_density * 1.d20 / sqrt(MU_zero * central_density * 1.d20 * central_mass * MASS_PROTON))&
+          local_P_ion = local_P_ion + E_ion_bg * source_bg * (central_density * 1.d20 / sqrt(MU_zero * central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT))&
                                                * bigR * xjac * wst * delta_phi
         endif
 
         ! Impurity injection rate in particles/s
         local_n_particles_inj(1) = local_n_particles_inj(1) + 0.5d0 * central_density * 1.d20 * source_imp * m_i_over_m_imp * bigR &
-	                               * xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)
+	                               * xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)
         ! Total impurities in particles
         local_n_particles(1)     = local_n_particles(1) + central_density * 1.d20 * rimp0 * m_i_over_m_imp * bigR * xjac * wst * delta_phi
+=======
+        ! Neutral injection rate in particles/s
+        local_n_particles_inj = local_n_particles_inj + 0.5d0 * central_density * 1.d20 * source_imp * m_i_over_m_imp * bigR &
+	                         * xjac * wst * delta_phi / sqrt(MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)
+        ! Total neutrals in particles
+        local_n_particles     = local_n_particles + central_density * 1.d20 * rimp0 * m_i_over_m_imp * bigR * xjac * wst * delta_phi
+>>>>>>> origin/develop
 #endif
 
 #if STELLARATOR_MODEL
@@ -2556,7 +2564,7 @@ if (nonlocal_abl) then
 endif
 
 ! --- Normalization factors
-rho_norm = central_density*1.d20 * central_mass * MASS_PROTON 
+rho_norm = central_density*1.d20 * central_mass * ATOMIC_MASS_UNIT 
 t_norm   = sqrt(MU_zero*rho_norm)
 
 if (units == SI_UNITS) then
