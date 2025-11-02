@@ -207,9 +207,10 @@ do i_tor=1, n_tor
   endif
 enddo
 
-call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true.)
+! --- Define the basis functions at the Gaussian points
+call initialise_basis()
 
-call initialise_basis                                       ! define the basis functions at the Gaussian points
+call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true.)
 
 ! --- Initialize the new_diag framework and print some information (.true.)
 ! additional to jorek2_fieldlines_vtk

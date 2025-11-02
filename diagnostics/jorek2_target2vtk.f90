@@ -18,6 +18,7 @@ use mod_plasma_functions
 use mod_import_restart
 use equil_info, only : get_psi_n, ES
 use mod_interp
+use constants, only : ATOMIC_MASS_UNIT
 
 implicit none
 
@@ -95,11 +96,10 @@ do i_tor=1, n_tor
   mode(i_tor) = + int(i_tor / 2) * n_period
 enddo
 
+call initialise_basis()                              ! define the basis functions at the Gaussian points
 call import_restart(node_list,element_list, 'jorek_restart', rst_format, ierr, .true.)
 
-call initialise_basis                              ! define the basis functions at the Gaussian points
-
-rho_norm = central_density*1.d20 * central_mass * 1.67d-27
+rho_norm = central_density*1.d20 * central_mass * ATOMIC_MASS_UNIT
 t_norm   = sqrt(MU_zero*rho_norm)
 
 ! --- Find the lowest point on the outer divertor target (required later)
@@ -362,7 +362,8 @@ do m=1, n_plane
           D_prof   = get_dperp (psi_norm)
           ZK_prof  = get_zkperp(psi_norm)
 
-          call conductivity_parallel(ZK_par, ZK_par_max, T, corr_neg_temp(T), T_min_ZKpar, T_0, ZKpar_T)
+          call conductivity_parallel(ZK_par, ZK_par_max, T, corr_neg_temp(T), T_min_ZKpar, T_0, &
+                                 ZKpar_T, ZK_par_neg_thresh, ZK_par_neg)
 
           scalars(inode,1) = psi
           scalars(inode,2) = rho
@@ -384,8 +385,8 @@ do m=1, n_plane
 
             if (abs(xjac) .gt. 1.d-7) then
 
-            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) + F0/BigR * T_p) / BigR / BB2 &
-                             * (-psi_s*normal)) /BigR /sqrt(R_s**2+Z_s**2) 
+            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) ) / BigR / BB2 &
+                             * (-psi_s*normal)) /BigR /sqrt(R_s**2+Z_s**2) / (gamma-1.d0) 
 
             scalars(inode,8) = - ZK_prof * ( T_t   * (R_s**2 + Z_s**2) - T_s   * (R_s*R_t+Z_s*Z_t)) / Xjac &
                              / sqrt(R_s**2+Z_s**2) * normal
@@ -423,8 +424,8 @@ do m=1, n_plane
  
             if (abs(xjac) .gt. 1.d-7) then
 
-            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) + F0/BigR * T_p) / BigR / BB2 &
-                             * (psi_t*normal)) /BigR /sqrt(R_t**2+Z_t**2) 
+            scalars(inode,7) = - ZKpar_T * (((T_x*psi_y - T_y*psi_x) ) / BigR / BB2 &
+                             * (psi_t*normal)) /BigR /sqrt(R_t**2+Z_t**2) / (gamma-1.d0)
 
             scalars(inode,8) = - ZK_prof * ( T_s   * (R_t**2 + Z_t**2) - T_t   * (R_s*R_t+Z_s*Z_t)) / Xjac &
                              / sqrt(R_t**2+Z_t**2) * normal

@@ -14,13 +14,14 @@ integer,                      intent(in) :: my_id
 character(len=*),             intent(in) :: filename
 
 ! --- Local variables
-integer :: ierr,err,i
+integer :: ierr,err,i, n_spi_begin, err_alloc=0
 
 ! --- Namelist with input parameters.
 namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 rst_hdf5, rst_hdf5_version, keep_current_prof,      &
                 eta, visco, visco_par,                              &
                 restart, rst_format, regrid, bootstrap, write_ps,   &
+                bootstrap_psin_cutoff,                              &
                 regrid_from_rz,                                     &
                 force_horizontal_Xline, fix_axis_nodes,             &
                 n_R, n_Z, n_radial, n_pol, n_tht, n_flux,           &
@@ -80,6 +81,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 wall_resistivity, wall_resistivity_fact,            &
                 bc_natural_open,                                    &
                 use_mumps_eq, use_pastix_eq, use_strumpack_eq,      &
+                use_mumps_prj, use_pastix_prj, use_strumpack_prj,   &
                 use_mumps, mumps_ordering,                          &
                 use_BLR_compression, epsilon_BLR, just_in_time_BLR, &
                 use_pastix, use_murge, use_murge_element, use_wsmp, &
@@ -101,18 +103,30 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 gmres_m, gmres_4, gmres_tol, iter_precon,           &
                 tgnum,  pastix_pivot, max_steps_noUpdate,           &
                 keep_n0_const, linear_run, export_for_nemec,        &
+                ns_deltaphi, ksi_ion, spi_rnd_seed,                 &
+                ns_amplitude, ns_R, ns_Z, ns_phi, ns_radius,        &
+                spi_Vel_Rref,spi_Vel_Zref, using_spi, n_spi, n_inj, &
+                spi_Vel_RxZref, spi_quantity, spi_abl_model,        &
+                spi_quantity_bg, pellet_density_bg,                 &
+                ns_radius_ratio, ns_radius_min, spi_angle,          &
+                spi_L_inj, spi_L_inj_diff, restart_spi,             &
+                K_Dmv, A_Dmv, L_tube, V_Dmv, P_Dmv,                 &
+                spi_Vel_diff, t_ns, JET_MGI, ASDEX_MGI,             &
+                imp_type, delta_n_convection, nimp_bg,              &
+                adas_dir, output_prad_phi, n_adas, index_main_imp,  &
                 RMP_on, RMP_har_cos,RMP_har_sin,                    &
                 RMP_growth_rate, RMP_ramp_up_time,                  &
                 RMP_psi_cos_file, RMP_psi_sin_file,                 &
                 V_0,V_1,V_coef, output_bnd_elements,                &
-                wall_file,                                          &
+                wall_file, spi_shard_file,                          &
                 n_limiter, R_limiter, Z_limiter,                    &
                 first_target_point, last_target_point,              &
                 NEO, neo_file, aki_neo_const, amu_neo_const,        &
                 time_evol_scheme, corr_neg_temp_coef,               &
                 corr_neg_dens_coef, D_prof_neg, ZK_prof_neg,        &
                 D_prof_neg_thresh, ZK_prof_neg_thresh, T_min,rho_min,&
-                T_min_neg, rho_min_neg, implicit_heat_source,       &
+                ZK_par_neg_thresh, ZK_par_neg, T_min_neg,rho_min_neg,&
+                implicit_heat_source,                               &
                 Number_RMP_harmonics,RMP_har_cos_spectrum,          &
                 RMP_har_sin_spectrum,                               &
                 amix, amix_freeb, equil_accuracy,                   &
@@ -132,25 +146,29 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 autodistribute_modes, modes_per_family,             &
                 mode_families_modes, n_mode_families,               &
                 weights_per_family, autodistribute_ranks,           &
-                ranks_per_family,                                   &
+                ranks_per_family, treat_axis,                       &
                 n_particles, tstep_particles, nstep_particles,      &
                 nsubstep_particles, restart_particles,              &
                 filter_perp,    filter_hyper,    filter_par,        &
                 filter_perp_n0, filter_hyper_n0, filter_par_n0,     &
                 use_kn_cx, use_kn_sputtering, use_kn_ionisation,    &
-                use_ncs, use_pcs, use_ccs, use_pcs_full,            &
+                use_ncs, use_pcs, use_ccs, use_pcs_full, use_rcs,   &
                 restart_particles,                                  &
                 use_kn_recombination, use_kn_puffing,use_kn_line_radiation,  &
                 puff_rate, r_valve, R_valve_loc, Z_valve,           &
                 R_valve_loc2, Z_valve2, n_puff,                     &
                 cte_current_FB_fact, Z_xpoint_limit,                &
                 CARIDDI_mode, use_newton, maxNewton, gamma_Newton,  &
-                alpha_Newton, vacuum_min, strumpack_matching,       &
+                alpha_Newton, vacuum_min, strumpack_matching,       &        
                 xpoint_search_tries, export_aux_node_list,          &
                 use_manual_random_seed, manual_seed,                &
                 use_fixed_rng_value, fixed_rng_value,               &            
-                bgf_rpolar, bgf_tht, min_sheath_angle
-
+                bgf_rpolar, bgf_tht, min_sheath_angle,              &
+                use_puffing, fueling_rate, valve_r,                 &
+                R_laser_loc, Z_laser_loc, PHI_laser_loc,            &
+                initial_E, puffing_direction, puffing_timestep,     &
+                puff_starttime, puffingtime,                        &
+                phys_particles_puff 
 
 if (my_id .eq. 0) then
 
@@ -174,6 +192,12 @@ if (my_id .eq. 0) then
     read(5,in1)
   endif
 
+  if ( ( n_tor .eq. 1 ) .and. freeboundary .and. (.not. freeboundary_equil) ) then
+    write(*,*) 'WARNING: The parameter freeboundary is automatically changed to .false. since n_tor==1 and freeboundary_equil is .false.'
+    freeboundary= .false.
+  end if
+
+  
   !==============================R_Z_psi_bnd==========================
   if ( (n_boundary.ne.0) .and. (R_Z_psi_bnd_file /= 'none') ) then
     ! --- Open the file.
@@ -236,6 +260,43 @@ call read_num_profiles(my_id)
 
 ! --- Determine the derivatives of the numerical input profiles.
 call derive_num_profiles(my_id)
+
+! --- Initialize the shattered pellet position
+
+if ( my_id == 0 ) then
+  if (2*PI/(n_tor*n_period) >= ns_deltaphi .and. my_id == 0) then
+    write(*,*) "WARNING! ns_deltaphi too small for the n_tor, BEWARE!"
+    if (t_now > minval(t_ns)) then
+      write(*,*) "EXITING NOW!!!"
+      stop
+    end if
+  end if
+
+  if (n_inj > n_inj_max .or. n_inj < 1) then
+    write(*,*) "ERROR! Do not support n_inj larger than n_inj_max or smaller than 1, EXITING!"
+    stop
+  end if  
+
+  do i = 1, n_inj_max
+    if (n_spi(i)/=0 .and. i > n_inj) then
+      write(*,*) "ERROR! Something wrong with n_inj, double check, EXITING!", n_spi, n_inj
+      stop
+    end if
+  end do 
   
+  if (n_adas > n_imp_max) then
+    write(*,*) "ERROR: n_adas should be no larger than n_imp_max, EXITING!"
+    stop
+  end if
+
+  if (index_main_imp < 0 .or. index_main_imp > n_adas) then
+    write(*,*) "ERROR: Illegal value of index_main_imp, EXITING!"
+    write(*,*) "ERROR: index_main_imp:", index_main_imp
+    stop
+  end if
+
+  !if (using_spi) call init_spi()
+  if (using_spi) call init_spi_all()
+end if
 return
 end subroutine initialise_parameters

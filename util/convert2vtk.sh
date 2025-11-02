@@ -58,11 +58,13 @@ function usage () {
   echo "  -fluxes                     Include energy and density fluxes [default: off] (2D VTK ONLY)"
   echo "  -neo                        Include neoclassical and more terms [default: off] (2D VTK ONLY)"
   echo "  -Bfield                     Include vector of magnetic field [default: off] (2D VTK ONLY)"
+  echo "  -gvecfield                  Include GVEC equilibrium quantities [default: off] (2D VTK ONLY)"
   echo "  -vacfield                   Include vector of vacuum magnetic field [default: off] (2D VTK ONLY)"
   echo "  -Vfield                     Include vector of velocity field [default: off] (2D VTK ONLY)"
   echo "  -[no]psiN                   Include normalized poloidal flux or not [default: on] (2D VTK ONLY)"
   echo "  -bootstrap                  Include bootstrap current decomposition [default: off] (2D VTK ONLY)"
   echo "  -RphiZ_coords               (R,phi,Z) coordinate system instead of (R,Z,phi) in the VTK file"
+  echo "  -5digits                    Use old 5-digit restart file index (instead of 6)"
   echo "  -proj <proj_basename>       Include particle projections. Proper basename for particle projection output file should follow (2D VTK ONLY)"
   echo "                               - Projection HDF5 file should be prepared by setting the 'to_h5', 'index_h5' flag .true. in the 'new_projection' function"
   echo "                               - 'nout_projection' can be specified separately from the 'nout' in the namelist, but make sure every JOREK restart file has its projection counterpart"
@@ -137,7 +139,12 @@ function do_convert () {
   cd ${tmpdir[$ithread]}
   
   stepnum=${file##*/} # Remove directory from filename
-  stepnum=${stepnum:5:5}
+  if [ "$use_5digits" == "yes" ]; then
+    stepnum=${stepnum:5:5}
+  else
+    stepnum=${stepnum:5:6}
+  fi
+
   targetFile="jorek.$stepnum.vtk" # Target filename with same number as source
   targetFile="$targetDir/$targetFile" # Target filename with full path
 
@@ -191,7 +198,6 @@ SCRIPTDIR=`dirname $0`; SCRIPTDIR=`readlink -f $SCRIPTDIR`
 
 # --- Process command line parameters
 nthreads="1"
-selected_steps="0-99999"
 select_arguments=""
 customdir=""
 nsub=""
@@ -204,6 +210,7 @@ si_units=""
 include_fluxes=""         # include energy and density fluxes (or not)
 include_neo=""            # include neoclassical and more terms (or not)
 include_magnetic_field="" # include vector of magnetic field (or not)
+include_gvec_field=""     # include GVEC equilibrium quantities (or not)
 include_vacuum_field=""   # include vector of vacuum magnetic field (or not)
 include_velocity_field="" # include vector of velocity field (or not)
 include_electric_field="" # include vector of electric field (or not)
@@ -213,6 +220,21 @@ include_projections=""    # include particle projections
 proj_basename=""          # basename for particle projection output files
 include_psi_norm=".true." # include normalized flux
 RphiZ_coords=".false."    # use (R,0,Z) xyz coordinates instead of (R,Z,0)
+use_5digits="no"          # use old restart file index format with 5 digits
+
+# First pass: detect -5digits early
+for arg in "$@"; do
+  if [ "$arg" == "-5digits" ]; then
+    use_5digits="yes"
+  fi
+done
+
+if [ "$use_5digits" == "yes" ]; then
+  selected_steps="0-99999"
+else
+  selected_steps="0-999999"
+fi
+
 while [ $# -gt 1 ]; do
   if [ "$1" == "-j" ]; then
     nthreads="$2"
@@ -224,7 +246,11 @@ while [ $# -gt 1 ]; do
     selected_steps="$2"
     shift 2
   elif [ "$1" == "-donly" ]; then
-    selected_steps="0-$2-99999"
+    if [ "$use_5digits" == "yes" ]; then
+      selected_steps="0-$2-99999"
+    else
+      selected_steps="0-$2-999999"
+    fi
     shift 2
   elif ( [ "$1" == "-time" ] || [ "$1" == "-dtime" ] ) ; then
     select_arguments="$select_arguments $1 $2"
@@ -281,6 +307,10 @@ while [ $# -gt 1 ]; do
     include_magnetic_field=".true."
     shift 1
     writenml="yes"
+  elif [ "$1" == "-gvecfield" ] || [ "$1" == "-gvec_field" ]; then
+    include_gvec_field=".true."
+    shift 1
+    writenml="yes"
   elif [ "$1" == "-vacfield" ] || [ "$1" == "-vacuum_field" ]; then
     include_vacuum_field=".true."
     shift 1
@@ -314,6 +344,9 @@ while [ $# -gt 1 ]; do
     RphiZ_coords=".true."
     shift 1
     writenml="yes"
+  elif [ "$1" == "-5digits" ]; then
+    use_5digits="yes"
+    shift
   elif [ "$1" == "-h" ] || [ "$1" = "--help" ]; then
     usage
     exit 0
@@ -338,7 +371,11 @@ if [ ! -z "$select_arguments" ] && [[ "$select_arguments" != *"time"* ]]; then
   echo "WARNING: -l and -ms parameters will be ignored, if -(d)time is not set."
   select_arguments=""
 fi
-regexp_steps="^[0-9]{1,5}(-[0-9]{1,5}){0,2}(,[0-9]{1,5}(-[0-9]{1,5}){0,2})*$"
+if [ "$use_5digits" == "yes" ]; then
+  regexp_steps="^[0-9]{1,5}(-[0-9]{1,5}){0,2}(,[0-9]{1,5}(-[0-9]{1,5}){0,2})*$"
+else
+  regexp_steps="^[0-9]{1,6}(-[0-9]{1,6}){0,2}(,[0-9]{1,6}(-[0-9]{1,6}){0,2})*$"
+fi
 if [[ ! "$selected_steps" =~ $regexp_steps   ]]; then
   echo "ERROR: -(d)only-parameter given in wrong format."
   usage
@@ -469,7 +506,7 @@ fi
 
 
 # ---- Detect restart file type
-. ${SCRIPTDIR}/detect_rst_type.sh
+. ${SCRIPTDIR}/detect_rst_type.sh -d5 $use_5digits
 if [ "$RST_TYPE" != "h5" ] && [ "$RST_TYPE" != "rst" ]; then
   echo "ERROR: RST_TYPE not detected properly: $RST_TYPE"
   usage
@@ -480,7 +517,12 @@ fi
 
 # --- Select files for conversion
 if [ -z "$select_arguments" ]; then
-  files=`ls $sourceDir/jorek?????.${RST_TYPE} 2> /dev/null`
+  file_available_restarts="available_restart_files.txt"
+  if [ "$use_5digits" == "yes" ]; then
+    ls -1 $sourceDir/jorek?????.${RST_TYPE} > $file_available_restarts
+  else
+    ls -1 $sourceDir/jorek??????.${RST_TYPE} > $file_available_restarts
+  fi
 else
   files=`${SCRIPTDIR}/select_restart_files.sh $select_arguments`
   if [ "${files:0:5}" == "ERROR" ] ; then
@@ -538,6 +580,9 @@ if [ "$writenml" == "yes" ]; then
   if [ ! -z "$include_magnetic_field" ]; then
     echo "  include_magnetic_field = $include_magnetic_field" >> $vtk_nml
   fi
+  if [ ! -z "$include_gvec_field" ]; then
+    echo "  include_gvec_field = $include_gvec_field" >> $vtk_nml
+  fi
   if [ ! -z "$include_vacuum_field" ]; then
     echo "  include_vacuum_field = $include_vacuum_field" >> $vtk_nml
   fi
@@ -580,16 +625,11 @@ for i in `seq $nthreads`; do
 done
 
 # --- Create a list of available selected files ---------------------------------
-if [ $selected_steps == "0-99999" ]; then
-  selected_available_files=$files
+if [[ "$selected_steps" == "0-99999" || "$selected_steps" == "0-999999" ]]; then
+  selected_available_files=$file_available_restarts
 else
-
-  file_available_restarts="available_restart_files.txt"
   file_selected_restarts="selected_restart_files.txt"
-  
-  rm -f $file_available_restarts $file_selected_restarts
-  ls -1 $sourceDir/jorek?????.${RST_TYPE} > $file_available_restarts
-  
+  rm -f $file_selected_restarts
   step_ranges=`echo $selected_steps | tr ',' ' '`
   for step_range in $step_ranges; do
     step_numbers=(`echo $step_range | tr '-' ' '`) # split step_range, e.g., 1-3 -> 1 3
@@ -602,27 +642,34 @@ else
     fi
 
     for i in `seq $istart $istep $iend`; do
-      padnumber=`printf "%05d" $i`
+      if [ "$use_5digits" == "yes" ]; then
+        padnumber=`printf "%05d" $i`
+      else
+        padnumber=`printf "%06d" $i`
+      fi
       echo $padnumber >> $file_selected_restarts
     done
   done
- 
-  selected_available_files=`grep -f $file_selected_restarts $file_available_restarts`
-  rm -f $file_available_restarts $file_selected_restarts
+
+  selected_available_files='selected_available_files.txt'
+
+  grep -f $file_selected_restarts $file_available_restarts > $selected_available_files
+  rm -f $file_selected_restarts
 fi
 # ------------------------------------------------------------------------------
 
 
 # --- Parallel file conversion
 echo ""
-for file in $selected_available_files; do
+while IFS= read -r file; do
   if [ -f "$ERROR_STOP_FILE" ]; then cleanup; fi
   ithread=`get_available_thread`
   if [ ! -f "$ERROR_STOP_FILE" ]; then
     mark_running $ithread
     do_convert $file $ithread $include_projections $proj_basename &
   fi
-done
+done < $selected_available_files
+rm -f $file_available_restarts $selected_available_files
 
 
 

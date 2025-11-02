@@ -45,7 +45,7 @@ contains
 !> Interpolate a variable at a specific position (with phi), with first derivatives only
 pure subroutine do_interp_PRZ_1(this, time, i_elm, i_v, n_v, s, t, phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, Z, Z_s, Z_t)
   use mod_interp
-  use constants, only: mu_zero, mass_proton
+  use constants, only: mu_zero, atomic_mass_unit
   use phys_module, only: tstep, central_mass, central_density
   use mod_linear, only: linear_interp_differentials
   use mod_linear, only: linear_interp_differentials_dt
@@ -62,7 +62,7 @@ pure subroutine do_interp_PRZ_1(this, time, i_elm, i_v, n_v, s, t, phi, P, P_s, 
   real*8                 :: t_jorek
   
   ! JOREK time step in seconds
-  t_jorek = tstep*sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20)
+  t_jorek = tstep*sqrt(mu_zero * ATOMIC_MASS_UNIT * central_mass * central_density * 1.d20)
 
   P_time = 0.d0
   
@@ -117,7 +117,7 @@ pure subroutine do_interp_PRZ_2(this,time,i_elm,i_v,n_v,s,t,phi, &
   P_ttime,R,R_s,R_t,R_ss,R_st,R_tt,Z,Z_s,Z_t,Z_ss,Z_st,Z_tt)
   !> load module and functions
   use mod_interp
-  use constants, only: mu_zero,mass_proton
+  use constants, only: mu_zero,atomic_mass_unit
   use phys_module, only: tstep,central_mass,central_density
   use mod_linear, only: linear_interp_differentials
   use mod_linear, only: linear_interp_differentials_dt
@@ -143,7 +143,7 @@ pure subroutine do_interp_PRZ_2(this,time,i_elm,i_v,n_v,s,t,phi, &
   real(kind=8), dimension(n_v) :: dP_sphi, dP_tphi, dP_phiphi
   
   ! JOREK time step in seconds
-  t_jorek = tstep*sqrt(mu_zero*central_density*mass_proton*central_mass*1.d20)
+  t_jorek = tstep*sqrt(mu_zero*central_density*ATOMIC_MASS_UNIT*central_mass*1.d20)
 
   P_time = 0.d0
   P_stime = 0.d0
@@ -190,7 +190,7 @@ end subroutine do_interp_PRZ_2
 !> Interpolate a variable at a specific position (with phi), with first derivatives only, including phi derivatives
 pure subroutine do_interp_PRZP_1(this, time, i_elm, i_v, n_v, s, t, phi, P, P_s, P_t, P_phi, P_time, R, R_s, R_t, R_phi, Z, Z_s, Z_t, Z_phi)
   use mod_interp
-  use constants, only: mu_zero, mass_proton
+  use constants, only: mu_zero, atomic_mass_unit
   use phys_module, only: tstep, central_mass, central_density
   use mod_linear, only: linear_interp_differentials
   use mod_linear, only: linear_interp_differentials_dt
@@ -207,7 +207,7 @@ pure subroutine do_interp_PRZP_1(this, time, i_elm, i_v, n_v, s, t, phi, P, P_s,
   real*8                 :: t_jorek
   
   ! JOREK time step in seconds
-  t_jorek = tstep*sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20)
+  t_jorek = tstep*sqrt(mu_zero * ATOMIC_MASS_UNIT * central_mass * central_density * 1.d20)
 
   P_time = 0.d0
   
@@ -270,7 +270,7 @@ function last_file_before_time(time) result(file_number)
   real*8 :: t_norm, t_lower, t_guess, t_upper
 
   call MPI_COMM_RANK(MPI_COMM_WORLD, my_id, ierr)
-  t_norm = sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
+  t_norm = sqrt(mu_zero * ATOMIC_MASS_UNIT * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
   if (my_id .eq. 0) then
     write(*,*) "Looking for jorek restart file just before time ", time
 
@@ -360,12 +360,12 @@ subroutine do_read(this, sim, ev)
   class(read_jorek_fields_interp_linear), intent(inout) :: this
   type(particle_sim), intent(inout) :: sim
   type(event), intent(inout), optional :: ev
-  character(len=80) :: restart_file
+  character(len=80) :: restart_file, tmp_name
   integer :: i, ierr, my_id,i_nodes,n_nodes
   logical :: file_exists, next_file_found
 
   real*8 :: t_norm
-  t_norm = sqrt(mu_zero * mass_proton * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
+  t_norm = sqrt(mu_zero * ATOMIC_MASS_UNIT * central_mass * central_density * 1.d20) ! 1 jorek time unit in seconds
 
   call MPI_COMM_RANK(MPI_COMM_WORLD, my_id, ierr)
 
@@ -396,17 +396,38 @@ subroutine do_read(this, sim, ev)
         if (this%i .eq. -1) then
           write(restart_file,'(A,A)') trim(this%basename), '_restart.h5'
         else
-          write(restart_file,'(A,i5.5,A)') trim(this%basename), this%i, '.h5'
+          write(tmp_name,rst_file_ind_fmt(1)) trim(this%basename), this%i
+          write(restart_file,'(A,A)') trim(tmp_name), '.h5'
         end if
         inquire(file=trim(restart_file), exist=file_exists)
         if (file_exists) then
           call import_hdf5_restart(f%node_list,f%element_list,restart_file,this%rst_format,ierr)
           f%static = .true.
+          if (ierr .ne. 0) then
+            if (my_id .eq. 0) write(*,*) "ERROR: cannot open restart file"
+            call exit(1)
+          else
+            f%time_now = t_start*sim%t_norm ! set by import_hdf5_restart
+            ! Set sim%time to this time also, to start at the right point
+            if (sim%time .gt. 1d-16) then ! check if this is the right file if we have already set a time
+              if (sim%time .le. f%time_now) then
+                if (my_id .eq. 0) write(*,*) "ERROR: restart file read that is too far in the future"
+              end if
+            else ! otherwise set the time to the time of this file
+              sim%time = f%time_now
+            end if
+            if (my_id .eq. 0) write(*,"(A,f9.8,A)") "Read initial restart file, set t=", sim%time, " [s]"
+            ! for variable time step Gears method
+            if ( index_now==1) then
+              tstep_prev = tstep
+            else
+              tstep_prev = xtime(index_start) - xtime(index_start-1)
+            end if
+          endif
         else
           if (my_id .eq. 0) write(*,*) "ERROR: file ", trim(restart_file), " does not exist"
           call exit(1)
         end if
-        f%time_now = t_start * sim%t_norm
         t_now = t_start
         !Simulation time is now set
         sim%time=t_now*sim%t_norm
@@ -428,7 +449,8 @@ subroutine do_read(this, sim, ev)
       else ! Linearly interpolating case
         ! If nothing has been loaded (i.e. fields%time_prev = 0.d0) load the initial file
         if (abs(f%time_prev) .lt. 1.d-50) then
-          write(restart_file,'(A,i5.5,A)') trim(this%basename), this%i, '.h5'
+          write(tmp_name,rst_file_ind_fmt(1)) trim(this%basename), this%i
+          write(restart_file,'(A,A)') trim(tmp_name), '.h5'
           inquire(file=trim(restart_file), exist=file_exists)
           if (file_exists) then
             call import_hdf5_restart(f%node_list,f%element_list,trim(restart_file),this%rst_format,ierr)
@@ -456,7 +478,8 @@ subroutine do_read(this, sim, ev)
         ! Find the following file (next timestep number)
         next_file_found=.false.
         do i=this%i+1,this%i+20 ! check 20 files ahead
-          write(restart_file,'(A,i5.5,A)') trim(this%basename), i, '.h5'
+          write(tmp_name,rst_file_ind_fmt(1)) trim(this%basename), i
+          write(restart_file,'(A,A)') tmp_name, '.h5'
           inquire(file=trim(restart_file), exist=file_exists)
           if (file_exists) then
             next_file_found=.true.
@@ -537,7 +560,7 @@ subroutine merge_restart(node_list,element_list, restart_file, format_rst,my_id,
 
   ! Save the old values to calculate the new deltas
   allocate(values(n_tor,n_degrees,n_var,node_list%n_nodes))
-  !$omp parallel do default(shared) private(inode)
+  !$omp parallel do default(none) shared(node_list, values) private(inode)
   do inode=1,node_list%n_nodes
     values(:,:,:,inode) = node_list%node(inode)%values(:,:,:)
   enddo
@@ -548,7 +571,7 @@ subroutine merge_restart(node_list,element_list, restart_file, format_rst,my_id,
   call import_hdf5_restart(node_list,element_list, restart_file, format_rst, ierr)
 
   ! Calculate deltas as values_new - values_old
-  !$omp parallel do default(shared) private(inode)
+  !$omp parallel do default(none) shared(node_list, values) private(inode)
   do inode=1,node_list%n_nodes
     node_list%node(inode)%deltas = node_list%node(inode)%values - values(:,:,:,inode)
   enddo

@@ -22,7 +22,7 @@ integer,allocatable :: iwrk(:)
 real*8             :: angle, ellip, tria_u, tria_l, quad_u, quad_l, r0, z0, a0, PI
 real*8             :: dummy(3), xdim,zdim,rzero,rgrid1,zmid,rmaxis,zmaxis,ssimag,ssibry,bcentr,a_minor
 real*8             :: xip,xdum1,xdum2,xdum3,xdum4,xdum5
-real*8             :: psi_sep, sig_sep, tanh1, zmu0, zn0, zmd, rho_bnd
+real*8             :: psi_sep, sig_sep, tanh1, zmu0, zn0, zmd, rho_bnd, T_bnd
 real*8             :: pres_bnd, sig_ext, dpdpsi_sep
 real*8             :: xb ,xe, yb, ye, smth, fp, fout
 real*8             :: B_scale, I_scale, R_scale, F_axis, factor, dfactor
@@ -31,6 +31,11 @@ integer            :: mx,my,kx,ky,nxest,nyest,lwrk,kwrk,ier,iopt,nx,ny, i1, j1,i
 integer            :: nr, nz, n_psi, nbbs, limitr, i,j, nc, n_tht, n_sol, n_ext, ivtk, n_tht_in
 character          :: AA*52, tokamak_name*50, boundary_type*50, line*100
 character          :: buffer*80, lf*1, str1*12, str2*24, string_in*250,eqdsk_string_r_min*250
+
+integer          :: err_alloc
+logical          :: ferr
+real*8,allocatable :: ne_spline(:)
+!----------------------------- read eqdsk file -----------
 integer            :: start_idx, end_idx
 namelist /eqdsk2jorek_params/ tokamak_name,boundary_type,ellip_in,tria_up_in,&
                               tria_low_in,quad_up_in,quad_low_in,n_tht_in,r0_in,&
@@ -41,7 +46,8 @@ I_scale = 1.d0/1.d0  ! scaling factor for the toroidal current
 R_scale = 1.d0/1.d0  ! scaling factor for the space coordinates 
 !> Define the defaults JOREK boundaries for a specific tokamak: 'ITER' (default), 'JET', 
 !> 'DIII-D' or define a boundary via user's inputs: 'USER_DEFINED' 
-tokamak_name  = 'ITER'
+!tokamak_name  = 'ITER'
+tokamak_name  = 'CFEDR'
 !> Define which default boundary to be used (major radius, vertical position and 
 !> minor radius are rescaled by the R_scale factor):
 !> NOTE: the JOREK boundary is computed using:
@@ -60,7 +66,7 @@ ellip_in    = 1.d0; tria_up_in  = 0.d0; tria_low_in = 0.d0;
 quad_up_in  = 0.d0; quad_low_in = 0.d0; n_tht_in    = 259;
 r0_in       = 3.d0; z0_in       = 0.d0; a0_in       = -1.d0; ! a0_in is later set to +1.0 if the user has not changed it with the namelist
 pres_bnd    = 1.d1 ! default to 10 Pa
-smth = 1.d-6 ! Controls the tradeoff between closeness of fit and smoothness of fit. When too small, can lead to noise pick-up. When too large, can lead to inaccurate fit.
+smth = 3.d-3!1.d-6 ! Controls the tradeoff between closeness of fit and smoothness of fit. When too small, can lead to noise pick-up. When too large, can lead to inaccurate fit.
              ! May need hand tuning, based on a visual inspection of the output.
              ! For more details, see the documentation of regrid.f in libdierckx or the "Tips and Tricks" section of the Wiki page https://www.jorek.eu/wiki/doku.php?id=eqdsk2jorek.f90. 
 write(*,*) ' EQDSK to JOREK2 '
@@ -293,6 +299,66 @@ if (tokamak_name == 'ITER') then
     stop
   endif
 
+else if (tokamak_name == 'CFEDR') then
+
+  !--------------------close fit to ITER wall
+  if (boundary_type == 'CLOSE_WALL_FIT') then
+    ellip  = 2.0
+    tria_u = 0.55
+    tria_l = 0.65
+    quad_u = -0.1
+    quad_l = 0.15
+    n_tht  = 257
+    r0     = 6.2  * R_scale
+    z0     = 0.1  * R_scale
+    a0     = 2.25 * R_scale
+
+  !-------------------- contour outside ITER wall
+  else if(boundary_type == 'OUTSIDE_WALL') then
+    ellip  = 1.95
+    tria_u = 0.9
+    tria_l = 0.8!0.65
+    quad_u = -0.20!-0.12
+    quad_l = -0.15!-0.1
+    n_tht  = 257
+    r0     = 7.85   * R_scale
+    z0     = 0.70   * R_scale!-0.05 * R_scale
+    a0     = 3.00  * R_scale!2.75  * R_scale
+  else
+    write(*,*) 'JOREK boundary not or wrongly specified, stopping' 
+    stop
+  endif
+
+else if (tokamak_name == 'BEST') then
+
+  !--------------------close fit to ITER wall
+  if (boundary_type == 'CLOSE_WALL_FIT') then
+    ellip  = 2.0
+    tria_u = 0.5
+    tria_l = 0.65
+    quad_u = -0.12
+    quad_l = 0.12
+    n_tht  = 257
+    r0     = 3.6  * R_scale
+    z0     = 0.0  * R_scale
+    a0     = 1.3 * R_scale
+
+  !-------------------- contour outside ITER wall
+  else if(boundary_type == 'OUTSIDE_WALL') then
+    ellip  = 1.95
+    tria_u = 0.5
+    tria_l = 0.65!0.65
+    quad_u = -0.12!-0.12
+    quad_l = 0.12!-0.1
+    n_tht  = 257
+    r0     = 3.6   * R_scale
+    z0     = 0.0   * R_scale!-0.05 * R_scale
+    a0     = 1.50  * R_scale!2.75  * R_scale
+  else
+    write(*,*) 'JOREK boundary not or wrongly specified, stopping'
+    stop
+  endif
+
 else if (tokamak_name == 'JET') then
   
   !-------------------- contour outside JET wall
@@ -389,6 +455,36 @@ else if (tokamak_name == 'DIII-D') then
     a0     = 0.7 * R_scale
   else
     write(*,*) 'JOREK boundary not or wrongly specified, stopping' 
+    stop
+  end if
+
+else if (tokamak_name == 'XL50-U') then
+
+  !-------------------- contour outside DIII-D wall
+  if(boundary_type == 'OUTSIDE_WALL') then
+    ellip  = 3.0
+    tria_u = 0.4
+    tria_l = 0.4
+    quad_u = -0.5
+    quad_l = -0.5
+    n_tht  = 257
+    r0     = 0.8 * R_scale
+    z0     = 0.  * R_scale
+    a0     = 0.54 * R_scale
+
+  !-------------------- Atomic physics JOREK/NIMROD/M3D-C1 benchmark case (paper by B. Lyons)
+  else if(boundary_type == 'NIMROD_M3DC1') then
+    ellip  = 1.35/0.7
+    tria_u = 0.3
+    tria_l = 0.3
+    quad_u = 0.
+    quad_l = 0.
+    n_tht   = 257
+    r0     = 0.7 * R_scale
+    z0     = 0.  * R_scale
+    a0     = 0.5 * R_scale
+  else
+    write(*,*) 'JOREK boundary not or wrongly specified, stopping'
     stop
   end if
 
@@ -514,6 +610,28 @@ n_ext = n_psi + n_sol
 
 write(*,*) ' n_psi, n_sol, n_ext : ',n_psi, n_sol, n_ext
 
+!===================== Read Spline Fitted Ne profile==============
+
+if (allocated(ne_spline)) then
+  deallocate(ne_spline)
+end if
+allocate (ne_spline(n_ext),stat=err_alloc)  !< Dynamically allocate memeries forshard sizes
+if (err_alloc /= 0) then
+  write(*,*) "Error when trying to dynamically allocate memeries for ne_spline."
+else
+  inquire(file="ne_spline_only.dat", exist=ferr) ! Check if the file exist
+  if (ferr) then
+    open(42,file="ne_spline_only.dat",status="OLD",action="READ")
+    read(42,*)  ne_spline(1:n_ext)
+    close(42)
+  else
+    write(*,*) "WARNING!!! ne_spline file does not exist!"
+    deallocate(ne_spline)
+  end if
+end if
+
+!=====================End of Ne profile===========================
+
 allocate(df2_ext(n_ext),rho_ext(n_ext),T_ext(n_ext),psi_ext(n_ext),p_ext(n_ext))
 
 df2_ext(1:n_psi) = df2(1:n_psi)
@@ -525,6 +643,7 @@ rho_ext(n_psi-1:n_ext) = rho_ext(n_psi)
 psi_sep = 1.0d0     ! in normalised psi units
 sig_sep = 0.005     ! in normalised psi units
 rho_bnd = 0.01      ! in jorek units
+T_bnd   = 2.d-5     ! in jorek units
 
 psi_ext(1:n_psi) = psi(1:n_psi)
 do i=n_psi+1,n_ext
@@ -551,9 +670,20 @@ p_ext(n_psi+1:n_ext) = (p(n_psi)-pres_bnd)*( 1 - tanh((psi_ext(n_psi+1:n_ext)-ps
 do i=1,n_ext
   tanh1 = tanh((psi_ext(i) - psi_sep)/sig_sep)
   df2_ext(i) = df2_ext(i) * (0.5d0 - 0.5d0*tanh1)
-  rho_ext(i) = (rho_ext(i) - rho_bnd) * (0.5d0 - 0.5d0*tanh1) + rho_bnd
+  !rho_ext(i) = (rho_ext(i) - rho_bnd) * (0.5d0 - 0.5d0*tanh1) + rho_bnd
+  if (allocated(ne_spline)) then
+    rho_ext(i) = rho_ext(i) * ne_spline(i) + rho_bnd * (0.5 + 0.5*tanh1)
+    !rho_ext(i) = rho_ext(i) * ne_spline(i) * (0.5d0 - 0.5d0*tanh1) + 1.d-2 * (0.5 + 0.5*tanh1)
+  else
+    rho_ext(i) = (rho_ext(i) - rho_bnd) * (0.5d0 - 0.5d0*tanh1) + rho_bnd
+  end if
+  !T_ext(i)   = T_ext(i)   * (0.5d0 - 0.5d0*tanh1) * zmu0 
+  T_ext(i)   = p_ext(i) * zmu0 * (0.5d0 - 0.5d0*tanh1) / rho_ext(i) + T_bnd * (0.5 + 0.5*tanh1)
+  !T_ext(i)   = T_ext(i)   * (0.5d0 - 0.5d0*tanh1) * zmu0 +T_bnd 
+!   T_ext(i)   = T_ext(i) / rho_ext(i) * zmu0 + T_bnd 
+  p_ext(i)   = rho_ext(i) * T_ext(i)
 enddo
-T_ext(1:n_ext) = p_ext(1:n_ext)*zmu0 / rho_ext(1:n_ext)
+!T_ext(1:n_ext) = p_ext(1:n_ext)*zmu0 / rho_ext(1:n_ext)
 
 call lplot6(2,2,psi_ext,df2_ext,n_ext,'df2')
 call lplot6(3,2,psi_ext,p_ext,n_ext,'pressure')
@@ -586,6 +716,16 @@ close(21)
 open(21,file='jorek_temperature')
 do i=1,n_ext
   write(21,*) psi_ext(i),T_ext(i)
+enddo
+close(21)
+open(21,file='jorek_e_temperature')
+do i=1,n_ext
+  write(21,*) psi_ext(i),T_ext(i)/2.
+enddo
+close(21)
+open(21,file='jorek_i_temperature')
+do i=1,n_ext
+  write(21,*) psi_ext(i),T_ext(i)/2.
 enddo
 close(21)
 open(21,file='jorek_pressure')

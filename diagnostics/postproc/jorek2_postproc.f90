@@ -10,6 +10,7 @@ program jorek2_postproc
   use exec_commands,  only: exec_command, specific_help
   use settings,       only: set_setting
   use basis_at_gaussian, only: initialise_basis
+  use mod_plasma_functions, only: initialise_reference_parameters
   use mod_import_restart
   use mod_plasma_functions, only: initialise_reference_parameters
   

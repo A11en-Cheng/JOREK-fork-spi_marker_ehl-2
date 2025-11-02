@@ -27,6 +27,8 @@ real*8  :: tol, delta_phi, Zjac, psi_s, psi_t, R_in, Z_in, R_out, Z_out, Rmin, R
 real*8  :: small_delta, small_delta_s, small_delta_t, delta_phi_local, delta_phi_step
 real*8  :: atmp, cur_pert
 real*8  :: psi_out
+real*8  :: rnew(3), rold(3), dl, length 
+logical :: first_point
 integer :: ierr
 
 
@@ -156,7 +158,7 @@ else ! if no stpts file exists, use the following hard-coded default startpoints
  
 end if
 
-n_phi   = 1500
+n_phi   = 6500
 delta_phi = 2.d0 * PI / float(n_period*n_phi)
 tol       = 1.d-6
 
@@ -201,6 +203,7 @@ endif
 !$omp parallel default(none) &
 !$omp shared(node_list, element_list, n_lines, R_start, Z_start, P_start, n_turn, n_phi, delta_phi, element_neighbours, ES, iplot_type) &
 !$omp private(i_lines, ip, R_out, Z_out, i_elm, s_out, t_out, ifail, R_line, Z_line, p_line, s_line, t_line, i_turn, i_phi, &
+!$omp         length, first_point, phi, rnew, rold, dl, &
 !$omp         delta_phi_local, i_steps, delta_phi_step, delta_s, delta_t, s_mid, t_mid, p_mid, small_delta_s, small_delta_t, &
 !$omp         small_delta, R_in, Z_in, i_elm_prev, i_elm_tmp, R, Z, psi_out, Rp, Zp, Tp, Pp, i)
 
@@ -226,13 +229,19 @@ L_IL: do i_lines=1,n_lines
   p_line = P_start(i_lines)
   s_line = s_out
   t_line = t_out
-  
+ 
+  length = 0.d0
+
+  first_point = .true.
+ 
   L_IT: do i_turn = 1, n_turn(i_lines)
     if ( mod(i_turn-1,max(n_turn(i_lines)/6+1,5)) == 0 ) then
 !$omp critical
       write(*,'(1x,3(a,i6))') 'Line',i_lines,': turn',i_turn,' of',n_turn(i_lines)
 !$omp end critical
     end if
+
+    phi = 0.d0
 
     do i_phi=1,n_phi
     
@@ -304,7 +313,6 @@ L_IL: do i_lines=1,n_lines
 
 	      i_elm_prev = i_elm      
               i_elm      = element_neighbours(2,i_elm_prev)
-              if ( i_elm == 0 ) exit L_IT
 	      i_elm_tmp  = element_neighbours(4,i_elm)
 	      
 	      if (i_elm_prev .ne. i_elm_tmp) write(*,*) ' WARNING : CHANGE OF ORIENTATION (1)'
@@ -402,14 +410,39 @@ L_IL: do i_lines=1,n_lines
       
         delta_phi_local = delta_phi_local + small_delta * delta_phi_step
      
-        if (i_elm .eq. 0) exit
-      
+        if (i_elm .eq. 0) then 
+          write(*,*) 'i_elm = 0'
+          exit
+        endif
 !        write(*,'(A,5e16.8)') ' s,t : ',s_line,t_line
       
       enddo
+      if (i_elm .eq. 0) then 
+        write(*,*) 'i_elm = 0'
+        exit
+      endif
 
-      if (i_elm .eq. 0) exit
+
+      phi = phi + delta_phi
+
+      call interp_RZ(node_list,element_list,i_elm,s_line,t_line,R,Z)
+
+      rnew = (/ R*cos(phi), -R*sin(phi), Z /)
+      if (first_point) then
+        rold = rnew
+      endif
+
+      first_point = .false. 
+
+      dl = sqrt( (rnew(1)-rold(1))**2.d0 + (rnew(2)-rold(2))**2.d0 + (rnew(3)-rold(3))**2.d0 )
+
+      rold = rnew
+
+!      if (i_lines==1)  write(83,*) rnew(1), rnew(2), rnew(3)
+!      if (i_lines==17) write(84,*) rnew(1), rnew(2), rnew(3)
       
+
+      length = length + dl      
 !      if (i_steps .gt. 8) write(*,'(A,5i6)') ' WARNING : isteps ',i_lines,i_turn,i_phi,i_steps,i_elm
             
     enddo ! end of a 2Pi turn
@@ -428,15 +461,34 @@ L_IL: do i_lines=1,n_lines
     Tp(ip)  = atan2( Z_line - ES%Z_axis, R_line - ES%R_axis)
     Pp(ip)  = get_psi_n(psi_out, Z_line)
 
-    if (i_elm .eq. 0) exit
+    if (i_elm .eq. 0) then 
+        write(*,*) 'i_elm = 0'
+        exit
+    endif
+
      
   enddo L_IT
+
   
 !$omp critical
   write(*,'(1x,a,i6,a,i6,a)') '=> Line',i_lines,':',ip,' points'
 
+  if (ip > 300) then
+    do i=1,ip
+      if (Rp(i) < 1.d0) cycle
+      write(101,'(7e18.8)') Rp(i),Zp(i), length, float(ip), float(i_lines)
+    enddo
+  else
+    do i=1,ip
+      if (Rp(i) < 1.d0) cycle
+      write(102,'(7e18.8)') Rp(i),Zp(i), length, float(ip), float(i_lines)
+    enddo
+  endif
+
+
   do i=1,ip
-    write(21,'(4e18.8)') Rp(i),Zp(i)
+    if (Rp(i) < 1.d0) cycle
+    write(21,'(4e18.8)') Rp(i),Zp(i), length
     write(22,'(4e18.8)') SQRT( MAX(Pp(i), 0.) ),Tp(i)
   enddo
 

@@ -255,9 +255,10 @@ subroutine do_jorek_timestep(this, sim, ev)
   use global_distributed_matrix
   use mod_bootstrap_functions, only: bootstrap_find_minRad, bootstrap_get_q_and_ft_splines
   use live_data
-  use mod_live_data_core,      only: write_live_data_all
+  use mod_live_data_core,      only: write_live_data_all, write_live_data_vacuum
   use tr_module,               only: tr_print_memsize, tr_resetfile
   use mod_export_restart
+  use mod_import_restart,      only: rst_file_ind_fmt
   use construct_matrix_mod
   use pellet_module
   use vacuum
@@ -265,7 +266,7 @@ subroutine do_jorek_timestep(this, sim, ev)
   use mod_fields_linear
   use mod_expression,          only: exprs_all_int, init_expr
   use mod_integrals3D
-
+  use pellet_module,           only: update_spi
 #if (defined WITH_Neutrals) && (!defined WITH_Impurities)
   use mod_neutral_source
 #endif
@@ -319,16 +320,18 @@ subroutine do_jorek_timestep(this, sim, ev)
   if (.not. this%setup_done) then
     t_now = sim%time / sim%t_norm  
     index_now = index_start
-    if (sim%my_id .eq. 0) write(*,"(A,f16.8,A,g12.6,A)") "INFO: JOREK timestep: ", dt_jorek, " = ", dt, " s"
+    if (sim%my_id .eq. 0) write(*,"(A,f16.8,A,g15.6,A)") "INFO: JOREK timestep: ", dt_jorek, " = ", dt, " s"
     call setup_solvers(this, sim)
   end if
 
   index_now = index_now + 1 ! we started at 0
+  if ( index_now == 1 ) tstep_prev = tstep
 
   ! Set up the next start time to run this
   if (present(ev)) then
     ev%start = ev%start + dt
     if (sim%my_id .eq. 0) write(*,*) "INFO: scheduling next JOREK event for ", ev%start
+    if (sim%my_id .eq. 0) write(*,*) "INFO: previous JOREK time step: ", tstep_prev
   end if
 
   if (associated(this%extra_event)) then
@@ -400,6 +403,9 @@ subroutine do_jorek_timestep(this, sim, ev)
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
     if (using_spi) then
+      if (nonlocal_abl) then
+        if (nl_avg_Te(1) .eq. 0.d0) call int3d_new(sim%my_id, sim%fields%node_list, sim%fields%element_list, bnd_node_list, bnd_elm_list, exprs_all_int, res, 1, aux_node_list=aux_node_list)
+      endif
       n_spi_begin = 1
       do i = 1, n_inj !< Do one update for each injection location
         if (t_now >= t_ns(i)) call update_spi(sim%my_id,sim%fields%node_list,sim%fields%element_list,i,n_spi_begin)
@@ -411,6 +417,9 @@ subroutine do_jorek_timestep(this, sim, ev)
     call update_values(sim%fields%element_list, sim%fields%node_list, this%deltas)         ! add solution to node values
     call update_deltas(sim%fields%node_list, this%deltas)
     t_now = t_now + dt_jorek
+
+    ! save previous time step
+    tstep_prev = tstep
   else
     if ( sim%my_id == 0 ) then
       write(*,*)
@@ -439,9 +448,15 @@ subroutine do_jorek_timestep(this, sim, ev)
 !        pressure_out_t(index_now), heat_src_in_t(index_now), heat_src_out_t(index_now),             &
 !        part_src_in_t(index_now), part_src_out_t(index_now))
 
-    R_axis_t(index_now)   = this%es%R_axis
-    Z_axis_t(index_now)   = this%es%Z_axis
-    psi_axis_t(index_now) = this%es%psi_axis
+    R_axis_t(index_now)       = this%es%R_axis
+    Z_axis_t(index_now)       = this%es%Z_axis
+    psi_axis_t(index_now)     = this%es%psi_axis
+    R_xpoint_t(index_now,:)   = this%es%R_xpoint(:)
+    Z_xpoint_t(index_now,:)   = this%es%Z_xpoint(:)
+    psi_xpoint_t(index_now,:) = this%es%psi_xpoint(:)
+    R_bnd_t(index_now)        = this%es%R_bnd
+    Z_bnd_t(index_now)        = this%es%Z_bnd
+    psi_bnd_t(index_now)      = this%es%psi_bnd
 
     xtime(index_now)              = t_now
     energies(1:n_tor,1,index_now) = W_mag(1:n_tor)
@@ -450,7 +465,7 @@ subroutine do_jorek_timestep(this, sim, ev)
     mindelta = minval(this%deltas%val(1:this%deltas%n)); maxdelta = maxval(this%deltas%val(1:this%deltas%n));
     
     ! --- Output some information about the current timestep
-    130 format(1x,a,i5.5,a,es10.3,a)
+    130 format(1x,a,i6.6,a,es10.3,a)
     131 format(1x,a,2(2(es10.2,' ...',es10.2,',')))
     132 format(1x,'-------------------------------------------------------------------')
     133 format(1x,a,2(es10.2,' at ',i10,','))
@@ -485,7 +500,6 @@ subroutine do_jorek_timestep(this, sim, ev)
   
   endif ! myid = 0
 
-
   call int3d_new(sim%my_id, sim%fields%node_list, sim%fields%element_list, bnd_node_list, bnd_elm_list, exprs_all_int, res, 1, aux_node_list=this%auxiliary_node_list)
 
   if (sim%my_id .eq. 0 ) then
@@ -510,7 +524,7 @@ subroutine do_jorek_timestep(this, sim, ev)
   
   ! --- Write a restart file every nout timesteps
   if ( (sim%my_id == 0) .and. (mod(index_now,nout) == 0) ) then
-    write(fileout,'(A5,i5.5)') 'jorek',index_now
+    write(fileout,rst_file_ind_fmt(1)) 'jorek',index_now
     call export_restart(sim%fields%node_list, sim%fields%element_list, fileout, aux_node_list)
   endif
   

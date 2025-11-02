@@ -103,19 +103,37 @@ module mod_injection_source
         n_gas  = 5
         A_gas  = 4.
         mol_atom = 2.
-        mass_gas = A_gas*MASS_PROTON
+        mass_gas = A_gas*ATOMIC_MASS_UNIT
         c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(7.d0/5.d0))
+      case('C')
+        n_gas  = 3
+        A_gas  = 12.
+        mol_atom = 1.
+        mass_gas = A_gas*ATOMIC_MASS_UNIT
+        c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(5.d0/3.d0))
       case('Ar')
         n_gas  = 3
         A_gas  = 40.
         mol_atom = 1.
-        mass_gas = A_gas*MASS_PROTON
+        mass_gas = A_gas*ATOMIC_MASS_UNIT
         c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(5.d0/3.d0))
       case('Ne')
         n_gas  = 3
         A_gas  = 20.
         mol_atom = 1.
-        mass_gas = A_gas*MASS_PROTON
+        mass_gas = A_gas*ATOMIC_MASS_UNIT
+        c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(5.d0/3.d0))
+      case('Fe')
+        n_gas  = 3
+        A_gas  = 56.
+        mol_atom = 1.
+        mass_gas = A_gas*ATOMIC_MASS_UNIT
+        c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(5.d0/3.d0))
+      case('W')
+        n_gas  = 3
+        A_gas  = 184.
+        mol_atom = 1.
+        mass_gas = A_gas*ATOMIC_MASS_UNIT
         c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(5.d0/3.d0))
       case default
         write(*,*) '!! Gas type "', trim(imp_type(i_main_imp)), '" unknown (in mod_injection_source.f90) !!'
@@ -123,7 +141,7 @@ module mod_injection_source
         n_gas  = 5
         A_gas  = 4.
         mol_atom = 2.
-        mass_gas = A_gas*MASS_PROTON
+        mass_gas = A_gas*ATOMIC_MASS_UNIT
         c0_gas = sqrt(8.3145d0*293.d0/(A_gas*1.d-3)*(7.d0/5.d0))
     end select
 
@@ -158,7 +176,7 @@ module mod_injection_source
    !==================================================================================================
    ! A shifted time is used in order to start injected gas as soon as t_now = t_ns 
    ! (note: L_tube/3c0 is the time needed for the gas to propagate in the injection tube).
-    t_norm = sqrt(MU_ZERO * central_mass * MASS_PROTON * central_density * 1.d20)
+    t_norm = sqrt(MU_ZERO * central_mass * ATOMIC_MASS_UNIT * central_density * 1.d20)
     t_loc = (t_now-t_ns) * t_norm + L_tube/(3.d0 * c0_gas)
    !==================================================================================================
 
@@ -211,10 +229,10 @@ module mod_injection_source
         rhon_source = ns_drhon_dt * ns_shape / V_ns
 
         ! Apply JOREK normalization
-        rhon_source = (MU_ZERO)**(0.5d0)*(central_mass*MASS_PROTON*central_density*1.d20)**(-0.5d0) * rhon_source
+        rhon_source = (MU_ZERO)**(0.5d0)*(central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**(-0.5d0) * rhon_source
 
         ! Converting mass density into number density
-        rhon_source = rhon_source * (central_mass * MASS_PROTON / mass_gas)
+        rhon_source = rhon_source * (central_mass * ATOMIC_MASS_UNIT / mass_gas)
       elseif (ASDEX_MGI) then
 
         N_barlitre = (6.02d23*1.d5*1.d-3)/(8.3144d0*293d0)
@@ -250,10 +268,10 @@ module mod_injection_source
     
         ! Inverse of the number of particles still in the reservoir, formulae given by G. Pautasso (ASDEX-U)
 
-        rhon_source = (MU_ZERO)**(0.5d0)*(central_mass*MASS_PROTON*central_density*1.d20)**(-0.5d0)*ns_drhon_dt * ns_shape / V_ns
+        rhon_source = (MU_ZERO)**(0.5d0)*(central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**(-0.5d0)*ns_drhon_dt * ns_shape / V_ns
 
         ! Converting mass density into number density
-        rhon_source = rhon_source * (central_mass * MASS_PROTON / mass_gas)
+        rhon_source = rhon_source * (central_mass * ATOMIC_MASS_UNIT / mass_gas)
 
       else 
 
@@ -328,6 +346,12 @@ module mod_injection_source
 
       do i_inj = 1,n_inj
 
+        if (present(source_background_drift_arr) .or. present(source_impurity_drift_arr)) then
+          if (drift_distance(i_inj) /= 0.d0 .and. i_main_imp/=0) then ! For non-pure D SPI
+            write(*,*) 'WARNING: Do you really want to put <plasmoid teleportation> to non-pure D SPI?'
+          end if
+        end if
+
         do i = 1,n_spi(i_inj)
           spi_i = n_spi_begin + i - 1
 
@@ -363,11 +387,7 @@ module mod_injection_source
                               pellets(spi_i)%spi_psi_drift,pellets(spi_i)%spi_grad_psi_drift, &
                               ns_radius_loc,ns_deltaphi,ns_delta_minor_rad,ns_tor_norm, &
                               A_Dmv,K_Dmv,V_Dmv,P_Dmv,t_ns(i_inj),0., R, Z, phi, psi, &
-                              source_tmp_drift,t_now,JET_MGI,ASDEX_MGI,central_density,central_mass,spi_vol_tmp_drift,i_main_imp)
-
-                  if (pellets(spi_i)%spi_species > 0.) then
-                    write(*,*) 'WARNING: Do you really want to put <plasmoid teleportation> to non-pure D SPI?'
-                  end if 
+                              source_tmp_drift,t_now,JET_MGI,ASDEX_MGI,central_density,central_mass,spi_vol_tmp_drift,i_main_imp) 
 
                 else
                   source_tmp_drift = 0.d0

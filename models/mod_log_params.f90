@@ -25,7 +25,7 @@ logical, optional             :: short !< commandline short version or run long 
 character(len=512), parameter :: REAL_FMT = "(1X,A, ' = ', 99ES12.4)"
 character(len=512), parameter :: REAL_FMT2 = "(1X,A, ' = ', ES12.4, A)"
 character(len=512), parameter :: INTG_FMT = "(1X,A, ' = ', 100I12)"
-character(len=512), parameter :: INTG_FMT2 = "(1X,A, ' = ', I12, A)"
+character(len=512), parameter :: INTG_FMT2 = "(1X,A,I2,A,' = ', 100I12)"
 character(len=512), parameter :: LOGI_FMT = "(1X,A, ' = ', 10L12)"
 character(len=512), parameter :: REA2_FMT = "(1X,A, ' = ', 4ES12.4, '     ...    ', 4ES12.4)"
 character(len=512), parameter :: REA3_FMT = "(1X,A, ' = ', 9ES12.4, '     ...')"
@@ -418,6 +418,9 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
     write(*,CHAR_FMT) 'domm_file             ', domm_file
     write(*,REAL_FMT) 'R_domm                ', R_domm
   end if
+  write(*,LOGI_FMT) 'extended_boundary     ', extended_boundary
+  write(*,REAL_FMT) 'j_cutoff_rcoord       ', j_cutoff_rcoord
+  write(*,REAL_FMT) 'j_cutoff_sig          ', j_cutoff_sig
 
   if ( (abs(V_0) .ge. 1.d-19) .or. (num_rot) ) then
      write(*,LOGI_FMT) 'normalized_velocity_profile', normalized_velocity_profile
@@ -508,6 +511,9 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
     write(*,REAL_FMT) 'D_perp                ', D_perp(1:6)
   else
     write(*,CHAR_FMT) 'D_perp_file           ', trim(D_perp_file)
+  end if
+  if ( num_visco ) then
+    write(*,CHAR_FMT) 'visco_file           ', trim(visco_file)
   end if
 #ifdef WITH_Impurities
   write(*,REAL_FMT) 'D_par_imp               ', D_par_imp
@@ -823,6 +829,9 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
   write(*,LOGI_FMT) 'use_mumps_eq          ', use_mumps_eq
   write(*,LOGI_FMT) 'use_pastix_eq         ', use_pastix_eq
   write(*,LOGI_FMT) 'use_strumpack_eq      ', use_strumpack_eq  
+  write(*,LOGI_FMT) 'use_mumps_prj         ', use_mumps_prj
+  write(*,LOGI_FMT) 'use_pastix_prj        ', use_pastix_prj
+  write(*,LOGI_FMT) 'use_strumpack_prj     ', use_strumpack_prj
   write(*,REAL_FMT) 'pastix_pivot          ', pastix_pivot
   write(*,INTG_FMT) 'pastix_maxthrd        ', pastix_maxthrd
   write(*,LOGI_FMT) 'refinement            ', refinement
@@ -896,6 +905,7 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
   endif
   write(*,LOGI_FMT) 'output_bnd_elements   ', output_bnd_elements
   write(*,LOGI_FMT) 'bootstrap             ', bootstrap
+  write(*,REAL_FMT) 'bootstrap_psin_cutoff ', bootstrap_psin_cutoff
   write(*,LOGI_FMT) 'NEO                   ', NEO
   if (NEO) then
     write(*,LOGI_FMT) 'num_neo_file          ', num_neo_file
@@ -929,6 +939,8 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
      write(*,REAL_FMT) 'ksi_ion             ',  ksi_ion
      write(*,LOGI_FMT) 'JET_MGI             ',  JET_MGI
      write(*,LOGI_FMT) 'ASDEX_MGI           ',  ASDEX_MGI
+     write(*,LOGI_FMT) 'use_marker          ',  use_marker
+     write(*,LOGI_FMT) 'diff_diffusive_flux ',  diff_diffusive_flux
      write(*,REAL_FMT) 'A_Dmv               ',  A_Dmv
      write(*,REAL_FMT) 'K_Dmv               ',  K_Dmv
      write(*,REAL_FMT) 'V_Dmv               ',  V_Dmv
@@ -957,12 +969,15 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
      !< Additional log for SPI model
    if(using_spi) then
      write(*,LOGI_FMT) 'using_spi           ',  using_spi
+     write(*,LOGI_FMT) 'restart_spi         ',  restart_spi
+     write(*,LOGI_FMT) 'nonlocal_abl        ',  nonlocal_abl
      write(*,LOGI_FMT) 'spi_tor_rot         ',  spi_tor_rot
      write(*,LOGI_FMT) 'spi_num_vol         ',  spi_num_vol
      write(*,CHAR_FMT) 'adas_dir            ',  trim(adas_dir)
      write(*,INTG_FMT) 'n_spi               ',  n_spi
      write(*,INTG_FMT) 'n_spi_tot           ',  n_spi_tot
      write(*,INTG_FMT) 'n_inj               ',  n_inj
+     write(*,INTG_FMT) 'n_nonlocal_array    ',  n_nonlocal_array
      do i = 1,n_inj
        write(*,CHAR_FMT2) 'spi_plume_file(',i,')    ',  trim(spi_plume_file(i))
      end do
@@ -1004,6 +1019,7 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
   write(*,REAL_FMT) 'filter_hyper_n0,    ',filter_hyper_n0   
   write(*,REAL_FMT) 'filter_par_n0,      ',filter_par_n0     
   write(*,LOGI_FMT) 'use_ncs,            ',use_ncs     
+  write(*,LOGI_FMT) 'use_rcs,            ',use_rcs     
   write(*,LOGI_FMT) 'use_ccs,            ',use_ccs    
   write(*,LOGI_FMT) 'use_pcs,            ',use_pcs
   write(*,LOGI_FMT) 'use_kn_ionisation,     ',use_kn_ionisation    
@@ -1035,6 +1051,19 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
 #ifdef USE_CATALYST
   write(*,CHAR_FMT) 'catalyst_scripts,   ',trim(catalyst_scripts)
 #endif
+
+  write(*,LOGI_FMT) 'use_puffing,        ',use_puffing     
+  write(*,REAL_FMT) 'phys_particles_puff,',phys_particles_puff
+  write(*,REAL_FMT) 'fueling_rate,       ',fueling_rate  
+  write(*,REAL_FMT) 'valve_r,            ',valve_r  
+  write(*,REAL_FMT) 'R_laser_loc,        ',R_laser_loc
+  write(*,REAL_FMT) 'Z_laser_loc,        ',Z_laser_loc   
+  write(*,REAL_FMT) 'PHI_laser_loc,      ',PHI_laser_loc  
+  write(*,REAL_FMT) 'initial_E,          ',initial_E
+  write(*,REAL_FMT) 'puffing_direction,  ',puffing_direction
+  write(*,REAL_FMT) 'puffing_timestep,   ',puffing_timestep
+  write(*,REAL_FMT) 'puff_starttime,     ',puff_starttime
+  write(*,REAL_FMT) 'puffingtime,        ',puffingtime 
 
   write(*,*)
   write(*,200)

@@ -1,6 +1,9 @@
 !> Routines to import a restart file written out by a routine in [[export_restart]].
 module mod_import_restart
 implicit none
+
+character(len=20), parameter :: rst_file_ind_fmt(2) = (/'(a,i6.6)', '(a,i5.5)'/)
+
 contains
 !> Imports a restart file written out by the routine export_restart.
 
@@ -465,6 +468,13 @@ subroutine import_binary_restart(node_list, element_list, filename, format_rst, 
     call tr_allocate(thmwork_tot_t,1,index_start+nstep,"thmwork_tot_t",CAT_UNKNOWN)
     thmwork_tot_t = 0.d0
 
+    if (allocated(thmwork_e_tot_t)) call tr_deallocate(thmwork_e_tot_t,"thmwork_e_tot_t",CAT_UNKNOWN)
+    call tr_allocate(thmwork_e_tot_t,1,index_start+nstep,"thmwork_e_tot_t",CAT_UNKNOWN)
+    thmwork_e_tot_t = 0.d0
+
+    if (allocated(thmwork_i_tot_t)) call tr_deallocate(thmwork_i_tot_t,"thmwork_i_tot_t",CAT_UNKNOWN)
+    call tr_allocate(thmwork_i_tot_t,1,index_start+nstep,"thmwork_i_tot_t",CAT_UNKNOWN)
+    thmwork_i_tot_t = 0.d0
 
     if (allocated(volume_t)) call tr_deallocate(volume_t,"volume_t",CAT_UNKNOWN)
     call tr_allocate(volume_t,1,index_start+nstep,"volume_t",CAT_UNKNOWN)
@@ -559,7 +569,6 @@ endif
     write(*,'(A,e12.4,2f10.5)') ' *** PELLET PARAMETERS : ',pellet_particles, pellet_R, pellet_Z
   endif
 
-#if (defined WITH_Neutrals) || (defined WITH_Impurities)
   if (index_start >= 1) then
     if (allocated(xtime_radiation)) &
       call tr_deallocate(xtime_radiation,"xtime_radiation",CAT_UNKNOWN)
@@ -581,14 +590,19 @@ endif
       call tr_deallocate(xtime_E_ion_power,"xtime_E_ion_power",CAT_UNKNOWN)
     call tr_allocate(xtime_E_ion_power,1,index_start+nstep,"xtime_E_ion_power",CAT_UNKNOWN)
     read(21)  xtime_E_ion_power(1:index_start)
+    if (use_marker) then
+      if (allocated(xtime_Ne_imp)) &
+        call tr_deallocate(xtime_Ne_imp,"xtime_Ne_imp",CAT_UNKNOWN)
+      call tr_allocate(xtime_Ne_imp,1,index_start+nstep,"xtime_Ne_imp",CAT_UNKNOWN)
+      read(21)  xtime_Ne_imp(1:index_start)
+    endif
     if (allocated(xtime_P_ei)) &
       call tr_deallocate(xtime_P_ei,"xtime_P_ei",CAT_UNKNOWN)
     call tr_allocate(xtime_P_ei,1,index_start+nstep,"xtime_P_ei",CAT_UNKNOWN)
     read(21)  xtime_P_ei(1:index_start)
   end if
-#endif
 
-  if (using_spi) then
+  if (using_spi .and. restart_spi) then
     if (n_spi_tot >= 1) then
 
       if (index_start >= 1) then
@@ -708,6 +722,26 @@ endif
       end if
 
     end if
+  elseif (using_spi) then
+    if (n_spi_tot >= 1) then
+
+      if (index_start >= 1) then
+
+        if (allocated(xtime_spi_ablation)) &
+          call tr_deallocate(xtime_spi_ablation,"xtime_spi_ablation",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation",CAT_UNKNOWN)
+        if (allocated(xtime_spi_ablation_rate)) &
+          call tr_deallocate(xtime_spi_ablation_rate,"xtime_spi_ablation_rate",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation_rate,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation_rate",CAT_UNKNOWN)
+        if (allocated(xtime_spi_ablation_bg)) &
+          call tr_deallocate(xtime_spi_ablation_bg,"xtime_spi_ablation_bg",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation_bg,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation_bg",CAT_UNKNOWN)
+        if (allocated(xtime_spi_ablation_bg_rate)) &
+          call tr_deallocate(xtime_spi_ablation_bg_rate,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation_bg_rate,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
+
+      end if
+    endif
   end if
 
 999 continue
@@ -948,6 +982,7 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   real(RKIND), allocatable :: t_deltas(:,:,:,:)
   real(RKIND), allocatable :: t_aux_values(:,:,:,:)
 
+  ! Stellarator node members
   real(RKIND), allocatable :: t_pressure(:,:)
   real(RKIND), allocatable :: t_r_tor_eq(:,:)
   real(RKIND), allocatable :: t_j_field(:,:,:,:)
@@ -955,6 +990,7 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   real(RKIND), allocatable :: t_chi_correction(:,:,:)
   real(RKIND), allocatable :: t_j_source(:,:,:)
 
+  ! Full MHD node members
   real(RKIND), allocatable :: t_psi_eq(:,:)
   real(RKIND), allocatable :: t_Fprof_eq(:,:)
 
@@ -978,8 +1014,12 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   integer,     allocatable :: t_contain_node(:,:)
   integer,     allocatable :: t_nref(:)
 
-! local variables
+  ! stellarator fixed temperature parameters
+  real*8                   :: T_0_hdf5, Ti_0_hdf5, Te_0_hdf5
+  real*8                   :: F_0
+  integer                  :: n_flux_hdf5, n_tht_hdf5
 
+  ! local variables
   real*8, allocatable :: spi_R_arr (:)
   real*8, allocatable :: spi_Z_arr (:)
   real*8, allocatable :: spi_phi_arr (:)
@@ -1008,6 +1048,8 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   real*8, allocatable :: t_energies4(:,:,:)  !< Magnetic and kinetic mode energies at previous timesteps.
   logical                               :: no_pert
   
+  logical, parameter  :: use_defensive_checks = .true.
+
   no_pert = .false.
   if ( present(no_perturbations) ) no_pert = no_perturbations
 
@@ -1199,6 +1241,7 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   if(aux_values_read) then
      call HDF5_array4D_reading(file_id,t_aux_values,   'aux_values')
   endif
+
 #if STELLARATOR_MODEL
   call HDF5_array2D_reading(file_id,t_r_tor_eq, 'r_tor_eq')
 #if JOREK_MODEL == 180
@@ -1206,11 +1249,49 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
   call HDF5_array4D_reading(file_id,t_j_field,  'j_field')
   call HDF5_array4D_reading(file_id,t_b_field,   'b_field')
 #endif
+
+#ifdef WITH_TiTe
+  call HDF5_real_reading(file_id,Ti_0_hdf5,'Ti_0')
+  call HDF5_real_reading(file_id,Te_0_hdf5,'Te_0')
+  if (use_defensive_checks) then
+    if ((abs(Ti_0_hdf5 - Ti_0) .gt. 1.d-16) .or. (abs(Te_0_hdf5 - Te_0) .gt. 1.d-16)) then
+      write(*,*) "Error: Value of Ti_0 or Te_0 in restart file and namelist are inconsistent: ", Ti_0_hdf5, Ti_0, Te_0_hdf5, Te_0
+      stop
+    endif
+  else
+    Ti_0 = Ti_0_hdf5; Te_0 = Te_0_hdf5
+  endif
+#else
+  call HDF5_real_reading(file_id,T_0_hdf5,'T_0')
+  if (use_defensive_checks) then
+    if (abs(T_0_hdf5 - T_0) .gt. 1.d-16) then
+      write(*,*) "Error: Value of T_0 in restart file and namelist are inconsistent: ", T_0_hdf5, T_0
+      stop
+    endif
+  else
+    T_0 = T_0_hdf5
+  endif
+#endif
+  
+  call HDF5_real_reading(file_id,F_0,'F0')
+  if (abs(F_0 - F0) .gt. 1.d-16) then
+    write(*,*) "Error: F0 in restart file and namelist are inconsistent: ", F_0, F0
+    stop
+  endif
+
+  call HDF5_integer_reading(file_id,n_flux_hdf5,'n_flux')
+  call HDF5_integer_reading(file_id,n_tht_hdf5,'n_tht')
+  if ((n_tht_hdf5 .ne. n_tht) .or. (n_flux_hdf5 .ne. n_flux)) then
+    write(*, *) "Error: Number of radial and poloidal in restart file and namelist are inconsistent: ", n_flux_hdf5, n_flux, n_tht_hdf5, n_tht
+    stop
+  endif
+
 #ifndef USE_DOMM
   call HDF5_array3D_reading(file_id,t_chi_correction, 'chi_correction')
 #endif
+
   call HDF5_array3D_reading(file_id,t_j_source, 'j_source')
-#endif
+#endif /* STELLARATOR_MODEL */
 
 #ifdef fullmhd
   call HDF5_array2D_reading(file_id,t_psi_eq,   'psi_eq')
@@ -1679,6 +1760,27 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     thmwork_tot_t = 0.d0
     call HDF5_array1D_reading(file_id,thmwork_tot_t,'thmwork_tot_t')
 
+    if (allocated(thmwork_e_tot_t)) call tr_deallocate(thmwork_e_tot_t,"thmwork_e_tot_t",CAT_UNKNOWN)
+    call tr_allocate(thmwork_e_tot_t,1,index_start+nstep,"thmwork_e_tot_t",CAT_UNKNOWN)
+    thmwork_e_tot_t = 0.d0
+    call H5Lexists_f(file_id,"thmwrok_e_tot_t",flag_exists,err_exists)
+    if (flag_exists .and. err_exists == 0) then
+      call HDF5_array1D_reading(file_id,thmwork_e_tot_t,'thmwork_e_tot_t')
+    else
+      thmwork_e_tot_t = 0.d0
+      write(*,*) "Backward Compatibility: No thmwork_e_tot_t history information found, assuming none."
+    end if
+
+    if (allocated(thmwork_i_tot_t)) call tr_deallocate(thmwork_i_tot_t,"thmwork_i_tot_t",CAT_UNKNOWN)
+    call tr_allocate(thmwork_i_tot_t,1,index_start+nstep,"thmwork_i_tot_t",CAT_UNKNOWN)
+    thmwork_i_tot_t = 0.d0
+    call H5Lexists_f(file_id,"thmwrok_i_tot_t",flag_exists,err_exists)
+    if (flag_exists .and. err_exists == 0) then
+      call HDF5_array1D_reading(file_id,thmwork_i_tot_t,'thmwork_i_tot_t')
+    else
+      thmwork_i_tot_t = 0.d0
+      write(*,*) "Backward Compatibility: No thmwork_i_tot_t history information found, assuming none."
+    end if
 
     if (allocated(volume_t)) call tr_deallocate(volume_t,"volume_t",CAT_UNKNOWN)
     call tr_allocate(volume_t,1,index_start+nstep,"volume_t",CAT_UNKNOWN)
@@ -1734,6 +1836,11 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     call tr_allocate(npart_tot_t,1,index_start+nstep,"npart_tot_t",CAT_UNKNOWN)
     npart_tot_t = 0.d0
     call HDF5_array1D_reading(file_id,npart_tot_t,'npart_tot_t')
+
+    if (allocated(impart_tot_t)) call tr_deallocate(impart_tot_t,"impart_tot_t",CAT_UNKNOWN)
+    call tr_allocate(impart_tot_t,1,index_start+nstep,"impart_tot_t",CAT_UNKNOWN)
+    impart_tot_t = 0.d0
+    call HDF5_array1D_reading(file_id,impart_tot_t,'impart_tot_t')
 
     if (allocated(density_tot_t)) call tr_deallocate(density_tot_t,"density_tot_t",CAT_UNKNOWN)
     call tr_allocate(density_tot_t,1,index_start+nstep,"density_tot_t",CAT_UNKNOWN)
@@ -1852,7 +1959,6 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
      call HDF5_real_reading(file_id,pellet_particles,"pellet_particles")
   endif
 
-#if (defined WITH_Neutrals) || (defined WITH_Impurities)
   if (index_start >= 1) then
     if (allocated(xtime_radiation)) &
       call tr_deallocate(xtime_radiation,"xtime_radiation",CAT_UNKNOWN)
@@ -1874,14 +1980,25 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
       call tr_deallocate(xtime_E_ion_power,"xtime_E_ion_power",CAT_UNKNOWN)
     call tr_allocate(xtime_E_ion_power,1,index_start+nstep,"xtime_E_ion_power",CAT_UNKNOWN)
     call HDF5_array1D_reading(file_id,xtime_E_ion_power,"xtime_E_ion_power")
+    if (use_marker) then
+      if (allocated(xtime_Ne_imp)) &
+        call tr_deallocate(xtime_Ne_imp,"xtime_Ne_imp",CAT_UNKNOWN)
+      call tr_allocate(xtime_Ne_imp,1,index_start+nstep,"xtime_Ne_imp",CAT_UNKNOWN)
+      call H5Lexists_f(file_id,"xtime_Ne_imp",flag_exists,err_exists)
+      if (flag_exists .and. err_exists == 0) then
+        call HDF5_array1D_reading(file_id,xtime_Ne_imp,"xtime_Ne_imp")
+      else
+        xtime_Ne_imp = 0.d0
+        write(*,*) "Backward Compatibility: No xtime_Ne_imp history information found, assuming none."
+      end if
+    endif
     if (allocated(xtime_P_ei)) &
       call tr_deallocate(xtime_P_ei,"xtime_P_ei",CAT_UNKNOWN)
     call tr_allocate(xtime_P_ei,1,index_start+nstep,"xtime_P_ei",CAT_UNKNOWN)
     call HDF5_array1D_reading(file_id,xtime_P_ei,"xtime_P_ei")
   end if
-#endif
 
-  if (using_spi) then
+  if (using_spi .and. restart_spi) then
     if (n_spi_tot >= 1) then
 
       if (index_start >= 1) then
@@ -2112,6 +2229,23 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
       end if
 
 
+    end if
+  else if (using_spi) then
+    if (n_spi_tot >= 1) then
+      if (index_start >= 1) then
+        if (allocated(xtime_spi_ablation)) &
+          call tr_deallocate(xtime_spi_ablation,"xtime_spi_ablation",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation",CAT_UNKNOWN)
+        if (allocated(xtime_spi_ablation_rate)) &
+          call tr_deallocate(xtime_spi_ablation_rate,"xtime_spi_ablation_rate",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation_rate,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation_rate",CAT_UNKNOWN)
+        if (allocated(xtime_spi_ablation_bg)) &
+          call tr_deallocate(xtime_spi_ablation_bg,"xtime_spi_ablation_bg",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation_bg,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation_bg",CAT_UNKNOWN)
+        if (allocated(xtime_spi_ablation_bg_rate)) &
+          call tr_deallocate(xtime_spi_ablation_bg_rate,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
+        call tr_allocate(xtime_spi_ablation_bg_rate,1,n_spi_tot,1,index_start+nstep,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
+      end if
     end if
   end if
 
@@ -2431,13 +2565,52 @@ subroutine import_hdf5_restart_aux(aux_node_list, filename, format_rst, error)
   write(*,*) '****************************************'
 
   ! -> Deallocate temporary arrays 
-  call tr_deallocate(t_x,"t_x",CAT_UNKNOWN)
-  call tr_deallocate(t_values,"t_values",CAT_UNKNOWN)
+  call tr_deallocate(t_x,"aux_node_list%x",CAT_UNKNOWN)
+  call tr_deallocate(t_values,"aux_node_list%values",CAT_UNKNOWN)
+  call tr_deallocate(mode_tmp,"mode_tmp",CAT_UNKNOWN)
 
 #else
   write (6,*) " ERROR: trying to import with hdf5 but USE_HDF5 was not set at compile-time"
 #endif
   return
 end subroutine import_hdf5_restart_aux
+
+
+
+
+
+
+!< Checks if a restart file exists in the current directory
+!< Returns -1 if not found, and the digit format index if found (1 for 6 digits), (2 for 5 digits)
+integer function restart_file_exists(i_step)
+
+  use phys_module, only : rst_hdf5
+
+  implicit none
+
+  integer, intent(in) :: i_step
+  integer             :: i_fmt
+  character(len=64)   :: file_name, extension
+  logical             :: file_exists
+
+  restart_file_exists = -1
+
+  ! Determine the file extension
+  extension = '.rst'
+  if (rst_hdf5 .ne. 0) extension = '.h5'
+
+  ! Check each possible format
+  do i_fmt = 1, size(rst_file_ind_fmt)
+    write(file_name, rst_file_ind_fmt(i_fmt)) 'jorek', i_step
+    inquire(file=trim(file_name) // extension, exist=file_exists)
+
+    if (file_exists) then
+      restart_file_exists = i_fmt
+      return
+    end if
+  end do
+
+end function restart_file_exists
+
 
 end module mod_import_restart

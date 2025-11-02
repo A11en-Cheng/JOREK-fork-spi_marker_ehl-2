@@ -51,8 +51,8 @@ subroutine preset_parameters
   visco_par_heating = 0.d0
   visco_old_setup   = .false.
   
-  central_density = 1.d0        ! the central density in units 10^20 m^-3
-  central_mass    = 2.d0        ! the central average ion mass (D)
+  central_density = 1.d0            ! the central density in units 10^20 m^-3
+  central_mass    = 2.01410177811d0 ! the central average mass (atomic mass of deuterium, including electron)
 
   n_tor_restart= 0
   restart      = .false.
@@ -62,6 +62,9 @@ subroutine preset_parameters
   rst_format   = 0             ! use 'old' format for restart import
   write_ps     = .true.           ! write postscript file at the end of the run 
   gvec_grid_import = .false.
+  extended_boundary = .false.
+  j_cutoff_rcoord = 99.0
+  j_cutoff_sig = 0.025
 
   freeboundary_equil = .false. ! use free or fixed boundary equilibrium
   freeboundary       = .false. ! use free or fixed boundary?
@@ -192,6 +195,7 @@ subroutine preset_parameters
   T_jropes       = 0.d0
 
   bootstrap = .false.
+  bootstrap_psin_cutoff = 0.9995
 
   ellip  = 1.d0
   tria_u = 0.d0
@@ -583,6 +587,7 @@ subroutine preset_parameters
   R_Z_psi_bnd_file   = 'none'
   wall_file          = 'none'
   rot_file           = 'none'
+  visco_file         = 'none'
   domm_file          = 'none'
   normalized_velocity_profile = .true.
 
@@ -640,14 +645,18 @@ subroutine preset_parameters
   current_prof_initialized = .false.
   
   use_mumps          = .false.              ! Use MUMPS solver
-  use_pastix         = .true.               ! Use PASTIX solver
-  use_strumpack      = .false.              ! Use STRUMPACK solver  
+  use_pastix         = .false.              ! Use PASTIX solver
+  use_strumpack      = .true.               ! Use STRUMPACK solver  
   use_wsmp           = .false.              ! Use WSMP solver (use with care, still in development!)
   
   use_mumps_eq       = .false.              ! Use MUMPS equilibrium solver
   use_pastix_eq      = .false.              ! Use PASTIX equilibrium solver
   use_strumpack_eq   = .false.              ! Use STRUMPACK equilibrium olver  
   
+  use_mumps_prj      = .true.               ! Use MUMPS equilibrium solver
+  use_pastix_prj     = .false.              ! Use PASTIX equilibrium solver
+  use_strumpack_prj  = .false.              ! Use STRUMPACK equilibrium olver  
+
   refinement         = .false.              ! enable mesh refinement
   force_central_node = .true.               ! force all nodes in the grid center to have the same values in flux surface aligned grids
   fix_axis_nodes     = .false.              ! Fix t-derivative and cross st-derivative on axis to avoid noise
@@ -803,8 +812,30 @@ subroutine preset_parameters
   spi_tor_rot     = .false.
   spi_num_vol     = .true.
   using_spi       = .false.
+  restart_spi     = .true.
+  nonlocal_abl    = .false.
+  n_nonlocal_array= 0
 
   output_prad_phi = .false.
+
+!==================Particle related presets==============
+  restart_particles = .false.
+  use_ncs           = .false.
+  use_rcs           = .false.
+  use_ccs           = .false.
+  use_pcs           = .false.
+  use_marker        = .false.
+  diff_diffusive_flux  = .false.
+  n_particles       = 0.0
+  tstep_particles   = 0.0
+  nstep_particles   = 0
+  nsubstep_particles = 0
+  filter_perp       = 0.0
+  filter_hyper      = 0.0
+  filter_par        = 0.0
+  filter_perp_n0    = 0.0
+  filter_hyper_n0   = 0.0
+  filter_par_n0     = 0.0
 
 !======================JP ECCD injection parameters
   nu_jec_fast=1.d1
@@ -842,6 +873,20 @@ subroutine preset_parameters
 !===================== not used?
   Q_bar = 0.d0
   Sigma = 0.d0
+
+!==================== Gas_puffing parameters=============
+  use_puffing   = .false.
+  phys_particles_puff = 0.d0
+  fueling_rate  = 0.d0 
+  valve_r       = 5.d-2
+  R_laser_loc   = 0.d0 
+  Z_laser_loc   = 0.d0 
+  PHI_laser_loc = 0.d0 
+  initial_E     = 3.d2
+  puffing_direction = (/0.d0,0.d0,0.d0/)
+  puffing_timestep  = 1.d-6
+  puff_starttime    = 0.d0
+  puffingtime       = 1.d-3 
 
 !===================== particle input values
 n_particles        = 0

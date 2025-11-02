@@ -373,7 +373,14 @@ mpi_required = 0
     call init_node_list(node_list, n_nodes_max, node_list%n_dof, n_var)
 
 #if JOREK_MODEL == 180
-    call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list)
+    call initialise_equilibrium(my_id,node_list,element_list,bnd_node_list, bnd_elm_list, ierr)
+    if (ierr == 3) then
+      write(fileout,rst_file_ind_fmt(1)) 'jorek',0
+      call export_restart(node_list, element_list, fileout)
+      write(*,*) 'Restart file created, aborting.'
+      call MPI_Abort(MPI_COMM_WORLD, 3, ierr)
+      stop
+    end if
 #else
     if_not_regrid_from_rz: if(.not. regrid_from_rz) then
       
@@ -620,7 +627,7 @@ write(*,*) "n elements:", element_list%n_elements
   ! --- Export a restart file before the first timestep
   if ( (my_id == 0) .and. (.not. restart) ) then
     if ( freeboundary .and. freeb_change_indices ) call exchange_indices(node_list, my_id, n_cpu, .true.)
-    fileout = 'jorek00000'
+    write(fileout,rst_file_ind_fmt(1)) 'jorek',0
     call export_restart(node_list, element_list, fileout)
     if ( freeboundary .and. freeb_change_indices ) call exchange_indices(node_list, my_id, n_cpu, .false.)
   end if
@@ -751,6 +758,9 @@ write(*,*) "n elements:", element_list%n_elements
 
 #if (defined WITH_Neutrals) || (defined WITH_Impurities)
        if (using_spi) then
+         if (nonlocal_abl) then
+           if (nl_avg_Te(1) .eq. 0.d0) call int3d_new(my_id, node_list, element_list, bnd_node_list, bnd_elm_list, exprs_all_int, res, 1)
+         endif
          n_spi_begin = 1
          do i = 1, n_inj !< Do one update for each injection location
            if (t_now >= t_ns(i)) call update_spi(my_id,node_list,element_list,i,n_spi_begin)
@@ -843,7 +853,7 @@ write(*,*) "n elements:", element_list%n_elements
 #endif
 
        ! --- Output some information about the current timestep
-       130 format(1x,a,i5.5,a,es10.3,a)
+       130 format(1x,a,i6.6,a,es10.3,a)
        131 format(1x,a,2(2(es10.2,' ...',es10.2,',')))
        132 format(1x,'-------------------------------------------------------------------')
        133 format(1x,a,2(es10.2,' at ',i10,','))
@@ -912,7 +922,7 @@ write(*,*) "n elements:", element_list%n_elements
     ! --- Write a restart file every nout timesteps
     if ( (my_id == 0) .and. (mod(index_now,nout) == 0) ) then
       if ( freeboundary .and. freeb_change_indices ) call exchange_indices(mhd_sim%node_list, my_id, n_cpu, .true.)
-      write(fileout,'(A5,i5.5)') 'jorek',index_now
+      write(fileout,rst_file_ind_fmt(1)) 'jorek',index_now
       call export_restart(mhd_sim%node_list, mhd_sim%element_list, fileout)
       if ( freeboundary .and. freeb_change_indices ) call exchange_indices(mhd_sim%node_list, my_id, n_cpu, .false.)
     endif

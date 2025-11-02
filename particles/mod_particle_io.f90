@@ -78,6 +78,7 @@ use_hdf5_access_properties,collective_mpio_in,mpi_comm_in,mpi_info_in)
   real*8,   dimension(:,:),  allocatable :: st_arr,x_arr,B_hat_prev_arr,v_2d_arr
   real*8,   dimension(:,:),  allocatable :: x_m_arr,Astar_m_arr,Astar_k_arr
   real*8,   dimension(:,:),  allocatable :: dBn_k_arr,Bnorm_k_arr,E_k_arr
+  real*8,   dimension(:,:),  allocatable :: P_imp_arr
   real*8,   dimension(:,:,:),allocatable :: dAstar_k_arr
   logical                                :: use_hdf5_parallel,use_gatherv_mpio
   logical                                :: create_access_plist,collective_mpio_loc
@@ -156,10 +157,10 @@ use_hdf5_access_properties,collective_mpio_in,mpi_comm_in,mpi_info_in)
         call H5Gclose_f(group_id,h5err)
       endif
       !> reorganize and store the particle data in congruent arrays
-      call particle_arrays_from_list(sim%groups(ii)%particles,n_particles,&
+      call particle_arrays_from_list(sim%groups(ii)%particles,sim%groups(ii)%Z,n_particles,&
       i_elm_arr,i_life_arr,q_arr,t_birth_arr,weight_arr,v_1d_arr,E_arr,mu_arr,&
       vpar_arr,B_norm_arr,vpar_m_arr,st_arr,x_arr,B_hat_prev_arr,v_2d_arr,x_m_arr,&
-      Astar_m_arr,Astar_k_arr,Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,dAstar_k_arr,&
+      Astar_m_arr,Astar_k_arr,Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr,&
       particle_type_str)
       !> write data in HDF5 file
       if(allocated(i_elm_arr)) call HDF5_array1D_saving_int_native_or_gatherv(&
@@ -322,6 +323,13 @@ use_hdf5_access_properties,collective_mpio_in,mpi_comm_in,mpi_info_in)
       displs=particle_displacement,mpi_rank=sim%my_id,n_cpu=sim%n_cpu,&
       mpi_comm_loc=mpi_comm_loc,start=[i0_HSIZE_T,n_particles_offset],&
       use_hdf5_parallel_in=use_hdf5_parallel,mpio_collective_in=collective_mpio_loc)
+
+      if(allocated(P_imp_arr)) call HDF5_array2D_saving_native_or_gatherv(&
+      file_id,P_imp_arr,size(P_imp_arr,1),n_particles_per_group,trim(group_name)//"P_imp",&
+      use_gatherv_mpio,dim2_all_tasks=n_particles_glob(:,ii),&
+      displs=particle_displacement,mpi_rank=sim%my_id,n_cpu=sim%n_cpu,&
+      mpi_comm_loc=mpi_comm_loc,start=[i0_HSIZE_T,n_particles_offset],&
+      use_hdf5_parallel_in=use_hdf5_parallel,mpio_collective_in=collective_mpio_loc)
       
       if(allocated(dAstar_k_arr)) call HDF5_array3D_saving_native_or_gatherv(&
       file_id,dAstar_k_arr,size(dAstar_k_arr,1),size(dAstar_k_arr,2),&
@@ -346,7 +354,7 @@ use_hdf5_access_properties,collective_mpio_in,mpi_comm_in,mpi_info_in)
       call deallocate_particle_arrays(n_particles,i_elm_arr,i_life_arr,q_arr,&
       t_birth_arr,weight_arr,v_1d_arr,E_arr,mu_arr,vpar_arr,B_norm_arr,vpar_m_arr,&
       st_arr,x_arr,B_hat_prev_arr,v_2d_arr,x_m_arr,Astar_m_arr,Astar_k_arr,&
-      Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,dAstar_k_arr)
+      Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr)
     enddo
   else
     if(sim%my_id.eq.master_task) write(*,*) "WARNING: sim particle groups is not allocated!"
@@ -394,6 +402,7 @@ mpi_comm_in,mpi_info_in,test_in)
   use mod_particle_types, only: particle_gc,particle_gc_vpar
   use mod_particle_types, only: particle_gc_Qin
   use mod_particle_types, only: particle_fieldline
+  use mod_particle_types, only: particle_marker
   use mod_particle_types, only: particle_kinetic_relativistic
   use mod_particle_types, only: particle_gc_relativistic
   use mod_particle_sim,   only: particle_sim
@@ -427,6 +436,7 @@ mpi_comm_in,mpi_info_in,test_in)
   real*8,           dimension(:,:),  allocatable :: st_arr,x_arr,B_hat_prev_arr,v_2d_arr
   real*8,           dimension(:,:),  allocatable :: x_m_arr,Astar_m_arr,Astar_k_arr
   real*8,           dimension(:,:),  allocatable :: dBn_k_arr,Bnorm_k_arr,E_k_arr
+  real*8,           dimension(:,:),  allocatable :: P_imp_arr
   real*8,           dimension(:,:,:),allocatable :: dAstar_k_arr
   character(len=group_name_len)                  :: group_name
   character(len=:),                  allocatable :: particle_type_str
@@ -490,6 +500,8 @@ mpi_comm_in,mpi_info_in,test_in)
       allocate(particle_gc_Qin::sim%groups(ii)%particles(n_particles_per_proc(sim%my_id+1)))
     case ("particle_fieldline")
       allocate(particle_fieldline::sim%groups(ii)%particles(n_particles_per_proc(sim%my_id+1)))
+    case ('particle_marker')
+      allocate(particle_marker::sim%groups(ii)%particles(n_particles_per_proc(sim%my_id+1)))
     case ("particle_kinetic_relativistic")
       allocate(particle_kinetic_relativistic::sim%groups(ii)%particles(n_particles_per_proc(sim%my_id+1)))
     case ("particle_gc_relativistic")
@@ -498,7 +510,7 @@ mpi_comm_in,mpi_info_in,test_in)
       write(*,*) "Error: missing type name declaration ",trim(particle_type_str)," for reading: ABORT!"
       call MPI_Abort(mpi_comm_loc,errorcode,ierr)
     end select
-    call initialize_particle_list_to_zero(n_particles_per_proc(sim%my_id+1),sim%groups(ii)%particles,ierr)
+    call initialize_particle_list_to_zero(n_particles_per_proc(sim%my_id+1),sim%groups(ii)%particles,sim%groups(ii)%Z,ierr)
     !> Read particle base datasets from HDF5 and fill the particle lists: integer 1D array
     call HDF5_allocatable_array1D_reading_int(file_id,i_elm_arr,trim(group_name)//"i_elm",&
     reqdims_in=[n_particles_hsizet],start=[offset])
@@ -545,24 +557,26 @@ mpi_comm_in,mpi_info_in,test_in)
     reqdims_in=[n1_HSIZE_T,n_particles_hsizet],start=[i0_HSIZE_T,offset])
     call HDF5_allocatable_array2D_reading(file_id,E_k_arr,trim(group_name)//"E_k",&
     reqdims_in=[n1_HSIZE_T,n_particles_hsizet],start=[i0_HSIZE_T,offset])
+    call HDF5_allocatable_array2D_reading(file_id,P_imp_arr,trim(group_name)//"P_imp",&
+    reqdims_in=[n1_HSIZE_T,n_particles_hsizet],start=[i0_HSIZE_T,offset])
     call HDF5_allocatable_array2D_reading(file_id,v_2d_arr,trim(group_name)//"v",&
     reqdims_in=[n1_HSIZE_T,n_particles_hsizet],start=[i0_HSIZE_T,offset])
     !> Read particle base datasets from HDF5 and fill the particle lists: integer 3D array
     call HDF5_allocatable_array3D_reading(file_id,dAstar_k_arr,trim(group_name)//"dAstar_k",&
     reqdims_in=[n1_HSIZE_T,n1_HSIZE_T,n_particles_hsizet],start=[i0_HSIZE_T,i0_HSIZE_T,offset])
     !> fill particle list from arrays
-    call particle_list_from_arrays(n_particles_per_proc(sim%my_id+1),sim%groups(ii)%particles,ierr,&
+    call particle_list_from_arrays(n_particles_per_proc(sim%my_id+1),sim%groups(ii)%particles,sim%groups(ii)%Z,ierr,&
     i_elm_arr=i_elm_arr,i_life_arr=i_life_arr,t_birth_arr=t_birth_arr,weight_arr=weight_arr,&
     x_arr=x_arr,st_arr=st_arr,q_arr=q_arr,v_1d_arr=v_1d_arr,E_arr=E_arr,mu_arr=mu_arr,&
     vpar_arr=vpar_arr,B_norm_arr=B_norm_arr,vpar_m_arr=vpar_m_arr,B_hat_prev_arr=B_hat_prev_arr,&
     v_2d_arr=v_2d_arr,x_m_arr=x_m_arr,Astar_m_arr=Astar_m_arr,Astar_k_arr=Astar_k_arr,&
     Bn_k_arr=Bn_k_arr,dBn_k_arr=dBn_k_arr,Bnorm_k_arr=Bnorm_k_arr,&
-    E_k_arr=E_k_arr,dAstar_k_arr=dAstar_k_arr)
+    E_k_arr=E_k_arr,P_imp_arr=P_imp_arr,dAstar_k_arr=dAstar_k_arr)
     !> deallocate structures
     call deallocate_particle_arrays(n_particles_per_proc(sim%my_id+1),i_elm_arr,&
     i_life_arr,q_arr,t_birth_arr,weight_arr,v_1d_arr,E_arr,mu_arr,vpar_arr,&
     B_norm_arr,vpar_m_arr,st_arr,x_arr,B_hat_prev_arr,v_2d_arr,x_m_arr,&
-    Astar_m_arr,Astar_k_arr,Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,dAstar_k_arr)   
+    Astar_m_arr,Astar_k_arr,Bn_k_arr,dBn_k_arr,Bnorm_k_arr,E_k_arr,P_imp_arr,dAstar_k_arr)   
   enddo
   !> clean-up
   call HDF5_close(file_id)

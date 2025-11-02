@@ -143,7 +143,7 @@ module mod_jorek2IMAS
     endif
 
     ! --- Normalization factors for IMAS
-    rho0               = central_density * 1.d20 * central_mass * mass_proton
+    rho0               = central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT
     sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
     sqrt_mu0_over_rho0 = sqrt( mu_zero / rho0 )
   
@@ -262,7 +262,7 @@ module mod_jorek2IMAS
         allocate(plasma_profiles_ids%ggd(i_slice)%neutral(i_neut))
         allocate(plasma_profiles_ids%ggd(i_slice)%neutral(i_neut)%element(1))
 
-        plasma_profiles_ids%ggd(i_slice)%neutral(i_neut)%element(1)%a   = int(central_mass)
+        plasma_profiles_ids%ggd(i_slice)%neutral(i_neut)%element(1)%a   = nint(central_mass)
         plasma_profiles_ids%ggd(i_slice)%neutral(i_neut)%element(1)%z_n = 1
 
         ! --- Density in GGD
@@ -848,7 +848,7 @@ module mod_jorek2IMAS
     ! --- Set times
     allocate( spi%time(n_slice) )
     spi%time(i_slice) = time_SI 
-    rho0              = central_density * 1.d20 * central_mass * mass_proton
+    rho0              = central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT
     sqrt_mu0_rho0     = sqrt( mu_zero * rho0 )
 
     ! --- Loop over injectors
@@ -875,7 +875,7 @@ module mod_jorek2IMAS
       spi%injector(i_inj)%pellet%core%species(1)%density = spi_quantity(i_inj) / pellet_vol
 
       ! --- Background species
-      spi%injector(i_inj)%pellet%core%species(2)%a       = int(central_mass)
+      spi%injector(i_inj)%pellet%core%species(2)%a       = nint(central_mass)
       spi%injector(i_inj)%pellet%core%species(2)%z_n     = 1
       spi%injector(i_inj)%pellet%core%species(2)%density = spi_quantity_bg(i_inj) / pellet_vol
 
@@ -1060,7 +1060,7 @@ module mod_jorek2IMAS
     endif
  
     ! --- Normalization factors for IMAS
-    rho0               = central_density * 1.d20 * central_mass * mass_proton
+    rho0               = central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT
     sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
     sqrt_mu0_over_rho0 = sqrt( mu_zero / rho0 )
 
@@ -1137,7 +1137,7 @@ module mod_jorek2IMAS
     allocate( plasma_profiles_ids%time(n_slice) )
 
     ! --- Normalization factors for IMAS
-    rho0               = central_density * 1.d20 * central_mass * mass_proton
+    rho0               = central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT
     sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
     
     plasma_profiles_ids%ids_properties%homogeneous_time = IDS_TIME_MODE_HOMOGENEOUS     
@@ -1418,7 +1418,7 @@ module mod_jorek2IMAS
     allocate( equilibrium_ids%time(n_slice) )
 
     ! --- Normalization factors for IMAS
-    rho0               = central_density * 1.d20 * central_mass * mass_proton
+    rho0               = central_density * 1.d20 * central_mass * ATOMIC_MASS_UNIT
     sqrt_mu0_rho0      = sqrt( mu_zero * rho0 )
     
     equilibrium_ids%ids_properties%homogeneous_time = IDS_TIME_MODE_HOMOGENEOUS    
@@ -2556,29 +2556,6 @@ module mod_jorek2IMAS
 
   end subroutine rect_grid2ggd
 
-
-
-
-
-
-  ! --- Checks if a restart file exists in the current directory
-  logical function restart_file_exists(i_step)
-
-    use phys_module, only : rst_hdf5
-
-    implicit none
-
-    integer,  intent(in) :: i_step
-    character(len=64)    :: file_name
-
-    write(file_name,'(a,i5.5)') 'jorek', i_step
-    if ( rst_hdf5 .ne. 0 ) then
-      inquire (file=trim(file_name)//'.h5', exist=restart_file_exists)
-    else
-      inquire (file=trim(file_name)//'.rst', exist=restart_file_exists)
-    end if
-
-  end function restart_file_exists
 
 
 

@@ -242,7 +242,7 @@ module mod_expression
     call add(exprs_all, 'radiation   ', 'Radiation terms for bolometry diagnostic              ')
     call add(exprs_all, 'radiation_bg', 'Radiation terms from background impurities for bolometry diagnostic ')
 #endif
-#if (defined WITH_Neutrals) && (!defined WITH_Impurities)
+#if (defined WITH_Neutrals)
     call add(exprs_all, 'brem        ', 'Brem terms for bolometry diagnostic                   ')
     call add(exprs_all, 'line_rad    ', 'D neutral line radiation                              ')
     call add(exprs_all, 'bg_imp_rad  ', 'Background impurity radiation                          ')
@@ -283,6 +283,7 @@ module mod_expression
     call add(exprs_all_int, 'Part_in     ', 'Number of ions  (inside  LCFS)                        ')
     call add(exprs_all_int, 'Part_out    ', 'Number of ions  (outside LCFS)                        ')
     call add(exprs_all_int, 'NPart_tot   ', 'Total number of neutral particles                     ')
+    call add(exprs_all_int, 'ImPart_tot  ', 'Total number of impurity particles                    ')
     call add(exprs_all_int, 'Helicity_tot', 'Total magnetic helicity                               ')
     call add(exprs_all_int, 'Mag_work_tot', 'Total magnetic work = -int v dot(JxB) dV              ')
     call add(exprs_all_int, 'Thm_work_tot', 'Total thermal work  = int vpar dot grad p dV          ')
@@ -337,7 +338,6 @@ module mod_expression
     call add(exprs_all_int, 'LCFS_kappa  ', 'Elongation            (as in PPCF 55 (2013) 095009)   ')
     call add(exprs_all_int, 'LCFS_deltaU ', 'Upper triangularity   (as in PPCF 55 (2013) 095009)   ')
     call add(exprs_all_int, 'LCFS_deltaL ', 'Lower triangularity   (as in PPCF 55 (2013) 095009)   ')
-    call add(exprs_all_int, 'tot_radiated', 'Total radiated power by the main impurities           ')
     call add(exprs_all_int, 'saw_ene     ', 'SAW energy functional (linear MHD)                    ')
     call add(exprs_all_int, 'int_dBn_norm', 'Surface integral of Bnorm (bn in PoP 28 (2021) 032501)')    
 
@@ -643,7 +643,7 @@ module mod_expression
     real*8  :: Lrad_imp, r_imp_bg, frad_bg
     integer :: i_imp
 #endif
-#if (defined WITH_Neutrals) && (!defined WITH_Impurities)
+#if (defined WITH_Neutrals)
     real*8  :: Arad_bg, Brad_bg, Crad_bg
 #endif
     !   -Effective charge of all species
@@ -655,10 +655,13 @@ module mod_expression
     !   -Mass ratio between main ions and impurites (m_i/m_imp)
     real*8  :: m_i_over_m_imp
     !   -Mean impurity ionization state
-    real*8  :: Z_imp, T0_Zimp, alpha_Zimp
+    real*8  :: Z_imp, dZ_imp_dT, T0_Zimp, alpha_Zimp, eta_coef
+    real*8  :: Z_eff_imp
     !   -Coefficients related to Z_imp
-    real*8  :: alpha_imp
-    real*8  :: beta_imp
+    real*8  :: alpha_i, alpha_e, dalpha_e_dT, dalpha_e_dx, dalpha_e_dy
+    real*8  :: alpha_e_s, alpha_e_t, alpha_e_p, alpha_e_x, alpha_e_y
+    real*8  :: alpha_imp, dalpha_imp_dT, beta_imp, dbeta_imp_dT, dbeta_imp_dx, dbeta_imp_dy
+    
     !   -Radiation from injected impurities
     real*8  :: Lrad                                ! Radiation rate
     real*8  :: A0_rad, A1_rad, T1_rad, sig1_rad    ! Radiation rate parameters
@@ -701,6 +704,10 @@ module mod_expression
          m_i_over_m_imp = central_mass/40. ! Argon mass = 40 u 
        case('Ne')
          m_i_over_m_imp = central_mass/20. ! Neon mass = 20 u 
+       case('Fe')
+         m_i_over_m_imp = central_mass/56. ! Iron mass = 56 u
+       case('W')
+         m_i_over_m_imp = central_mass/184. ! Tungsten mass = 184 u
        case default
          write(*,*) 'ERROR: Unknown imp_type.'
          stop
@@ -1392,10 +1399,103 @@ module mod_expression
             ZKe_prof = ZK_prof
           end if
 
+#ifdef WITH_Impurities
+
+          Te_corr_eV   = Te0_corr/(EL_CHG*MU_ZERO*central_density*1.d20)  ! Te in eV
+          Te_eV = Te0/(EL_CHG*MU_ZERO*central_density * 1.d20)
+  
+          if (allocated(P_imp)) deallocate(P_imp)
+          allocate(P_imp(0:imp_adas(index_main_imp)%n_Z))
+          call imp_cor(index_main_imp)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ),&
+                                        p_out=P_imp,z_avg=Z_imp)
+    
+          r0_corr    = corr_neg_dens(r0,(/1.d-9,1.d-5/),1.d-3)
+          rimp0_corr = corr_neg_dens(rimp0,(/1.d-9,1.d-5 /),1.d-3)
+#ifdef WITH_TiTe
+          alpha_i       = m_i_over_m_imp - 1.
+          alpha_e       = m_i_over_m_imp*Z_imp - 1.
+  
+          ne_SI        = (r0_corr + alpha_e * rimp0_corr) * 1.d20 * central_density ! electron density (SI)
+          ne_JOREK     = r0_corr + alpha_e * rimp0_corr ! Electron density in JOREK unit
+          ne_JOREK     = corr_neg_dens(ne_JOREK,(/1.d-1,1.d-1/),1.d-3) ! Correction for negative electron density
+                                                               ! Too small rho_1 will cause a problem
+#else /* WITH_TiTe */
+          alpha_imp    = 0.5*m_i_over_m_imp*(Z_imp+1.) - 1.
+          beta_imp     = m_i_over_m_imp*Z_imp - 1.
+          ne_SI        = (r0_corr + beta_imp * rimp0_corr) * 1.d20 * central_density !electron density (SI)
+          ne_JOREK     = r0_corr + beta_imp * rimp0_corr ! Electron density in JOREK unit
+          ne_JOREK     = corr_neg_dens(ne_JOREK,(/1.d-1,1.d-1/),1.d-3) ! Correction for negative electron density
+                                                               ! Too small rho_1 will cause a problem
+#endif /* WITH_TiTe */
+
+          if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. rimp0 > 0.d0) then
+            Lrad = 0.
+            call radiation_function_linear(imp_adas(index_main_imp),imp_cor(index_main_imp),log10(ne_SI),   &
+                                           log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad)
+            Lrad = Lrad * m_i_over_m_imp ! Adjust since rimp0 is MASS density
+          else
+            Lrad = 0.
+          end if
+  
+          frad_bg = 0.
+          do i_imp = 1, n_adas
+            if (i_imp == index_main_imp) cycle
+            r_imp_bg = nimp_bg(i_imp) / (1.d20 * central_density)  ! Background impurity density in JU
+            if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. r_imp_bg > 0) then
+              Lrad_imp = 0.0
+              call radiation_function_linear(imp_adas(i_imp),imp_cor(i_imp),log10(ne_SI),   &
+                                             log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad_imp)
+              frad_bg = frad_bg + r_imp_bg * Lrad_imp 
+            else     
+              Lrad_imp = 0.
+              frad_bg = frad_bg
+            end if   
+          end do 
+
+          ! Calculate the effective charge of all species
+          Z_eff        = 0.
+
+          ! First get the value of Z_eff
+          Z_eff        = r0_corr - rimp0_corr
+          do ion_i=1, imp_adas(index_main_imp)%n_Z
+            Z_eff      = Z_eff + m_i_over_m_imp * rimp0_corr * P_imp(ion_i) * real(ion_i,8)**2
+          end do
+          Z_eff         = Z_eff / ne_JOREK
+          if (Z_eff < 1.) Z_eff = 1.
+          if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
+  
+#endif
+
+          if ( .not. with_impurities ) then 
+            Z_eff      = 1
+            r0_corr    = corr_neg_dens(r0)
+            rimp0      = 0.d0
+            rimp0_corr = 0.d0
+            beta_imp   = 0.d0
+          endif
+
           ! --- Fluxes 
-          pres_flux_par      =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot                  !  p v_par
-          pres_flux_par_norm =  pres_flux_par * Bnorm / Btot                             !  p v_par·n
-          pres_flux_tot_norm =  gamma/(gamma-1.d0) * r0 * T0 * (VR*nmlR + VZ*nmlZ)       !  p v·n
+          if (with_impurities) then
+            if (with_TiTe) then
+              pres_flux_par      =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * ((r0+alpha_e*rimp0) * Te0 + (r0+alpha_i*rimp0) * Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
+            else
+              pres_flux_par      =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * (r0+alpha_imp*rimp0) * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
+            end if !/ with_TiTe
+          else
+            if (with_TiTe) then
+              pres_flux_par      =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * r0 * (Te0 + Ti0) * (VR*nmlR + VZ*nmlZ)              !  p v·n
+            else
+              pres_flux_par      =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot                         !  p v_par
+              pres_flux_par_norm =  gamma/(gamma-1.d0) * r0 * T0 * Vpar_tot * Bnorm / Btot          !  p v_par·n
+              pres_flux_tot_norm =  gamma/(gamma-1.d0) * r0 * T0 * (VR*nmlR + VZ*nmlZ)              !  p v·n
+            end if !/ with_TiTe
+          end if ! /with_impurities
 
           kin_flux_par      = 0.5d0*r0* (VR*VR + VZ*VZ + V_phi*V_phi)* Vpar_tot          !  0.5 nv^2 v_par
           kin_flux_par_norm = kin_flux_par * Bnorm / Btot                                !  0.5 nv^2 v_par·n   
@@ -1505,9 +1605,9 @@ module mod_expression
           ln_Lambda0 = 14.9 - 0.5 * log( ne0_20 ) + log( Te0_eV / 1000.d0 ) ! Eq. (2.7) at thermal speeds
           ln_Lambda  = 14.6 + 0.5 * log( Te0_eV / ne0_20 )                  ! Eq. (2.9) at relativistic energies
                   
-          E_crit = C_LIGHT**2 * EL_CHG**3 * ln_Lambda * MU_ZERO**2.5 * (central_density*1.d20*central_mass*MASS_PROTON)**1.5 * r0 / ( 4 * PI * MASS_ELECTRON * MASS_PROTON * central_mass )
+          E_crit = C_LIGHT**2 * EL_CHG**3 * ln_Lambda * MU_ZERO**2.5 * (central_density*1.d20*central_mass*ATOMIC_MASS_UNIT)**1.5 * r0 / ( 4 * PI * MASS_ELECTRON * ATOMIC_MASS_UNIT * central_mass )
           
-          E_dreicer = EL_CHG**3 * ln_Lambda0 * MU_ZERO**1.5 * (central_density*1.d20*central_mass*MASS_PROTON)**2.5 * r0 / ( 2.d0 * PI * EPS_ZERO**2 * (MASS_PROTON*central_mass)**2 * T0 )
+          E_dreicer = EL_CHG**3 * ln_Lambda0 * MU_ZERO**1.5 * (central_density*1.d20*central_mass*ATOMIC_MASS_UNIT)**2.5 * r0 / ( 2.d0 * PI * EPS_ZERO**2 * (ATOMIC_MASS_UNIT*central_mass)**2 * T0 )
           
 #if JOREK_MODEL >= 303
           if (bootstrap) then
@@ -1559,7 +1659,7 @@ module mod_expression
         if ( units == SI_UNITS ) then
           frad_bg = nimp_bg(1)*Arad_bg*exp(-((log(Te_corr_eV)-log(Brad_bg))**2.)/Crad_bg**2.)
         else if ( units == JOREK_UNITS ) then
-          frad_bg = (2./3.)*(1./(central_mass*MASS_PROTON))*((MU_ZERO*central_mass*MASS_PROTON*central_density*1.d20)**(1.5d0))*nimp_bg(1)*Arad_bg*exp(-((log(Te_corr_eV)-log(Brad_bg))**2.)/Crad_bg**2.)
+          frad_bg = (2./3.)*(1./(central_mass*ATOMIC_MASS_UNIT))*((MU_ZERO*central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**(1.5d0))*nimp_bg(1)*Arad_bg*exp(-((log(Te_corr_eV)-log(Brad_bg))**2.)/Crad_bg**2.)
         end if
       else
         write(*,*) "WARNING: hard-coded fitting doesn't exist for  ", trim(imp_type(1)), ", use open adas instead!"
@@ -1568,70 +1668,6 @@ module mod_expression
     end if  
 
 #endif
-
-#ifdef WITH_Impurities
-
-          Te_corr_eV   = Te0_corr/(EL_CHG*MU_ZERO*central_density*1.d20)  ! Te in eV
-          Te_eV = Te0/(EL_CHG*MU_ZERO*central_density * 1.d20)
-  
-          if (allocated(P_imp)) deallocate(P_imp)
-          allocate(P_imp(0:imp_adas(index_main_imp)%n_Z))
-
-          call imp_cor(index_main_imp)%interp_linear(density=20.,temperature=log10(Te_corr_eV*EL_CHG/K_BOLTZ),&
-                                     p_out=P_imp, z_avg=Z_imp)
-
-          alpha_imp = 0.5*m_i_over_m_imp*(Z_imp+1.) - 1.
-          beta_imp  = m_i_over_m_imp*Z_imp - 1.
-                  
-          r0_corr    = corr_neg_dens(r0,(/1.d-9,1.d-5/),1.d-3)
-          rimp0_corr = corr_neg_dens(rimp0,(/1.d-9,1.d-5 /),1.d-3)
-          ne_SI   = (r0_corr + beta_imp * rimp0_corr) * 1.d20 * central_density ! electron density (SI)
-
-          if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. rimp0 > 0.d0) then
-            Lrad = 0.
-            call radiation_function_linear(imp_adas(index_main_imp),imp_cor(index_main_imp),log10(ne_SI),   &
-                                           log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad)
-            Lrad = Lrad * m_i_over_m_imp ! Adjust since rimp0 is MASS density
-          else
-            Lrad = 0.
-          end if
-  
-          frad_bg = 0.
-          do i_imp = 1, n_adas
-            if (i_imp == index_main_imp) cycle
-            r_imp_bg = nimp_bg(i_imp) / (1.d20 * central_density)  ! Background impurity density in JU
-            if (ne_SI > ne_SI_min .and. Te_eV > Te_eV_min .and. r_imp_bg > 0) then
-              Lrad_imp = 0.0
-              call radiation_function_linear(imp_adas(i_imp),imp_cor(i_imp),log10(ne_SI),   &
-                                             log10(Te_corr_eV*EL_CHG/K_BOLTZ),.true.,Lrad_imp)
-              frad_bg = frad_bg + r_imp_bg * Lrad_imp 
-            else     
-              Lrad_imp = 0.
-              frad_bg = frad_bg
-            end if   
-          end do 
-          ne_JOREK = ne_SI / 1.d20 / central_density ! Put ne_SI back to JOREK units to have consistent fact_ne factor with other models (see below)
-
-          ! Calculate the effective charge of all species
-          Z_eff        = 0.
-
-          ! First get the value of Z_eff
-          Z_eff        = r0_corr - rimp0_corr
-          do ion_i=1, imp_adas(index_main_imp)%n_Z
-            Z_eff      = Z_eff + m_i_over_m_imp * rimp0_corr * P_imp(ion_i) * real(ion_i,8)**2
-          end do
-          Z_eff         = Z_eff / ne_JOREK
-          if (Z_eff < 1.) Z_eff = 1.
-          if (Z_eff > imp_adas(1)%n_Z)  Z_eff = imp_adas(1)%n_Z
-  
-#endif
-          if ( .not. with_impurities ) then 
-            Z_eff      = 1
-            r0_corr    = corr_neg_dens(r0)
-            rimp0      = 0.d0
-            rimp0_corr = 0.d0
-            beta_imp   = 0.d0
-          endif
 
           call coulomb_log_ei(T_or_Te, T_or_Te_corr, r0, r0_corr, rimp0, rimp0_corr, beta_imp, ln_Lambda)
           call resistivity(eta, T_or_Te, T_or_Te_corr, T_max_eta, T_or_Te_0, Z_eff, ln_Lambda, eta_T)          
@@ -1647,16 +1683,16 @@ module mod_expression
 
           ! --- Factors for switching between JOREK normalized and SI units.
           if ( units == SI_UNITS ) then
-             rho_norm      = central_density *1.d20 * central_mass * mass_proton   ! rho_0 = central mass density
+             rho_norm      = central_density *1.d20 * central_mass * ATOMIC_MASS_UNIT   ! rho_0 = central mass density
              fact_time     = sqrt(MU_zero*rho_norm)                                ! time factor
              fact_mu_zero  = MU_zero                                               ! division by mu_zero for P and J
              fact_ne       = central_density * 1.d20                               ! factor for n_e
-             fact_rho      = central_density * 1.d20 * central_mass*MASS_PROTON    ! factor for rho
+             fact_rho      = central_density * 1.d20 * central_mass*ATOMIC_MASS_UNIT    ! factor for rho
              fact_T        = 1.d0 / ( MU_zero * central_density * 1.d20 * EL_CHG ) ! factor for T
              fact_vpar     = sqrt(BB2) / fact_time                                 ! factor for Vpar
              fact_resistiv = sqrt ( MU_zero / rho_norm )                           ! factor for eta == 1 / (factor for visco)
              fact_Er       = F0 / fact_time
-             fact_rad      = 1.d0/(2.d0/3.d0*MU_ZERO**1.5d0*(central_mass*MASS_PROTON*central_density*1.d20)**0.5d0) ! factor for Prad (not Lrad)
+             fact_rad      = 1.d0/(2.d0/3.d0*MU_ZERO**1.5d0*(central_mass*ATOMIC_MASS_UNIT*central_density*1.d20)**0.5d0) ! factor for Prad (not Lrad)
              fact_flux     = 1.d0/(mu_zero*fact_time)  
              fact_ffp_si   = -1.d0   ! En SI:  J_phi * mu_0 * R ~ FF'_SI, then FF'_SI = -FF'_JOREK
           else if ( units == JOREK_UNITS ) then
@@ -2113,6 +2149,13 @@ module mod_expression
 
               case ( 'radiation_bg' )
                 res = (r0_corr + beta_imp*rimp0_corr) * frad_bg * fact_rad
+#if (defined WITH_Neutrals)
+              case ( 'brem' )
+                res = (r0_corr + beta_imp*rimp0_corr)**2 * LradDcont_T * fact_rad
+
+              case ('line_rad')
+                res = (r0_corr + beta_imp*rimp0_corr) * max(rn0,0.d0) * LradDrays_T * fact_rad
+#endif
 #endif
 
               case default

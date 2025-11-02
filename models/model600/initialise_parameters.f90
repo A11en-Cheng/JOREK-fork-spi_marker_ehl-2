@@ -23,6 +23,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 rst_hdf5, rst_hdf5_version, keep_current_prof,      &
                 eta, visco, visco_par, visco_par_par,               &
                 restart, rst_format, regrid, bootstrap, write_ps,   &
+                bootstrap_psin_cutoff,                              &
                 regrid_from_rz,                                     &
                 n_R, n_Z, n_radial, n_pol, n_tht, n_flux,           &
                 n_open, n_private, n_leg, n_leg_out, n_ext,         &
@@ -105,6 +106,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 wall_resistivity, wall_resistivity_fact,            &
                 bc_natural_open,                                    &
                 use_mumps_eq, use_pastix_eq, use_strumpack_eq,      &
+                use_mumps_prj, use_pastix_prj, use_strumpack_prj,   &
                 use_mumps, mumps_ordering,                          &
                 use_BLR_compression, epsilon_BLR, just_in_time_BLR, &
                 use_pastix, use_murge, use_murge_element, use_wsmp, &
@@ -161,8 +163,10 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 spi_Vel_RxZref, spi_quantity, spi_abl_model,        &
                 spi_rkt_model,                                      &
                 spi_rkt_str_R, spi_rkt_str_Z, spi_rkt_str_phi,      &
+                nonlocal_abl, n_nonlocal_array,                     &
                 ns_radius_ratio, ns_radius_min, spi_angle,          &
-                spi_L_inj, spi_L_inj_diff, spi_abl_mag_reduction,   &
+                spi_L_inj, spi_L_inj_diff, restart_spi,             &
+                spi_abl_mag_reduction,                              &
                 drift_distance, energy_teleported,                  &
                 K_Dmv, A_Dmv, L_tube, V_Dmv, P_Dmv,                 &
                 spi_Vel_diff, t_ns, JET_MGI, ASDEX_MGI,             &
@@ -173,7 +177,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 RMP_psi_cos_file, RMP_psi_sin_file,                 &
                 Number_RMP_harmonics,RMP_har_cos_spectrum,          &
                 RMP_har_sin_spectrum, imp_type, adas_dir, n_adas,   &
-                index_main_imp,                                     &
+                index_main_imp, diff_diffusive_flux,                &
                 amix, amix_freeb, equil_accuracy, use_imp_adas,     &
                 equil_accuracy_freeb, current_ref, FB_Ip_position,  &
                 FB_Ip_integral, Z_axis_ref, FB_Zaxis_position,      &
@@ -196,11 +200,11 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 tgnum_T, tgnum_Ti, tgnum_Te, tgnum_vpar, tgnum_rhon,&
                 tgnum_nre, tgnum_AR, tgnum_AZ, tgnum_A3,            &
                 n_particles, tstep_particles, nstep_particles,      &
-                nsubstep_particles,                                 &
+                nsubstep_particles, restart_particles,              &
                 filter_perp,    filter_hyper,    filter_par,        &
                 filter_perp_n0, filter_hyper_n0, filter_par_n0,     &
                 use_kn_cx, use_kn_sputtering, use_kn_ionisation,             &
-                use_ncs, use_pcs, use_ccs,                          &
+                use_ncs, use_pcs, use_ccs, use_marker, use_rcs,     &
                 min_sheath_angle, bcs,                              &
                 use_sc, add_sources_in_sc, visco_sc_num,            &
                 D_perp_sc_num, D_par_sc_num, ZK_perp_sc_num,        &
@@ -218,7 +222,12 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 export_polar_boundary, xpoint_search_tries,         &
                 use_manual_random_seed, manual_seed,                &
                 use_fixed_rng_value, fixed_rng_value,               &            
-                loop_voltage, export_aux_node_list
+                loop_voltage, export_aux_node_list,                 &
+                use_puffing, fueling_rate, valve_r,                 &
+                R_laser_loc, Z_laser_loc, PHI_laser_loc,            &
+                initial_E, puffing_direction, puffing_timestep,     &
+                puff_starttime, puffingtime,                        &
+                phys_particles_puff
 
 
 if (my_id .eq. 0) then
@@ -243,6 +252,11 @@ if (my_id .eq. 0) then
   else
     read(5,in1)
   endif
+
+  if ( ( n_tor .eq. 1 ) .and. freeboundary .and. (.not. freeboundary_equil) ) then
+    write(*,*) 'WARNING: The parameter freeboundary is automatically changed to .false. since n_tor==1 and freeboundary_equil is .false.'
+    freeboundary= .false.
+  end if
 
   ! --- Calculate normalisation factor for MGI source (related to its toroidal shape)
   ns_tor_norm = ns_deltaphi * PI**0.5 * ERF(PI/ns_deltaphi)
@@ -365,8 +379,13 @@ if ( my_id == 0 ) then
   if (using_spi) call init_spi_all()
   ! ---- This is an ad hoc way to stop duplication of neutral source and ionized main species source, should find a permanenty solution later
 
-  if (with_impurities .and. with_neutrals .and. using_spi .and. (maxval(spi_quantity_bg)>0.0)) then
-    write(*,*) "WARNNING! Currently do not support both with_neutrals and with impurities enabled at the same time while injecting background species! Should be fixed sonn. EXITING!"
+  if (use_marker .and. with_neutrals .and. using_spi .and. (maxval(spi_quantity_bg)>0.0)) then
+    write(*,*) "WARNNING! Currently do not support both with_neutrals and with marker impurities enabled at the same time while injecting background species! Should be fixed sonn. EXITING!"
+    stop
+  endif
+
+  if (use_marker .and. use_rcs) then
+    write(*,*) "WARNNING! Currently do not support both use_marker and use_rcs enabled at the same time! Those are two distinct particle approaches and should not co-exist. EXITING!"
     stop
   endif
 
