@@ -796,12 +796,12 @@ module pellet_module
 
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
-        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
         spi_Acc_Z_tmp   =   spi_rkt_str_Z(i_inj)
-        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
         spi_Acc_RxZ_tmp =   spi_rkt_str_R(i_inj)*sin(spi_delta_phi) &
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
-        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 4) then ! Chalmers rocket effect, see PHYSICAL REVIEW LETTERS 134, 035101 (2025)
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
@@ -832,12 +832,12 @@ module pellet_module
 
         spi_Acc_R_tmp   =   p_asymm(1)*cos(spi_delta_phi) &
                           - p_asymm(3)*sin(spi_delta_phi)
-        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
         spi_Acc_Z_tmp   =   p_asymm(2)
-        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
         spi_Acc_RxZ_tmp =   p_asymm(1)*sin(spi_delta_phi) &
                           + p_asymm(3)*cos(spi_delta_phi)
-        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 5) then ! PELOTON rocket effect scaling law, see IDM UID CC7AWD
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
@@ -850,12 +850,12 @@ module pellet_module
 
         spi_Acc_R_tmp   =   p_asymm(1)*cos(spi_delta_phi) &
                           - p_asymm(3)*sin(spi_delta_phi)
-        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
         spi_Acc_Z_tmp   =   p_asymm(2)
-        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
         spi_Acc_RxZ_tmp =   p_asymm(1)*sin(spi_delta_phi) &
                           + p_asymm(3)*cos(spi_delta_phi)
-        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (4*Pi/3)*(pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
       end if
 
       pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R + spi_Acc_R_tmp * tstep * t_norm
