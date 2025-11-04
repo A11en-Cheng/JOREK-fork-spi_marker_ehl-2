@@ -844,9 +844,9 @@ module pellet_module
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
                             * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
 
-        p_asymm(1) = spi_rkt_str_R(i_inj)
-        p_asymm(2) = spi_rkt_str_Z(i_inj)
-        p_asymm(3) = spi_rkt_str_phi(i_inj)
+        p_asymm(1) = (1.42 * 1.d5) * (T_eV / 2.d3)**1.22 * (ne_SI/1.d20)**0.25 ! In Pa
+        p_asymm(2) = 0.d0
+        p_asymm(3) = 0.d0
 
         spi_Acc_R_tmp   =   p_asymm(1)*cos(spi_delta_phi) &
                           - p_asymm(3)*sin(spi_delta_phi)
