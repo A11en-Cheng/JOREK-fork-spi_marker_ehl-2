@@ -779,7 +779,7 @@ module pellet_module
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
-                            * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
+                            * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
         spi_Acc_R_tmp   =   spi_Acc_R_tmp / spi_frag_mass_tmp
@@ -792,7 +792,7 @@ module pellet_module
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
-                            * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
+                            * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
 
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
@@ -806,7 +806,7 @@ module pellet_module
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
-                            * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
+                            * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
 
         chalmers_a = 2.45 ! Zeroth order value, see PRL 134, 035101 (2025)
         chalmers_b = -1.18! Zeroth order value, see PRL 134, 035101 (2025)
@@ -842,7 +842,7 @@ module pellet_module
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
-                            * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
+                            * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
 
         p_asymm(1) = (1.42 * 1.d5) * (T_eV / 2.d3)**1.22 * (ne_SI/1.d20)**0.25 ! In Pa
         p_asymm(2) = 0.d0
