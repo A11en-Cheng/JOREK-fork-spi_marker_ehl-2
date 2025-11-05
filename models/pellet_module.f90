@@ -778,7 +778,7 @@ module pellet_module
       else if (spi_rkt_model(i_inj) == 2) then ! Constant force
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
-        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
                           - spi_rkt_str_phi(i_inj)*sin(spi_delta_phi)
@@ -791,7 +791,7 @@ module pellet_module
       else if (spi_rkt_model(i_inj) == 3) then ! Constant pressure asymmetry, see Eq.(2) of PHYSICAL REVIEW LETTERS 134, 035101 (2025)
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
-        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
 
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
@@ -805,7 +805,7 @@ module pellet_module
       else if (spi_rkt_model(i_inj) == 4) then ! Chalmers rocket effect, see PHYSICAL REVIEW LETTERS 134, 035101 (2025)
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
-        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
 
         chalmers_a = 2.45 ! Zeroth order value, see PRL 134, 035101 (2025)
@@ -817,7 +817,7 @@ module pellet_module
         E_bc0      = 2. * T_eV ! In eV
         q_bc0      = 2. * ne_SI * Sqrt((T_eV*EL_CHG)**3/(2*PI*MASS_ELECTRON)) ! In SI unit
 
-        p_star     = f_p * (E_bc0)**(1.7/3.) * (mass_eff*(Q_frac*q_bc0)**2/(a_star*max(pellets(i_p)%spi_radius,1.d-4)))**(1./3.)
+        p_star     = f_p * (E_bc0)**(1.7/3.) * (mass_eff*(Q_frac*q_bc0)**2/(a_star*max(pellets(i_p)%spi_radius,1.d-5)))**(1./3.)
 
         E_rel(1)   = pellets(i_p)%spi_radius * T_eV_R / max(T_eV,1.)
         E_rel(2)   = pellets(i_p)%spi_radius * T_eV_Z / max(T_eV,1.)
@@ -841,7 +841,7 @@ module pellet_module
       else if (spi_rkt_model(i_inj) == 5) then ! PELOTON rocket effect scaling law, see IDM UID CC7AWD
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
                             +(1.-pellets(i_p)%spi_species)*central_mass
-        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-4)**3.)                &
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * MASS_PROTON * spi_density_tmp * 1.d20
 
         p_asymm(1) = (1.42 * 1.d5) * (T_eV / 2.d3)**1.22 * (ne_SI/1.d20)**0.25 ! In Pa
