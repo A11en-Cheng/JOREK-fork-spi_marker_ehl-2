@@ -396,6 +396,8 @@ module mod_injection_source
                 source_tmp_drift = source_tmp
               end if 
             end if
+          else
+            cycle
           end if
 
           ! Converting number density into mass density for each species respectively
