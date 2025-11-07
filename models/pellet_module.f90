@@ -311,6 +311,8 @@ module pellet_module
         if (pellets(i_p)%spi_radius < 0.d0) then
           pellets(i_p)%spi_radius = 0.d0
         end if
+      else
+        cycle
       end if
   
       if (my_id == 0.) then
@@ -765,7 +767,7 @@ module pellet_module
 
 
 !> Note that the velocity R, Z, RxZ is defined by the coordinate at the INJECTOR location, essentially a Cartisian coordinate, while the R, Z, phi of the rocket effect is defined by the coordinate at each FRAGMENT location, since users might be interested in the rocket effect along the local major radial direction. This necessitate a coordinate conversion here!      
-      if (spi_rkt_model(i_inj) == 0) then !No rocket effect
+      if (spi_rkt_model(i_inj) == 0 .or. pellets(i_p)%spi_radius <= 0.0) then !No rocket effect
         spi_Acc_R_tmp   =   0.d0
         spi_Acc_Z_tmp   =   0.d0
         spi_Acc_RxZ_tmp =   0.d0
