@@ -220,7 +220,7 @@ module pellet_module
     real*8  :: s_out,t_out
     
     real*8  :: n_SI, T_eV, n_corr, T_corr, n_imp_SI, ne_SI, Psi_spi, spi_abl_nl
-    real*8  :: T_eV_nl, ne_SI_nl
+    real*8  :: T_eV_nl, ne_SI_nl, T_thresh, tau_abl
     real*8  :: t_norm, B0, nu
     real*8  :: spi_delta_phi, spi_Vel_R_tmp, spi_Vel_phi_tmp, spi_phi_inj
     real*8  :: spi_Acc_R_tmp, spi_Acc_Z_tmp, spi_Acc_RxZ_tmp
@@ -744,6 +744,14 @@ module pellet_module
           B0 = abs(F0 / R_geo)
           nu = 0.843
           if (B0 > 2. .and. spi_abl_mag_reduction) pellets(i_p)%spi_abl = pellets(i_p)%spi_abl * (2./B0)**nu
+        else if (spi_abl_model(i_inj) == 4) then ! An artificial ablation model used only for the pseudo-MGI fragments
+          T_thresh = 13.6 ! The deuterium ionization energy 
+          tau_abl = 1.d-5 ! Characteristic ionization time
+          if (T_eV >= T_thresh) then
+            pellets(i_p)%spi_abl = (4.0 * PI/3.0) * spi_density_tmp * pellets(i_p)%spi_radius**3/tau_abl
+          else
+            pellets(i_p)%spi_abl = 0.0
+          endif
         else 
           write(*,*) "Unknown ablation model, terminating now!"
           stop
