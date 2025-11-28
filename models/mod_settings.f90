@@ -9,10 +9,10 @@ integer, parameter :: n_period          = 6      !< periodicity in toroidal dire
 integer, parameter :: n_coord_period    = 1      !< periodicity of the device in toroidal direction: equivalent to number of field periods
 integer, parameter :: n_plane           = 4      !< number of toroidal angles
 integer, parameter :: n_order           = 3      !< order of the polynomial basis
-integer, parameter :: n_nodes_max       = 60001  !< maximum number of nodes
-integer, parameter :: n_elements_max    = 60001  !< maximum number of elements
-integer, parameter :: n_boundary_max    = 1001   !< maximum number of boundary elements
-integer, parameter :: n_pieces_max      = 6001   !< maximum number of line pieces describing a flux surface
+integer, parameter :: n_nodes_max       = 600001  !< maximum number of nodes
+integer, parameter :: n_elements_max    = 600001  !< maximum number of elements
+integer, parameter :: n_boundary_max    = 10001   !< maximum number of boundary elements
+integer, parameter :: n_pieces_max      = 60001   !< maximum number of line pieces describing a flux surface
 
 ! ##################################################################################################
 ! ####  @USERS: Please do not change below this line ###############################################

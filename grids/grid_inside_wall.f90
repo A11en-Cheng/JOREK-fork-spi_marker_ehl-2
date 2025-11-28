@@ -164,6 +164,9 @@ subroutine grid_inside_wall(n_R,n_Z,R_begin,R_end,Z_begin,Z_end,boundary,node_li
     call create_grid_inside_wall_MASTU(nR, nZ, nR_grid(1:nZ+1,1), node_index, Zlines, R_grid, Z_grid, n_elm)
   else if (tokamak_device(1:4) .eq. 'STEP') then
     call create_grid_inside_wall_STEP(nR, nZ, nR_grid, node_index, R_grid, Z_grid, n_elm)
+  else if (tokamak_device(1:5) .eq. 'EHL-2') then
+    nR_grid(1:nZ+1,2) = 0
+    call create_grid_inside_wall_EHL2(nR, nZ, nR_grid, node_index, Zlines, R_grid, Z_grid, n_elm)
   else
     call create_grid_inside_wall_usual(nR, nZ, nR_grid, node_index, Zlines, R_grid, Z_grid, n_elm)
   endif
@@ -172,16 +175,19 @@ subroutine grid_inside_wall(n_R,n_Z,R_begin,R_end,Z_begin,Z_end,boundary,node_li
   
   ! --- Convert into jorek grid
   node_list%n_nodes = 0
+  !Traverse all RZ points. For each n_l%n_nodes corresponds a R-Z point
   do i = 1,nZ+1
+    !write(*,*) i, nR_grid(i,1), nR_grid(i,2)
     do j = 1,nR_grid(i,1)+nR_grid(i,2)
+      !write(*,*) j,i
       node_list%n_nodes = node_list%n_nodes + 1
-      elm_node_index(j,i) = node_list%n_nodes
+      elm_node_index(j,i) = node_list%n_nodes ! elm_n_i corresponds n_nodes
       ! --- Position
       node_list%node(node_list%n_nodes)%x(1,1,1) = R_grid(j,i)
       node_list%node(node_list%n_nodes)%x(1,1,2) = Z_grid(j,i)
     enddo
   enddo
-      
+  write(*,*) "passed"
   element_list%n_elements = n_elm
   do i = 1, n_nodes_max
     node_list%node(i)%values(1,1,1) = 0.d0
@@ -498,14 +504,14 @@ subroutine RintersectPolygon(N, rpol, zpol, Rmin, Rmax, Z, accuracy, new_Rmin, n
     endif
   enddo
   
-  ! --- We do it again if we have two intersection pairs
+  ! --- We do it again if we have two intersection pairs scan from the other side
   new_Rmin2 = -1.e10
   new_Rmax2 = -1.e10
   
   ! --- Find entry and exit points of horizontal line (in/out of polygon)
   inside = 0
   do i = 1,n_iter
-    R_iter(i) = Rmax + real(i-1)/real(n_iter-1) * (Rmin-Rmax)
+    R_iter(i) = Rmax + real(i-1)/real(n_iter-1) * (Rmin-Rmax) !start with rmax!
   enddo
   z_tmp  = Z
   i1 = -1
@@ -702,6 +708,7 @@ subroutine create_grid_inside_wall_usual(nR, nZ, nR_grid, node_index, Zlines, R_
   ! --- First lower part
   nR_save = nR
   sig_Z = 0.3
+  Zlines = 0.
   call meshac2(nZ/2+1,Zlines,1.d0,9999.d0,sig_Z,9999.d0,0.3,1.0d0)
   Zlines = Zlines * Zmin
   width_prev1    = 0.0
@@ -1564,6 +1571,196 @@ subroutine create_grid_inside_wall_STEP(nR, nZ, nR_grid, node_index, R_grid, Z_g
   return
 
 end subroutine create_grid_inside_wall_STEP
+
+
+subroutine create_grid_inside_wall_EHL2(nR, nZ, nR_grid, node_index, Zlines, R_grid, Z_grid, n_elm)
+
+  ! --- build a grid inside wall for EHL-2.
+  ! --- no split on diverter, but boot structures exist
+  ! --- trying to build adaptive wall with possible xpoint
+  ! --- xpoint(s) should be(are(is)) given in namelist, as xpoint guess
+  ! --- MESHAC2 is to be utilized in Z dir and R dir (Z_dir done)
+  
+  use grid_xpoint_data, only: n_wall, R_wall, Z_wall
+  use phys_module, only : RZ_grid_jump_thres
+
+  implicit none
+
+  ! --- input vars
+  integer, intent(inout)  :: nR, nZ, n_elm
+  integer, intent(inout)  :: nR_grid(nZ+1),node_index(4*nR*nZ,4,2)
+  real*8,  intent(inout)  :: R_grid(4*nR,nZ+1),Z_grid(4*nR,nZ+1), Zlines(nZ/2+1)
+
+  ! --- local vars
+  integer :: i, j, n_off, nR_save
+  integer :: nr_tmp, i_elm, i_node, elm_count
+
+  real*8 :: R_min, R_max, R_xpt_guess(2), nR_line(nZ/2+1)
+  real*8 :: Z_min, Z_max, Z_xpt_guess(2)
+  real*8 :: sig_Z(2)
+  real*8 :: sig_R(2), r_min1, r_max1, r_min2, r_max2
+  real*8 :: accuracy, width(2), width_prev(2), i_start, height
+  real*8 :: diff, jump_threshold
+  
+
+  write(*,*)'Building grid inside wall for EHL-2'
+
+  accuracy = 1.d-5
+  R_xpt_guess = ( 0.826d0, 0.826d0)
+  Z_xpt_guess = (-1.401d0, 1.401d0)
+
+  ! --- We cut the domain with horizontal lines
+  R_min = minval(R_wall(1:n_wall))-1.e-3 ; R_max = maxval(R_wall(1:n_wall))+1.e-3 ! want them slightly outside wall
+  Z_min = minval(Z_wall(1:n_wall))+1.e-3 ; Z_max = maxval(Z_wall(1:n_wall))-1.e-3 ! want them slightly inside wall
+  write(*,*)'Rminmax:',R_min, R_max
+  write(*,*)'Zminmax:',Z_min, Z_max
+
+  ! --- for a more more concentrated part around xpoint, we want to construct an 
+  ! --- adaptive grid. 
+
+  ! --- lower first. For the construction from mid plane to the lower limit(Z_min),
+  ! --- since removing points is easier than adding points around the bdy separatrix.
+  ! Zlines first
+  height = abs(Z_max-Z_min)/2
+  Z_xpt_guess = abs(Z_xpt_guess/height)
+  width(2) = abs(R_max-R_min)
+  R_xpt_guess = abs(R_xpt_guess/width(2))
+  !write(*,*) R_xpt_guess, Z_xpt_guess
+  sig_Z = 0.1
+  Zlines = 0.  ! to avoid the meshac2 int lower limit be 0, ensure normalization between [0,1].
+  call meshac2(nZ/2+1,Zlines,Z_xpt_guess(1),9999.d0,sig_Z(1),9999.d0,0.8,1.0d0)
+  !open(66,file= 'meshac_zlines.dat')
+  !do i=1, nZ/2+1
+    !write(66,*) i,Zlines(i)
+  !enddo
+  !close(66)
+  Zlines = Zlines * Z_min !lower, so Z_min
+  width_prev = 0.d0
+  jump_threshold = RZ_grid_jump_thres
+
+  !open(67,file='line_diag.dat')
+  do i = 1, nZ/2+1
+    n_off = nZ/2
+    ! find intersection of zlines and wall
+    call RintersectPolygon(n_wall, R_wall(1:n_wall), Z_wall(1:n_wall), R_min, R_max, Zlines(i), accuracy, r_min1, r_max1, r_min2, r_max2)
+    width(1) = r_max1-r_min1
+    !width(2) = r_max2-r_min2 !should be of no use for now, since no diverter split. 
+    ! use width to judge
+    if (i.eq.1) then
+      diff = jump_threshold*0.99
+    else
+      diff = width(1)/width_prev(1)
+    endif
+
+    ! first line
+    if (i.eq.1) then
+      nR_line(i)=nR
+    else if (diff .le. jump_threshold) then      
+      nR_line(i) = int(real(nR_line(i-1))*diff) +1
+    else
+      nR_line(i) = nR_line(i-1)
+    endif 
+
+    nR_grid(n_off+i) = nR_line(i)
+    !write(*,*) i, nR_line(i), diff
+    do j=1, nR_grid(n_off+i)
+      !write(*,*) i,j, r_min1, width(1), real(nR_grid(n_off+i)), real(j-1)/real(nR_grid(n_off+i)-1.), width
+      R_grid(j,n_off+i) = r_min1 + real(j-1)/real(nR_grid(n_off+i)-1.) * width(1)
+      Z_grid(j,n_off+i) = Zlines(i) 
+      !write(67,*) R_grid(j,n_off+i), Z_grid(j,n_off+i)
+    enddo    
+    
+    !write(67,*) i, n_off+i ,nR_line(i), r_min1, width(1), width_prev(1)
+    width_prev = width
+  enddo
+  write(*,*)'Finished lower part of grid'
+  
+
+  !upper part
+
+  !Z_distribution
+  Zlines = 0.
+  call meshac2(nZ/2+1,Zlines,Z_xpt_guess(2),9999.d0,sig_Z(2),9999.d0,0.8,1.0d0)
+  Zlines = Zlines*Z_max
+  width_prev = 0.d0
+
+  do i=1, nZ/2
+    n_off = nZ/2+1
+    call RintersectPolygon(n_wall, R_wall(1:n_wall), Z_wall(1:n_wall), R_min, R_max, Zlines(i+1), accuracy, r_min1, r_max1, r_min2, r_max2)
+    width(1) = r_max1-r_min1
+    width(2) = r_max2-r_min2 !should be of no use at now, since no diverter split. 
+    ! use width to judge
+    if (i.eq.1) then
+      diff = jump_threshold*0.99
+    else
+      diff = width(1)/width_prev(1)
+    endif
+
+    ! first line
+    if (i.eq.1) then
+      nR_line(i)=nR
+    else if (diff .le. jump_threshold) then      
+      nR_line(i) = int(real(nR_line(i-1))*diff) +1
+    else
+      nR_line(i) = nR_line(i-1)
+    endif
+    !R_distribution
+
+
+
+    nR_grid(n_off-i) = nR_line(i)
+
+
+    do j=1, nR_grid(n_off-i)
+      R_grid(j,n_off-i) = r_min1 + real(j-1)/real(nR_grid(n_off-i)-1 ) * width(1) !linear
+      !need to do a mapping, align with Zlines.
+      Z_grid(j,n_off-i) = Zlines(i+1)
+      !write(67,*) R_grid(j,n_off+i), Z_grid(j,n_off+i)
+    enddo    
+    width_prev = width
+  enddo
+  write(*,*)'Finished upper part of grid'
+  !close(67)
+  ! --- Print to file?
+  if (.true.) then
+    open(21,file='RZ_grid_inside_wall.txt')
+    do i = 1,nZ
+      !write(*,*)'Doint horizontal line ',nZ-i
+      nR_tmp = min(nR_grid(i),nR_grid(i+1))
+      do j = 1,nR_tmp-1
+        write(21,'(e16.9,A,e16.9,A,e16.9,A,e16.9,A,e16.9,A,e16.9,A,e16.9,A,e16.9)') &
+          R_grid(j,i),     ' ',Z_grid(j,i),    ' ', &
+          R_grid(j,i+1),   ' ',Z_grid(j,i+1),  ' ', &
+          R_grid(j+1,i+1), ' ',Z_grid(j+1,i+1),' ', &
+          R_grid(j+1,i),   ' ',Z_grid(j+1,i)
+      enddo
+    enddo
+    close(21)
+  endif
+
+  elm_count = 0
+  do i = 1,nZ
+    nR_tmp = min(nR_grid(i),nR_grid(i+1))
+    do j = 1,nR_tmp-1
+      elm_count = elm_count + 1
+      ! R-index
+      node_index(elm_count,1,1) = j
+      node_index(elm_count,2,1) = j+1
+      node_index(elm_count,3,1) = j+1
+      node_index(elm_count,4,1) = j
+      ! Z-index
+      node_index(elm_count,1,2) = i
+      node_index(elm_count,2,2) = i
+      node_index(elm_count,3,2) = i+1
+      node_index(elm_count,4,2) = i+1
+    enddo
+  enddo
+
+  n_elm = elm_count
+
+  return
+
+end subroutine create_grid_inside_wall_EHL2
 
 subroutine leg_split_location_step(is_lower, common_z, inner_r, split_r, outer_r)
   ! --- Determine the leg split location
