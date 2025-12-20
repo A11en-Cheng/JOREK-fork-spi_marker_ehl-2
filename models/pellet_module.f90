@@ -663,7 +663,7 @@ module pellet_module
           T_thresh = 13.6 ! The deuterium ionization energy 
           tau_abl = 1.d-5 ! Characteristic ionization time
           if (T_eV >= T_thresh) then
-            pellets(i_p)%spi_abl = (4.0 * PI/3.0) * spi_density_tmp * pellets(i_p)%spi_radius**3/tau_abl
+            pellets(i_p)%spi_abl = (4.0 * PI/3.0) * spi_density_tmp * 1.d20 * pellets(i_p)%spi_radius**3/tau_abl
           else
             pellets(i_p)%spi_abl = 0.0
           endif
@@ -876,7 +876,7 @@ module pellet_module
         case('Ne')
           ! Only Parks formula can properly treat the mixing of neon and D2/H2,
           ! otherwise we assume neon and D2/H2 formed seperately.
-          if (spi_abl_model(i_inj) == 3 .and. mix_ratio < 1. .and. mix_ratio > 0.) then
+          if ((spi_abl_model(i_inj) == 3 .or. spi_abl_model(i_inj) == 4) .and. mix_ratio < 1. .and. mix_ratio > 0.) then
             do i = 1, n_spi
               i_p = i - 1 + n_spi_begin
               pellets(i_p)%spi_species = spi_quantity/(spi_quantity + spi_quantity_bg)
@@ -1295,7 +1295,7 @@ module pellet_module
         case('Ne')
           ! Only Parks formula can properly treat the mixing of neon and D2/H2.
           ! otherwise we assume neon and D2/H2 formed separately.
-          if (spi_abl_model(i_inj) == 3) then
+          if (spi_abl_model(i_inj) == 3 .or. spi_abl_model(i_inj) == 4) then
             do i = 1, n_spi
               i_p = i - 1 + n_spi_begin
               spi_species_atomic_tmp = 1.d0 - 2.d0 * spi_species_molar_D2_tmp(i) / (spi_species_molar_D2_tmp(i) + 1.d0)
