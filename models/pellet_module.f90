@@ -1322,7 +1322,7 @@ module pellet_module
                 spi_density_tmp = pellet_density_bg
                 real_spi_quantity(1) = real_spi_quantity(1) + (4./3.) * PI * (spi_radius_tmp(i)**3) * spi_density_tmp *1.d20
               else
-                write(*,*) "ERROR in pellet_module: Only 'spi_abl_model(i_inj) = 3' can properly treat the mixing of neon and D2/H2  , exiting."
+                write(*,*) "ERROR in pellet_module: Only 'spi_abl_model(i_inj) = 3 .or. 4' can properly treat the mixing of neon and D2/H2  , exiting."
                 stop
               end if
             end do
