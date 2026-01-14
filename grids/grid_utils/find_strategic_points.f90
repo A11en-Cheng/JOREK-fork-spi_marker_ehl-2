@@ -690,7 +690,7 @@ integer  :: i_part
 real*8   :: R_tmp(4), Z_tmp(4)
 real*8   :: distance, distance_min
 
-logical, parameter :: debug = .false.
+logical, parameter :: debug = .true.
 
 n_flux    = n_grids(1)
 n_open    = n_grids(3); n_outer   = n_grids(4); n_inner = n_grids(5)
