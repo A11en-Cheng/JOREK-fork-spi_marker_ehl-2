@@ -157,6 +157,8 @@ allocate(theta_sep(n_tht))
 allocate(theta_beg(n_tht))
 allocate(s_tmp (n_tht))
 allocate(s_tmp2(n_tht))
+s_tmp  = 0.d0
+s_tmp2 = 0.d0
   
 if (xcase .ne. DOUBLE_NULL) then 
   if (xcase .eq. LOWER_XPOINT) tht_x1 = atan2(ES%Z_xpoint(1)-ES%Z_axis,ES%R_xpoint(1)-ES%R_axis)
@@ -189,7 +191,7 @@ else ! xcase == DOUBLE_NULL
     ! it needs to be odd, because we go through each Xpoint twice:
     ! from 1 to n_tht_mid, and then from n_tht_mid+1 to n_tht
     if(mod(n_tht_mid,2) .eq. 0) n_tht_mid = n_tht_mid + 1
-    
+
     call meshac2(n_tht_mid,s_tmp, 0.d0,1.d0,SIG_theta,SIG_theta_up,bgf_tht,1.0d0)
     call meshac2(n_tht_mid,s_tmp2,0.d0,1.d0,999.0,    999.0,       bgf_tht,1.0d0)
     do j=1,n_tht_mid

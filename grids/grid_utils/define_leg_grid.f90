@@ -964,7 +964,7 @@ subroutine segment_surface_length(node_list,element_list,surface, R_beg, Z_beg, 
   real*8  :: R3,dR3_dr,dR3_ds,dR3_drs,dR3_drr,dR3_dss
   real*8  :: Z3,dZ3_dr,dZ3_ds,dZ3_drs,dZ3_drr,dZ3_dss
   real*8  :: surface_length, length, length_sum, length_seg
-  real*8, parameter :: tol_find = 5.d-4
+  real*8, parameter :: tol_find = 1.d-3
   
   ! --- Find the corresponding end points on each surface
   allocate(surface_list_tmp%psi_values(1))
@@ -1031,7 +1031,6 @@ subroutine segment_surface_length(node_list,element_list,surface, R_beg, Z_beg, 
   do i_part = 1,surface%n_parts
   
     do i_piece = surface%parts_index(i_part), surface%parts_index(i_part+1)-1
-    
       ! --- End points
       rr    = surface%s(1,i_piece)
       ss    = surface%t(1,i_piece)
@@ -1092,7 +1091,6 @@ subroutine segment_surface_length(node_list,element_list,surface, R_beg, Z_beg, 
   enddo
   deallocate(surface_list_tmp%psi_values)
   deallocate(surface_list_tmp%flux_surfaces)
-  
   ! --- both end points should be on the same part
   if (i_part_end .ne. i_part_beg) then
     write(*,*)'Problem segmenting surface: end points on different surface parts!',i_part_end,i_part_beg
