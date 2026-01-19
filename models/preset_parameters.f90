@@ -585,7 +585,7 @@ subroutine preset_parameters
   zk_e_perp_file     = 'none'
   zk_i_perp_file     = 'none'
   R_Z_psi_bnd_file   = 'none'
-  wall_file          = 'none'
+  wall_file          = 'wall.txt'
   rot_file           = 'none'
   visco_file         = 'none'
   domm_file          = 'none'
