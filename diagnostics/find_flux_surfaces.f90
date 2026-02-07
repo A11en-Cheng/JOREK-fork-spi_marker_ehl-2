@@ -41,6 +41,8 @@ integer :: ifail, itht(4), itmp
 integer :: n_found
 real*8  :: st_found(n_order)
 
+real*8  :: tol_find=1.0d-4
+
 if (my_id == 0) then
   write(*,*) '***********************************'
   write(*,*) '*   find_flux_surfaces            *'
@@ -68,10 +70,10 @@ if (xpoint) then
   psi_xpoint(1) = ES%psi_xpoint(1)
   psi_xpoint(2) = ES%psi_xpoint(2)
   ! if we have a symmetric double-null, force the single separatrix
-  if (ES%active_xpoint .eq. SYMMETRIC_XPOINT) then
-    psi_xpoint(1) = (ES%psi_xpoint(1)+ES%psi_xpoint(2))/2.d0
-    psi_xpoint(2) = psi_xpoint(1)
-  endif
+  ! if (ES%active_xpoint .eq. SYMMETRIC_XPOINT) then
+  !   psi_xpoint(1) = (ES%psi_xpoint(1)+ES%psi_xpoint(2))/2.d0
+  !   psi_xpoint(2) = psi_xpoint(1)
+  ! endif
 endif
 
 
@@ -243,9 +245,12 @@ do i=1, element_list%n_elements
           itmp = itht(2); itht(2) = itht(3) ; itht(3) = itmp;
         endif
         
-
-        if ((xpoint) .and. (     ((i .eq. ES%i_elm_xpoint(1)) .and. (xcase .ne. UPPER_XPOINT) .and. (surface_list%psi_values(j) .eq. psi_xpoint(1)) )  &
-                            .or. ((i .eq. ES%i_elm_xpoint(2)) .and. (xcase .ne. LOWER_XPOINT) .and. (surface_list%psi_values(j) .eq. psi_xpoint(2)) )  ) ) then
+        write(*,*) 'test for tol:',surface_list%psi_values(j), psi_xpoint(1), psi_xpoint(2)
+        write(*,*) abs(surface_list%psi_values(j) - psi_xpoint(1)), tol_find * abs(psi_xpoint(1))
+        write(*,*) abs(surface_list%psi_values(j) - psi_xpoint(2)), tol_find * abs(psi_xpoint(2))
+        write(*,*) 'test for xpoint:',i, ES%i_elm_xpoint(1), ES%i_elm_xpoint(2), xcase, UPPER_XPOINT, LOWER_XPOINT
+        if ((xpoint) .and. (     ((i .eq. ES%i_elm_xpoint(1)) .and. (xcase .ne. UPPER_XPOINT) .and. (abs(surface_list%psi_values(j) - psi_xpoint(1)) < tol_find * abs(psi_xpoint(1)) ) )  &
+                            .or. ((i .eq. ES%i_elm_xpoint(2)) .and. (xcase .ne. LOWER_XPOINT) .and. (abs(surface_list%psi_values(j) - psi_xpoint(2)) < tol_find * abs(psi_xpoint(2)) ) )  ) ) then ! originally I had only the condition on psi, but it can happen that we have a line crossing the Xpoint but not at the Xpoint, so I added the condition on the element, to be sure we are in the right place
 
           call flux_surface_add_line(node_list,element_list,surface_list,i,j,r_psi(itht(1:3:2)), &
                    s_psi(itht(1:3:2)),dpsi_dr(itht(1:3:2)),dpsi_ds(itht(1:3:2)))
@@ -261,7 +266,7 @@ do i=1, element_list%n_elements
           surface_list%flux_surfaces(j)%s(4,k) = 0.d0
           surface_list%flux_surfaces(j)%t(2,k) = 0.d0
           surface_list%flux_surfaces(j)%t(4,k) = 0.d0
-          k = surface_list%flux_surfaces(j)%n_pieces
+          k = surface_list%flux_surfaces(j)%n_pieces 
           surface_list%flux_surfaces(j)%s(2,k) = 0.d0
           surface_list%flux_surfaces(j)%s(4,k) = 0.d0
           surface_list%flux_surfaces(j)%t(2,k) = 0.d0
