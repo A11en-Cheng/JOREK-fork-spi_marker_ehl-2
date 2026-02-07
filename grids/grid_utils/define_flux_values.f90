@@ -38,6 +38,7 @@ subroutine define_flux_values(node_list, element_list, flux_list, sep_list, xcas
   real*8              :: rr1, ss1, drr1, dss1
   real*8              :: rr2, ss2, drr2, dss2
   real*8              :: psi_bnd, psi_bnd2
+  real*8              :: d_psi_x
   logical             :: xpoint
   
   SIG_closed   = sigmas(1) 
@@ -72,12 +73,16 @@ subroutine define_flux_values(node_list, element_list, flux_list, sep_list, xcas
       psi_bnd  = psi_xpoint(1)
       psi_bnd2 = psi_xpoint(2)  
     endif
+
     ! If we have a symmetric double-null, force the single separatrix
+    ! we dont want a mean psi_xpt.
+    d_psi_x = abs(psi_bnd - psi_bnd2)
     if ( ES%active_xpoint .eq. SYMMETRIC_XPOINT ) then
-      psi_xpoint(1) = (psi_xpoint(1)+psi_xpoint(2))/2.d0
-      psi_xpoint(2) = psi_xpoint(1)
-      psi_bnd  = psi_xpoint(1)
-      psi_bnd2 = psi_bnd
+    !   psi_xpoint(1) = (psi_xpoint(1)+psi_xpoint(2))/2.d0
+    !   psi_xpoint(2) = psi_xpoint(1)
+    !   psi_bnd  = psi_xpoint(1)
+    !   psi_bnd2 = psi_bnd
+
     endif
   endif
   

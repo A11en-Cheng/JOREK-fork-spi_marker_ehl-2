@@ -70,6 +70,7 @@ if (xpoint) then
   psi_xpoint(1) = ES%psi_xpoint(1)
   psi_xpoint(2) = ES%psi_xpoint(2)
   ! if we have a symmetric double-null, force the single separatrix
+  ! we dont want a mean psi_xpt; instead we ensure
   ! if (ES%active_xpoint .eq. SYMMETRIC_XPOINT) then
   !   psi_xpoint(1) = (ES%psi_xpoint(1)+ES%psi_xpoint(2))/2.d0
   !   psi_xpoint(2) = psi_xpoint(1)

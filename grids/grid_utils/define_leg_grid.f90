@@ -964,7 +964,7 @@ subroutine segment_surface_length(node_list,element_list,surface, R_beg, Z_beg, 
   real*8  :: R3,dR3_dr,dR3_ds,dR3_drs,dR3_drr,dR3_dss
   real*8  :: Z3,dZ3_dr,dZ3_ds,dZ3_drs,dZ3_drr,dZ3_dss
   real*8  :: surface_length, length, length_sum, length_seg
-  real*8, parameter :: tol_find = 1.d-3, seg_tol = 1.d-5
+  real*8, parameter :: tol_find = 1.5d-3, seg_tol = 1.d-3
   
   ! --- Find the corresponding end points on each surface
   allocate(surface_list_tmp%psi_values(1))
@@ -1053,10 +1053,14 @@ subroutine segment_surface_length(node_list,element_list,surface, R_beg, Z_beg, 
         if (i_RZ .eq. 1) then
           if ( (min(Z1,Z2)- seg_tol .le. Z_beg) .and. (Z_beg .le. max(Z1,Z2)+ seg_tol) ) then
             call find_Z_surface(node_list,element_list,surface_list_tmp,1,Z_beg,i_elm_find,s_find,t_find,st_find,i_find)
+            write(*,*)'debug for find_Z_surface'
+            write(*,*)'Z1:',Z1,' Z2:',Z2,' Z_beg:',Z_beg,' st_find:',st_find(1:i_find)
           endif
         else
           if ( (min(R1,R2)- seg_tol .le. R_beg) .and. (R_beg .le. max(R1,R2)+ seg_tol) ) then
             call find_R_surface(node_list,element_list,surface_list_tmp,1,R_beg,i_elm_find,s_find,t_find,st_find,i_find)
+            write(*,*)'debug for find_R_surface'
+            write(*,*)'R1:',R1,' R2:',R2,' R_beg:',R_beg,' st_find:',st_find(1:i_find)
           endif
         endif
         do j_find = 1,i_find
@@ -1066,6 +1070,8 @@ subroutine segment_surface_length(node_list,element_list,surface, R_beg, Z_beg, 
           call interp_RZ(node_list,element_list,i_elm,rr,ss,R3,dR3_dr,dR3_ds,dR3_drs,dR3_drr,dR3_dss, &
                                                             Z3,dZ3_dr,dZ3_ds,dZ3_drs,dZ3_drr,dZ3_dss)
           diff_beg = sqrt( (R3-R_beg)**2 + (Z3-Z_beg)**2 )
+          write(*,*)'debug for diff'
+          write(*,*)'diff beg:',diff_beg, ' i_part:',i_part,' i_piece:',i_piece,' st_find:',st_find(j_find)
           if ( (.not. xpoint_surface) .and. (diff_beg .le. diff_min_beg) ) then
             diff_min_beg = diff_beg
             i_part_beg  = i_part
