@@ -653,9 +653,9 @@ subroutine preset_parameters
   use_pastix_eq      = .false.              ! Use PASTIX equilibrium solver
   use_strumpack_eq   = .false.              ! Use STRUMPACK equilibrium olver  
   
-  use_mumps_prj      = .true.               ! Use MUMPS equilibrium solver
-  use_pastix_prj     = .false.              ! Use PASTIX equilibrium solver
-  use_strumpack_prj  = .false.              ! Use STRUMPACK equilibrium olver  
+  use_mumps_prj      = .true.               ! Use MUMPS projection solver
+  use_pastix_prj     = .false.              ! Use PASTIX projection solver
+  use_strumpack_prj  = .false.              ! Use STRUMPACK projection olver  
 
   refinement         = .false.              ! enable mesh refinement
   force_central_node = .true.               ! force all nodes in the grid center to have the same values in flux surface aligned grids
@@ -889,6 +889,7 @@ subroutine preset_parameters
   puffingtime       = 1.d-3 
 
 !===================== particle input values
+use_particles      = .false.
 n_particles        = 0
 nstep_particles    = 0
 nsubstep_particles = 1
