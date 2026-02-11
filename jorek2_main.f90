@@ -307,7 +307,8 @@ mpi_required = 0
       write(*,*) 'WARNING: Axis treatments set via input file is not the same as that in the restart file.'
       write(*,*) 'You are trying to restart the simulation with treat_axis = ', input_treat_axis
       write(*,*) 'Earlier treat_axis was set to = ', treat_axis
-      write(*,*) 'STOP' 
+      write(*,*) 'STOP'
+      call MPI_Abort(MPI_COMM_WORLD, 29, IERR)
       stop      
     endif
 
@@ -726,7 +727,7 @@ write(*,*) "n elements:", element_list%n_elements
     call construct_matrix(mhd_sim, mhd_sim%local_elms, mhd_sim%n_local_elms, a_mat, rhs_vec, harmonic_matrix=.false.)
   
     call clck_time_barrier(t1); call clck_ldiff(t0,t1,tsecond)
-    if (my_id.eq.0) write(*,FMT_TIMING) my_id, '# Elapsed time in construct global matrix :',tsecond
+    if (my_id.eq.0) write(*,FMT_TIMING) my_id, '# Elapsed time construct global matrix: ',tsecond
       
     solver%tstep = tstep
     solver%istep = istep
