@@ -186,10 +186,14 @@ subroutine setup_solvers(this, sim)
   endif
 
   ! nodes, elements, bnd_nodes and phys have already been broadcast
-  if ( freeboundary ) call broadcast_vacuum(sim%my_id, resistive_wall)
 
   call update_equil_state(sim%my_id, sim%fields%node_list, sim%fields%element_list, bnd_elm_list, xpoint, xcase)
   this%es = ES
+
+  if ( freeboundary ) then
+     call broadcast_vacuum(sim%my_id, resistive_wall)
+     call read_Z_axis_profile()
+  end if
 
   if ( sim%my_id == 0 ) then
     call print_equil_state(.true.)
