@@ -506,7 +506,6 @@ if ( freeboundary ) then
   call update_response(my_id,tstep,  resistive_wall)
   call import_external_fields('coil_field.dat', my_id)
   call set_coil_curr_time_trace()
-  call read_Z_axis_profile() 
   if ( (.not. restart) .or. (.not. wall_curr_initialized) ) call init_wall_currents(my_id, resistive_wall)
 end if
   
@@ -545,7 +544,10 @@ write(*,*) "n elements:", element_list%n_elements
   ! --- from the previous time-step, which is only read by my_id=0 from the restart file
   call broadcast_equil_state(my_id)                           ! equil_state
 
-  if ( freeboundary ) call broadcast_vacuum(my_id, resistive_wall)
+  if ( freeboundary ) then
+     call broadcast_vacuum(my_id, resistive_wall)
+     call read_Z_axis_profile()
+  end if
 
   mhd_sim%my_id = my_id
   mhd_sim%n_cpu = n_cpu
