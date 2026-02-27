@@ -315,15 +315,15 @@ else if (tokamak_name == 'CFEDR') then
 
   !-------------------- contour outside ITER wall
   else if(boundary_type == 'OUTSIDE_WALL') then
-    ellip  = 1.95
+    ellip  = 2.05
     tria_u = 0.9
-    tria_l = 0.8!0.65
+    tria_l = 0.7!0.65
     quad_u = -0.20!-0.12
-    quad_l = -0.15!-0.1
+    quad_l = -0.0!-0.1
     n_tht  = 257
-    r0     = 7.85   * R_scale
-    z0     = 0.70   * R_scale!-0.05 * R_scale
-    a0     = 3.00  * R_scale!2.75  * R_scale
+    r0     = 8.05   * R_scale
+    z0     = 0.40   * R_scale!-0.05 * R_scale
+    a0     = 3.20  * R_scale!2.75  * R_scale
   else
     write(*,*) 'JOREK boundary not or wrongly specified, stopping' 
     stop
