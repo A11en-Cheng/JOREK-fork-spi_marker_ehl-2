@@ -42,47 +42,56 @@ else:
 print(fid)
 print(sstr)
 
-dat1 = {s: [] for s in sstr}
+dat_min = {s: [] for s in sstr}
+dat_max = {s: [] for s in sstr}
 with open(fid,encoding = "ISO-8859-1") as infile:
 	for line in infile:
 		for s in sstr:
 			try:
 				if s in line:
-					line = line.strip().split()
-					dat1[s].append(float(line[-1]))
+					parts = line.strip().split()
+					if len(parts) >= 2:
+						dat_min[s].append(float(parts[-2]))
+						dat_max[s].append(float(parts[-1]))
 			except Exception as e:
 				print("Error reading file: {}".format(e))
 
 
-counts = {s: len(v) for s, v in dat1.items()}
-min_len = min(counts.values()) if counts else 0
-print("Number of etries found per key: {}".format(counts))
+counts_min = {s: len(v) for s, v in dat_min.items()}
+counts_max = {s: len(v) for s, v in dat_max.items()}
+min_len = min([*counts_min.values(), *counts_max.values()]) if (counts_min or counts_max) else 0
+print("Number of etries found per key: {}".format(counts_min))
 if (nmax==0):
 	nmax = min_len
 else:
 	nmax = min(nmax, min_len)
 
-keys = list(dat1.keys())
-data = np.column_stack([np.array(dat1[k][:nmax]) for k in keys]) if nmax > 0 else np.empty((0, len(keys)))
+keys = list(dat_min.keys())
+data_min = np.column_stack([np.array(dat_min[k][:nmax]) for k in keys]) if nmax > 0 else np.empty((0, len(keys)))
+data_max = np.column_stack([np.array(dat_max[k][:nmax]) for k in keys]) if nmax > 0 else np.empty((0, len(keys)))
 
 # print(data)
 if (arg.sum):
-	print("Sum per key = {}".format({k: np.sum(data[:, i]) for i, k in enumerate(keys)}))
+	print("Sum min per key = {}".format({k: np.sum(data_min[:, i]) for i, k in enumerate(keys)}))
+	print("Sum max per key = {}".format({k: np.sum(data_max[:, i]) for i, k in enumerate(keys)}))
 else:
-	print("Average per key = {}".format({k: np.mean(data[:, i]) for i, k in enumerate(keys)}))
+	print("Average min per key = {}".format({k: np.mean(data_min[:, i]) for i, k in enumerate(keys)}))
+	print("Average max per key = {}".format({k: np.mean(data_max[:, i]) for i, k in enumerate(keys)}))
 
 if arg.save_file:
 	outfile = "logfile_extraction.dat"
 	with open(outfile, "w", encoding="utf-8") as out:
-		out.write(" ".join(keys) + "\n")
-		if data.size:
-			np.savetxt(out, data)
+		out.write(" ".join([f"{k}_min" for k in keys] + [f"{k}_max" for k in keys]) + "\n")
+		if data_min.size and data_max.size:
+			merged = np.column_stack([data_min, data_max])
+			np.savetxt(out, merged)
 	print("Data saved to file: {}".format(outfile))
 
-if data.size:
+if data_min.size and data_max.size:
 	plt.figure()
 	for i, k in enumerate(keys):
-		plt.plot(data[:, i], label=k)
+		plt.plot(data_min[:, i], label=f"{k} min")
+		plt.plot(data_max[:, i], label=f"{k} max")
 	plt.ylim(0, 10)
 	plt.xlabel("Index")
 	plt.ylabel("Value")
