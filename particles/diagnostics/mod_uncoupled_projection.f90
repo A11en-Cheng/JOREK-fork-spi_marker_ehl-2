@@ -298,7 +298,7 @@ contains
           enddo    ! order
           
           ! Check for NaNs in the projection
-          if (any(ieee_is_nan(this%node_list%node(i)%values(:,:,i_var)))) then
+          if (any(ieee_is_nan(this%node_list%node(i)%values(:,:,i_var))) .or. any(ieee_is_nan(this%node_list%node(i)%deltas(:,:,i_var)))) then
             found_nan = .true.
           end if
         
