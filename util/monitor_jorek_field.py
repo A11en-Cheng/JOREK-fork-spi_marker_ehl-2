@@ -160,6 +160,7 @@ def monitor_field(
     interval: float = 60.0,
     cmap: str = "jet",
     pattern: str = "jorek_restart.h5",
+    selected_file: Optional[str] = None,
 ) -> None:
     """循环监看目录中最新匹配 pattern 的 JOREK HDF5 文件的指定物理场。"""
     fname_key = field_name.lower()
@@ -173,16 +174,49 @@ def monitor_field(
     fig, ax = plt.subplots(figsize=(8, 10))
     cbar: Optional[plt.colorbar] = None
 
+    forced_file: Optional[str] = None
+    if selected_file:
+        forced_file = selected_file
+
     last_file: Optional[str] = None
     last_mtime: Optional[float] = None
+
+    def on_key_press(event) -> None:
+        nonlocal forced_file, last_file, last_mtime
+        if event.key == "z":
+            user_input = input("\nEnter file path to monitor (absolute or relative): ").strip()
+            if not user_input:
+                print("Keeping current monitoring target.")
+                return
+            candidate = os.path.abspath(user_input)
+            if not os.path.exists(candidate):
+                print(f"File does not exist: {candidate}")
+                return
+            forced_file = candidate
+            last_file = None
+            last_mtime = None
+            print(f"Switched to fixed file: {forced_file}")
+        elif event.key == "a":
+            forced_file = None
+            last_file = None
+            last_mtime = None
+            print(f"Switched to auto mode with pattern {pattern!r}")
+
+    fig.canvas.mpl_connect("key_press_event", on_key_press)
 
     print(
         f"Monitoring '{field_name}' in directory {directory!r} "
         f"with pattern {pattern!r}, interval={interval}s",
     )
+    print("Hotkeys: 's' switch to a specific file, 'a' return to auto pattern mode.")
+    if forced_file:
+        print(f"Start in fixed-file mode: {forced_file}")
     try:
         while True:
-            latest = find_latest_file(directory, pattern)
+            if forced_file is not None:
+                latest = forced_file if os.path.exists(forced_file) else None
+            else:
+                latest = find_latest_file(directory, pattern)
             if latest is None:
                 print("No matching HDF5 files found; waiting...", end="\r", flush=True)
                 plt.pause(interval)
@@ -274,6 +308,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--file",
+        default=None,
+        help=(
+            "Specific HDF5 file to monitor. If set, starts in fixed-file mode; "
+            "press 'a' to return to auto pattern mode."
+        ),
+    )
+    parser.add_argument(
         "--field",
         default="psi",
         help=(
@@ -298,7 +340,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     directory = os.path.abspath(args.dir)
-    monitor_field(directory, args.field, args.interval, args.cmap, args.pattern)
+    selected_file = os.path.abspath(args.file) if args.file else None
+    monitor_field(directory, args.field, args.interval, args.cmap, args.pattern, selected_file)
 
 
 if __name__ == "__main__":
