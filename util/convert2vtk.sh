@@ -21,7 +21,10 @@ function cleanup () {
   echo "Waiting for threads to finish..."
   wait
   if [ "$debug" == "false" ] && [ ! -z "$local_tmp_dir" ]; then
+    echo "Removing temporary directory: $local_tmp_dir"
     rm -rf "$local_tmp_dir"
+  elif [ ! -z "$local_tmp_dir" ]; then
+    echo "Keeping temporary directory: $local_tmp_dir"
   fi
   echo "...done."
   exit $1
@@ -162,16 +165,37 @@ function do_convert () {
     fi
 
     for copyfile in $copyfiles; do
-      cp $startDir/$copyfile .
+      cp "$startDir/$copyfile" .
     done
+
+    if [ "$debug" == "true" ]; then
+      {
+        echo "===== convert2vtk debug ====="
+        echo "thread      = $ithread"
+        echo "workdir     = $(pwd)"
+        echo "restart     = $file"
+        echo "target      = $targetFile"
+        echo "binary      = $binary"
+        echo "infile      = $infile"
+        echo "copyfiles   = $copyfiles"
+        echo "copyfiles count = $(printf '%s\n' $copyfiles | sed '/^$/d' | wc -l)"
+        echo "dir content before run:"
+        ls -la
+        echo "============================="
+      } > ./debug_info.txt
+    fi
+
     $binary < $infile > ./log 2>&1
-    if [ $? -ne 0 ]; then
+    binary_status=$?
+    if [ $binary_status -ne 0 ]; then
       if [ ! -f $ERROR_STOP_FILE ]; then
         touch $ERROR_STOP_FILE
         cat ./log
         echo ""
         echo "ithread = $ithread"
         echo "file    = `basename $file`"
+        echo "workdir = $(pwd)"
+        echo "status  = $binary_status"
         echo ""
         echo "ERRORS OCCURED EXECUTING THE BINARY. SEE ABOVE."
       fi
@@ -180,6 +204,32 @@ function do_convert () {
     else
       egrep -i "warning|restart time" ./log
     fi
+
+    if [ ! -f jorek_tmp.vtk ]; then
+      if [ ! -f $ERROR_STOP_FILE ]; then
+        touch $ERROR_STOP_FILE
+        echo ""
+        echo "ithread = $ithread"
+        echo "file    = `basename $file`"
+        echo "workdir = $(pwd)"
+        echo ""
+        echo "ERROR: $binary finished without producing jorek_tmp.vtk."
+        echo ""
+        echo "Copied input files:"
+        for copyfile in $copyfiles; do
+          echo "  $copyfile"
+        done
+        echo ""
+        echo "Directory content after run:"
+        ls -la
+        echo ""
+        echo "Log output:"
+        cat ./log
+      fi
+      unmark_running $ithread
+      return 1
+    fi
+
     mv jorek_tmp.vtk $targetFile
     if [ "$zipfiles" == "yes" ]; then
       rm -f ${targetFile}.gz
@@ -389,7 +439,7 @@ shift
 infile=`readlink -f $1`
 shift
 sourceDir=`readlink -f .`
-copyfiles=`grep _file $infile | grep -v '^ *!' | sed -e "s/^.*= *[\"']\(.*\)[\"'].*$/\1/" | grep -v 'none'`
+copyfiles=`grep -a _file "$infile" | tr -d '\r' | grep -av '^ *!' | sed -n -e "s/^.*= *[\"']\([^\"']*\)[\"'].*$/\1/p" | grep -av '^none$'`
 copyfiles="$copyfiles $@"
 for copyfile in $copyfiles; do
   if [ ! -f "$copyfile" ]; then
@@ -546,6 +596,11 @@ local_tmp_dir0="tmp_vtk_$$"
 mkdir -p $local_tmp_dir0
 local_tmp_dir=`readlink -f $local_tmp_dir0` # absolute path
 ERROR_STOP_FILE="$local_tmp_dir/ERROR_STOP"
+
+echo "Temporary directory: $local_tmp_dir"
+if [ "$debug" == "true" ]; then
+  echo "Debug mode: temporary directory will be kept."
+fi
 
 
 
