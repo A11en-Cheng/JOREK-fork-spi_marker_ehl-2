@@ -230,6 +230,8 @@ module hdf5_io_module
     allocate(dims(rank)); allocate(maxdims(rank));
     !*** get space size ***
     call H5Sget_simple_extent_dims_f(dataspace_id,dims,maxdims,error)
+    !*** Closing ***
+    call H5Dclose_f(dataset_id,error)
   end subroutine HDF5_extract_dataset_rank_shape
 
   !----------------------------------------

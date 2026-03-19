@@ -316,15 +316,10 @@ module pellet_module
       end if
   
       if (my_id == 0.) then
-        if (index_now > 1) then
-          xtime_spi_ablation(i_p,index_now)    = xtime_spi_ablation(i_p,index_now-1) &
-                                               + t_norm * tstep * pellets(i_p)%spi_abl * pellets(i_p)%spi_species
-          xtime_spi_ablation_bg(i_p,index_now) = xtime_spi_ablation_bg(i_p,index_now-1) &
-                                               + t_norm * tstep * pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
-        else
-          xtime_spi_ablation(i_p,index_now)    = t_norm * tstep * pellets(i_p)%spi_abl * pellets(i_p)%spi_species
-          xtime_spi_ablation_bg(i_p,index_now) = t_norm * tstep * pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species) 
-        end if
+        xtime_spi_ablation(i_inj,index_now)    = xtime_spi_ablation(i_inj,index_now) &
+                                                 + t_norm * tstep * pellets(i_p)%spi_abl * pellets(i_p)%spi_species
+        xtime_spi_ablation_bg(i_inj,index_now) = xtime_spi_ablation_bg(i_inj,index_now) &
+                                                 + t_norm * tstep * pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
       end if
   
       if (spi_abl_model(i_inj) == 0) then
@@ -769,8 +764,8 @@ module pellet_module
       endif
      
       if (my_id == 0) then
-        xtime_spi_ablation_rate(i_p,index_now) = pellets(i_p)%spi_abl * pellets(i_p)%spi_species
-        xtime_spi_ablation_bg_rate(i_p,index_now) = pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
+        xtime_spi_ablation_rate(i_inj,index_now) = xtime_spi_ablation_rate(i_inj,index_now) + pellets(i_p)%spi_abl * pellets(i_p)%spi_species
+        xtime_spi_ablation_bg_rate(i_inj,index_now) = xtime_spi_ablation_bg_rate(i_inj,index_now) + pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
       end if
 
 
@@ -895,6 +890,9 @@ module pellet_module
   
     end do loop_over_shards
   
+    if (index_now < SIZE(xtime_spi_ablation, dim=2))    xtime_spi_ablation(i_inj,index_now+1)    = xtime_spi_ablation(i_inj,index_now) 
+    if (index_now < SIZE(xtime_spi_ablation_bg, dim=2)) xtime_spi_ablation_bg(i_inj,index_now+1) = xtime_spi_ablation_bg(i_inj,index_now) 
+
     if (spi_tor_rot) then
       ns_phi_rotate  = ns_phi_rotate + tor_frequency * 2. * PI * tstep / V_normalisation
     end if
@@ -1250,19 +1248,19 @@ module pellet_module
       deallocate(rnd)
 
       if (allocated(xtime_spi_ablation)) call tr_deallocate(xtime_spi_ablation,"xtime_spi_ablation",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_spi_tot,1,nstep,"xtime_spi_ablation")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_inj,1,nstep,"xtime_spi_ablation")
 
       if (allocated(xtime_spi_ablation_rate)) &
       call tr_deallocate(xtime_spi_ablation_rate,"xtime_spi_ablation_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_inj,1,nstep,"xtime_spi_ablation_rate")
 
       if (allocated(xtime_spi_ablation_bg)) &
       call tr_deallocate(xtime_spi_ablation_bg,"xtime_spi_ablation_bg",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_inj,1,nstep,"xtime_spi_ablation_bg")
 
       if (allocated(xtime_spi_ablation_bg_rate)) &
       call tr_deallocate(xtime_spi_ablation_bg_rate,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_inj,1,nstep,"xtime_spi_ablation_bg_rate")
 
     else
       write(*,*) "ERROR in pellet_module: n_spi<1"
@@ -1592,19 +1590,19 @@ module pellet_module
       end do
 
       if (allocated(xtime_spi_ablation)) call tr_deallocate(xtime_spi_ablation,"xtime_spi_ablation",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_spi_tot,1,nstep,"xtime_spi_ablation")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_inj,1,nstep,"xtime_spi_ablation")
 
       if (allocated(xtime_spi_ablation_rate)) &
       call tr_deallocate(xtime_spi_ablation_rate,"xtime_spi_ablation_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_inj,1,nstep,"xtime_spi_ablation_rate")
 
       if (allocated(xtime_spi_ablation_bg)) &
       call tr_deallocate(xtime_spi_ablation_bg,"xtime_spi_ablation_bg",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_inj,1,nstep,"xtime_spi_ablation_bg")
 
       if (allocated(xtime_spi_ablation_bg_rate)) &
       call tr_deallocate(xtime_spi_ablation_bg_rate,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_inj,1,nstep,"xtime_spi_ablation_bg_rate")
 
     else
       write(*,*) "ERROR in pellet_module: n_spi<1"

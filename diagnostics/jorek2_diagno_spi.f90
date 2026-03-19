@@ -191,25 +191,15 @@ if (using_spi) then
     spi_abl_tot = 0.0
     spi_abl_bg_rate_tot = 0.0
     spi_abl_bg_tot = 0.0
-    spi_abl_rate_inj = 0.0
-    spi_abl_inj = 0.0
-    spi_abl_bg_rate_inj = 0.0
-    spi_abl_bg_inj = 0.0
-    i_inj = 1
-    i_count = 0
-    do i_spi = 1, n_spi_tot
-      if (i_spi > (i_count + n_spi(i_inj))) then
-        i_count = i_count + n_spi(i_inj)
-        i_inj = i_inj + 1
-      endif
-      spi_abl_rate_inj(i_inj) = spi_abl_rate_inj(i_inj) + xtime_spi_ablation_rate(i_spi,i)
-      spi_abl_inj(i_inj) = spi_abl_inj(i_inj) + xtime_spi_ablation(i_spi,i)
-      spi_abl_bg_rate_inj(i_inj) = spi_abl_bg_rate_inj(i_inj) + xtime_spi_ablation_bg_rate(i_spi,i)
-      spi_abl_bg_inj(i_inj) = spi_abl_bg_inj(i_inj) + xtime_spi_ablation_bg(i_spi,i)
-      spi_abl_rate_tot = spi_abl_rate_tot + xtime_spi_ablation_rate(i_spi,i)
-      spi_abl_tot = spi_abl_tot + xtime_spi_ablation(i_spi,i)
-      spi_abl_bg_rate_tot = spi_abl_bg_rate_tot + xtime_spi_ablation_bg_rate(i_spi,i)
-      spi_abl_bg_tot = spi_abl_bg_tot + xtime_spi_ablation_bg(i_spi,i)
+    do i_inj = 1, n_inj
+      spi_abl_rate_inj(i_inj) = xtime_spi_ablation_rate(i_inj,i)
+      spi_abl_inj(i_inj) = xtime_spi_ablation(i_inj,i)
+      spi_abl_bg_rate_inj(i_inj) = xtime_spi_ablation_bg_rate(i_inj,i)
+      spi_abl_bg_inj(i_inj) = xtime_spi_ablation_bg(i_inj,i)
+      spi_abl_rate_tot = spi_abl_rate_tot + xtime_spi_ablation_rate(i_inj,i)
+      spi_abl_tot = spi_abl_tot + xtime_spi_ablation(i_inj,i)
+      spi_abl_bg_rate_tot = spi_abl_bg_rate_tot + xtime_spi_ablation_bg_rate(i_inj,i)
+      spi_abl_bg_tot = spi_abl_bg_tot + xtime_spi_ablation_bg(i_inj,i)
     end do
     write(20,"(i7,f12.3,*(e14.6,:))") i,xtime(i), spi_abl_rate_inj(:), spi_abl_inj(:), spi_abl_bg_rate_inj(:), spi_abl_bg_inj(:), spi_abl_rate_tot, spi_abl_tot, spi_abl_bg_rate_tot, spi_abl_bg_tot
   enddo

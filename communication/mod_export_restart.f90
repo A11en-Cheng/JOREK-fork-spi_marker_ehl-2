@@ -846,16 +846,16 @@ subroutine export_hdf5_restart(node_list,element_list,filename,aux_node_list)
   end if
 
   ! Dynamically allocate memeries for temporary arrays in order to export
-  if (using_spi .and. n_spi_tot>=1) then
+  if (using_spi .and. n_inj>=1) then
     if (index_now .gt. 0) then
       call HDF5_array2D_saving(file_id,xtime_spi_ablation, &
-             n_spi_tot,index_now,'xtime_spi_ablation'//char(0))
+             n_inj,index_now,'xtime_spi_ablation'//char(0))
       call HDF5_array2D_saving(file_id,xtime_spi_ablation_rate, &
-             n_spi_tot,index_now,'xtime_spi_ablation_rate'//char(0))
+             n_inj,index_now,'xtime_spi_ablation_rate'//char(0))
       call HDF5_array2D_saving(file_id,xtime_spi_ablation_bg, &
-             n_spi_tot,index_now,'xtime_spi_ablation_bg'//char(0))
+             n_inj,index_now,'xtime_spi_ablation_bg'//char(0))
       call HDF5_array2D_saving(file_id,xtime_spi_ablation_bg_rate, &
-             n_spi_tot,index_now,'xtime_spi_ablation_bg_rate'//char(0))
+             n_inj,index_now,'xtime_spi_ablation_bg_rate'//char(0))
     end if
 
     call HDF5_integer_saving(file_id,n_inj,"n_inj"//char(0))

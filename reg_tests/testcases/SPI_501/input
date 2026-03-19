@@ -36,6 +36,7 @@
  keep_current_prof = .f.
 
  using_spi = .f.
+ spi_abl_history_old = .t.
 
  adas_dir = './'
 
