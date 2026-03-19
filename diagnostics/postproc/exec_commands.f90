@@ -2509,7 +2509,7 @@ module exec_commands
     
     ! --- Find the PsiN locations
     npsi = 0
-    do i = 1, npts-1
+    do i = 2, npts-1  ! to avoid first and last point of q-profile which often is bad especially the first point is always zero
       if ( (q(i)-qvalue)*(q(i+1)-qvalue) < 0.d0 ) then ! is it between these two points?
         npsi = npsi + 1
         psi_values(npsi) = surface_list%psi_values(i) + ( surface_list%psi_values(i+1)-surface_list%psi_values(i) ) * (qvalue-q(i))/(q(i+1)-q(i))
