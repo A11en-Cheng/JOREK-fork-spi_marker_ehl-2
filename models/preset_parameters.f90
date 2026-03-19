@@ -811,6 +811,7 @@ subroutine preset_parameters
   restart_spi     = .true.
   nonlocal_abl    = .false.
   n_nonlocal_array= 0
+  spi_abl_history_old = .false.
 
   output_prad_phi = .false.
 

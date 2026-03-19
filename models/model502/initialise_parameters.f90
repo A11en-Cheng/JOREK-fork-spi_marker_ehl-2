@@ -132,7 +132,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 spi_Vel_diff, t_ns, JET_MGI, ASDEX_MGI,             &
                 imp_type, delta_n_convection, nimp_bg,              &
                 index_main_imp, diff_diffusive_flux,                &
-                spi_abl_mag_reduction,                              &
+                spi_abl_mag_reduction, spi_abl_history_old,         &
                 adas_dir, output_prad_phi, n_adas,                  &
                 RMP_on, RMP_har_cos,RMP_har_sin, spi_shard_file,    &
                 spi_plume_file, spi_plume_hdf5,                     &
