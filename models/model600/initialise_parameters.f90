@@ -161,7 +161,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 ns_amplitude, ns_R, ns_Z, ns_phi, ns_radius,        &
                 spi_Vel_Rref,spi_Vel_Zref, using_spi, n_spi, n_inj, &
                 spi_Vel_RxZref, spi_quantity, spi_abl_model,        &
-                spi_rkt_model,                                      &
+                spi_rkt_model, spi_rkt_H_m_mod,                     &
                 spi_rkt_str_R, spi_rkt_str_Z, spi_rkt_str_phi,      &
                 nonlocal_abl, n_nonlocal_array,                     &
                 ns_radius_ratio, ns_radius_min, spi_angle,          &

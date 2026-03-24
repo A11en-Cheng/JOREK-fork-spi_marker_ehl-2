@@ -521,6 +521,7 @@ module phys_module
   real*8  :: spi_rkt_str_R(n_inj_max)  !< The strength of rocket effect in R of each frag., in SI unit
   real*8  :: spi_rkt_str_Z(n_inj_max)  !< The strength of rocket effect in Z of each frag., in SI unit
   real*8  :: spi_rkt_str_phi(n_inj_max)  !< The strength of rocket effect in phi of each frag., in SI unit
+  real*8  :: spi_rkt_H_m_mod(n_inj_max)  !< The mass modification coefficient in case of injected hydrogen isotopes are different from the background species. For example, injecting H into D palsma makes this coefficient 0.5.
   integer :: spi_rnd_seed(40)   !< Random seed array used for the generation of the SPI velocity spread
 
   character(len=256) :: spi_shard_file(n_inj_max)!< The name of the shard size file

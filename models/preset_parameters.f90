@@ -805,6 +805,7 @@ subroutine preset_parameters
   spi_rkt_str_R(:)  = 0.d0
   spi_rkt_str_Z(:)  = 0.d0
   spi_rkt_str_phi(:)= 0.d0
+  spi_rkt_H_m_mod(:)= 1.d0
   spi_shard_file(:) = 'none'
   spi_plume_file(:) = 'none'
   spi_plume_hdf5  = .false.
