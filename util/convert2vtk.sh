@@ -178,10 +178,7 @@ function do_convert () {
         echo "binary      = $binary"
         echo "infile      = $infile"
         echo "copyfiles   = $copyfiles"
-<<<<<<< HEAD
         echo "copyfiles count = $(printf '%s\n' $copyfiles | sed '/^$/d' | wc -l)"
-=======
->>>>>>> 61948d9fe70b63706d2fdb2a7a87749ff865e93f
         echo "dir content before run:"
         ls -la
         echo "============================="

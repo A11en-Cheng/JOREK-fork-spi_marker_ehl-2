@@ -48,6 +48,7 @@ contains
     integer :: vertex(2), direction(n_degrees_1d), bnd1, bnd2, side1, side2
     integer :: i_max   ! for keep_n0_const max index which should be updated
     integer :: n_tor_local
+    logical :: is_corner_pair
 
 #ifdef COMPARE_ELEMENT_MATRIX
     integer  :: jvertex, jorder, jvar, jtor, ivertex, iorder, ivar, itor
@@ -107,6 +108,7 @@ contains
         call make_deep_copy_node(node_list%node(inode4), nodes(4))
 
         vertex    = (/ iv, iv2 /)
+        direction = 0
         
         if ( (grid_to_wall) .and. (n_wall_blocks .gt. 0) ) then
           side1 = 0                  ; side2 = 0
@@ -117,6 +119,17 @@ contains
           if (bnd1 .eq. 2) side1 = 3 ; if (bnd2 .eq. 2) side2 = 3
           if (bnd1 .eq.12) side1 = 2 ; if (bnd2 .eq.12) side2 = 2
           if (bnd1 .eq. 4) side1 = 2 ; if (bnd2 .eq. 4) side2 = 2
+
+          if ( (side1 .eq. 0) .and. (side2 .eq. 0) ) then
+            is_corner_pair = ( ( (bnd1 .eq. 3)  .or. (bnd1 .eq. 9)  .or. (bnd1 .eq. 19) .or. (bnd1 .eq. 20) .or. (bnd1 .eq. 21) ) &
+                         .and. ( (bnd2 .eq. 3)  .or. (bnd2 .eq. 9)  .or. (bnd2 .eq. 19) .or. (bnd2 .eq. 20) .or. (bnd2 .eq. 21) ) )
+            if (.not. is_corner_pair) then
+              write(*,'(A,4I8)') 'WARNING: boundary_matrix_open, wall side undefined ', &
+                                  inode1, bnd1, inode2, bnd2
+            endif
+            cycle
+          endif
+          
           direction(1) = 1
           if     ( (side1 .eq. 2) .or. (side2 .eq. 2) ) then
             direction(2) = 2

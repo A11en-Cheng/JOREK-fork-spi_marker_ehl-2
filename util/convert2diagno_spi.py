@@ -10,22 +10,21 @@ import re
 import shutil
 import subprocess
 import threading
-import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple, Set, Dict
 import argparse
-import tempfile
 
 class JorekConverter:
     def __init__(self, binary_path: str, namelist_path: str, 
                  source_dir: str = ".", target_dir: str = "csv_output",
-                 temp_base: str = "/tmp/jorek_convert"):
+                 temp_base: str = "/tmp/jorek_convert", timeout: int = 300):
         self.binary_path = Path(binary_path).resolve()
         self.namelist_path = Path(namelist_path).resolve()
         self.source_dir = Path(source_dir).resolve()
         self.target_dir = Path(target_dir).resolve()
         self.temp_base = Path(temp_base)
+        self.timeout = timeout
         
         # Create directories
         self.target_dir.mkdir(parents=True, exist_ok=True)
@@ -104,38 +103,44 @@ class JorekConverter:
             target_namelist = thread_dir / self.namelist_path.name
             shutil.copy2(self.namelist_path, target_namelist)
             
-            # Change to thread directory and run binary
-            original_cwd = os.getcwd()
-            os.chdir(thread_dir)
-            
             try:
-                # Run the conversion binary
-                result = subprocess.run(
-                    [str(self.binary_path)],
-                    capture_output=True,
-                    text=True,
-                    timeout=300  # 5 minute timeout
-                )
+                # jorek2_diagno_spi reads namelist from stdin in this mode.
+                with open(target_namelist, "r", encoding="utf-8") as namelist_fp:
+                    result = subprocess.run(
+                        [str(self.binary_path)],
+                        cwd=thread_dir,
+                        stdin=namelist_fp,
+                        capture_output=True,
+                        text=True,
+                        timeout=self.timeout
+                    )
                 
                 if result.returncode != 0:
                     print(f"Thread {thread_id}: Error converting step {step_num:06d}")
+                    if result.stdout:
+                        print(f"STDOUT: {result.stdout.strip()}")
                     print(f"STDERR: {result.stderr}")
                     return False
                 
                 # Find and rename output .dat files
-                self.process_output_files(step_num, thread_dir)
+                moved_count = self.process_output_files(step_num, thread_dir)
+                if moved_count == 0:
+                    print(f"Thread {thread_id}: No fragments*.dat produced for step {step_num:06d}")
+                    if result.stdout:
+                        print(f"STDOUT: {result.stdout.strip()}")
+                    if result.stderr:
+                        print(f"STDERR: {result.stderr.strip()}")
+                    return False
                 
                 print(f"Thread {thread_id}: Successfully converted step {step_num:06d}")
                 return True
                 
             except subprocess.TimeoutExpired:
-                print(f"Thread {thread_id}: Timeout converting step {step_num:06d}")
+                print(f"Thread {thread_id}: Timeout converting step {step_num:06d} after {self.timeout}s")
                 return False
             except Exception as e:
                 print(f"Thread {thread_id}: Exception converting step {step_num:06d}: {e}")
                 return False
-            finally:
-                os.chdir(original_cwd)
                 
         finally:
             # Clean up and mark thread as inactive
@@ -144,8 +149,9 @@ class JorekConverter:
                 if thread_id in self.active_threads:
                     del self.active_threads[thread_id]
 
-    def process_output_files(self, step_num: int, thread_dir: Path):
+    def process_output_files(self, step_num: int, thread_dir: Path) -> int:
         """Rename and move output .dat files to .csv with step number"""
+        moved_count = 0
         for dat_file in thread_dir.glob("fragments*.dat"):
             # Create new filename with step number
             stem = dat_file.stem
@@ -154,6 +160,10 @@ class JorekConverter:
             
             # Rename and move file
             shutil.move(str(dat_file), str(target_path))
+
+            moved_count += 1
+
+        return moved_count
 
     def convert_parallel(self, step_range: str, max_workers: int = None):
         """Main conversion function with parallel processing"""
@@ -257,6 +267,8 @@ Step range examples:
                        help="Target directory for CSV files (default: csv_output)")
     parser.add_argument("--temp-dir", default="/tmp/jorek_convert",
                        help="Temporary directory (default: /tmp/jorek_convert)")
+    parser.add_argument("--timeout", type=int, default=300,
+                       help="Timeout per step in seconds (default: 300)")
     parser.add_argument("--keep-temp", action="store_true",
                        help="Keep temporary files for debugging")
     
@@ -281,7 +293,8 @@ Step range examples:
         namelist_path=args.namelist,
         source_dir=args.source_dir,
         target_dir=args.target_dir,
-        temp_base=args.temp_dir
+        temp_base=args.temp_dir,
+        timeout=args.timeout
     )
     
     try:
