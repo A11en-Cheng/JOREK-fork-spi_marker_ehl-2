@@ -1835,7 +1835,7 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     if (allocated(thmwork_e_tot_t)) call tr_deallocate(thmwork_e_tot_t,"thmwork_e_tot_t",CAT_UNKNOWN)
     call tr_allocate(thmwork_e_tot_t,1,index_start+nstep,"thmwork_e_tot_t",CAT_UNKNOWN)
     thmwork_e_tot_t = 0.d0
-    call H5Lexists_f(file_id,"thmwrok_e_tot_t",flag_exists,err_exists)
+    call H5Lexists_f(file_id,"thmwork_e_tot_t",flag_exists,err_exists)
     if (flag_exists .and. err_exists == 0) then
       call HDF5_array1D_reading(file_id,thmwork_e_tot_t,'thmwork_e_tot_t')
     else
@@ -1846,7 +1846,7 @@ subroutine import_hdf5_restart(node_list, element_list, filename, format_rst, er
     if (allocated(thmwork_i_tot_t)) call tr_deallocate(thmwork_i_tot_t,"thmwork_i_tot_t",CAT_UNKNOWN)
     call tr_allocate(thmwork_i_tot_t,1,index_start+nstep,"thmwork_i_tot_t",CAT_UNKNOWN)
     thmwork_i_tot_t = 0.d0
-    call H5Lexists_f(file_id,"thmwrok_i_tot_t",flag_exists,err_exists)
+    call H5Lexists_f(file_id,"thmwork_i_tot_t",flag_exists,err_exists)
     if (flag_exists .and. err_exists == 0) then
       call HDF5_array1D_reading(file_id,thmwork_i_tot_t,'thmwork_i_tot_t')
     else
