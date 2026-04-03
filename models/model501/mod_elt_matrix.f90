@@ -887,6 +887,14 @@ do ms=1, n_gauss
        Z_imp_p    = (Z_imp_p - n_imp_p * Z_imp) / n_imp
        Z_imp_s    = (Z_imp_s - n_imp_s * Z_imp) / n_imp
        Z_imp_t    = (Z_imp_t - n_imp_t * Z_imp) / n_imp
+       if (Z_imp > imp_adas(index_main_imp)%n_Z) then
+         Z_imp       = imp_adas(index_main_imp)%n_Z
+         Z_imp_x     = 0.d0 
+         Z_imp_y     = 0.d0 
+         Z_imp_p     = 0.d0 
+         Z_imp_s     = 0.d0 
+         Z_imp_t     = 0.d0 
+       endif
      end if
 
      ! Convert Z_imp gradient wrt. T from 1/K into 1/eV
