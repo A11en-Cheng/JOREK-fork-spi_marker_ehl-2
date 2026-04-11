@@ -220,7 +220,7 @@ module pellet_module
     real*8  :: s_out,t_out
     
     real*8  :: n_SI, T_eV, n_corr, T_corr, n_imp_SI, ne_SI, Psi_spi, spi_abl_nl
-    real*8  :: T_eV_nl, ne_SI_nl
+    real*8  :: T_eV_nl, ne_SI_nl, T_thresh, tau_abl
     real*8  :: t_norm, B0, nu
     real*8  :: spi_delta_phi, spi_Vel_R_tmp, spi_Vel_phi_tmp, spi_phi_inj
     real*8  :: spi_Acc_R_tmp, spi_Acc_Z_tmp, spi_Acc_RxZ_tmp
@@ -316,15 +316,10 @@ module pellet_module
       end if
   
       if (my_id == 0.) then
-        if (index_now > 1) then
-          xtime_spi_ablation(i_p,index_now)    = xtime_spi_ablation(i_p,index_now-1) &
-                                               + t_norm * tstep * pellets(i_p)%spi_abl * pellets(i_p)%spi_species
-          xtime_spi_ablation_bg(i_p,index_now) = xtime_spi_ablation_bg(i_p,index_now-1) &
-                                               + t_norm * tstep * pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
-        else
-          xtime_spi_ablation(i_p,index_now)    = t_norm * tstep * pellets(i_p)%spi_abl * pellets(i_p)%spi_species
-          xtime_spi_ablation_bg(i_p,index_now) = t_norm * tstep * pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species) 
-        end if
+        xtime_spi_ablation(i_inj,index_now)    = xtime_spi_ablation(i_inj,index_now) &
+                                                 + t_norm * tstep * pellets(i_p)%spi_abl * pellets(i_p)%spi_species
+        xtime_spi_ablation_bg(i_inj,index_now) = xtime_spi_ablation_bg(i_inj,index_now) &
+                                                 + t_norm * tstep * pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
       end if
   
       if (spi_abl_model(i_inj) == 0) then
@@ -744,6 +739,14 @@ module pellet_module
           B0 = abs(F0 / R_geo)
           nu = 0.843
           if (B0 > 2. .and. spi_abl_mag_reduction) pellets(i_p)%spi_abl = pellets(i_p)%spi_abl * (2./B0)**nu
+        else if (spi_abl_model(i_inj) == 4) then ! An artificial ablation model used only for the pseudo-MGI fragments
+          T_thresh = 13.6 ! The deuterium ionization energy 
+          tau_abl = 1.d-5 ! Characteristic ionization time
+          if (T_eV >= T_thresh) then
+            pellets(i_p)%spi_abl = (4.0 * PI/3.0) * spi_density_tmp * 1.d20 * pellets(i_p)%spi_radius**3/tau_abl
+          else
+            pellets(i_p)%spi_abl = 0.0
+          endif
         else 
           write(*,*) "Unknown ablation model, terminating now!"
           stop
@@ -761,8 +764,8 @@ module pellet_module
       endif
      
       if (my_id == 0) then
-        xtime_spi_ablation_rate(i_p,index_now) = pellets(i_p)%spi_abl * pellets(i_p)%spi_species
-        xtime_spi_ablation_bg_rate(i_p,index_now) = pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
+        xtime_spi_ablation_rate(i_inj,index_now) = xtime_spi_ablation_rate(i_inj,index_now) + pellets(i_p)%spi_abl * pellets(i_p)%spi_species
+        xtime_spi_ablation_bg_rate(i_inj,index_now) = xtime_spi_ablation_bg_rate(i_inj,index_now) + pellets(i_p)%spi_abl * (1. - pellets(i_p)%spi_species)
       end if
 
 
@@ -779,7 +782,7 @@ module pellet_module
                           + spi_rkt_str_phi(i_inj)*cos(spi_delta_phi)
       else if (spi_rkt_model(i_inj) == 2) then ! Constant force
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
-                            +(1.-pellets(i_p)%spi_species)*central_mass
+                            +(1.-pellets(i_p)%spi_species)*central_mass*spi_rkt_H_m_mod(i_inj)
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
         spi_Acc_R_tmp   =   spi_rkt_str_R(i_inj)*cos(spi_delta_phi) &
@@ -792,7 +795,7 @@ module pellet_module
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 3) then ! Constant pressure asymmetry, see Eq.(2) of PHYSICAL REVIEW LETTERS 134, 035101 (2025)
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
-                            +(1.-pellets(i_p)%spi_species)*central_mass
+                            +(1.-pellets(i_p)%spi_species)*central_mass*spi_rkt_H_m_mod(i_inj)
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
 
@@ -806,7 +809,7 @@ module pellet_module
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 4) then ! Chalmers rocket effect, see PHYSICAL REVIEW LETTERS 134, 035101 (2025)
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
-                            +(1.-pellets(i_p)%spi_species)*central_mass
+                            +(1.-pellets(i_p)%spi_species)*central_mass*spi_rkt_H_m_mod(i_inj)
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
 
@@ -842,7 +845,7 @@ module pellet_module
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
       else if (spi_rkt_model(i_inj) == 5) then ! PELOTON rocket effect scaling law, see IDM UID CC7AWD
         mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
-                            +(1.-pellets(i_p)%spi_species)*central_mass
+                            +(1.-pellets(i_p)%spi_species)*central_mass*spi_rkt_H_m_mod(i_inj)
         spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
                             * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
 
@@ -858,6 +861,27 @@ module pellet_module
         spi_Acc_RxZ_tmp =   p_asymm(1)*sin(spi_delta_phi) &
                           + p_asymm(3)*cos(spi_delta_phi)
         spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+      else if (spi_rkt_model(i_inj) == 6) then ! PELOTON rocket effect scaling law for JET
+        mass_eff          = pellets(i_p)%spi_species*central_mass/mu_imp                 &
+                            +(1.-pellets(i_p)%spi_species)*central_mass*spi_rkt_H_m_mod(i_inj)
+        spi_frag_mass_tmp = (4*Pi/3)*(max(pellets(i_p)%spi_radius,1.d-5)**3.)                &
+                            * mass_eff * ATOMIC_MASS_UNIT * spi_density_tmp * 1.d20
+
+        p_asymm(1) = (1.00 * 1.d5) * (T_eV / 2.d3)**1.26 * (ne_SI/1.d20)**0.4 ! In Pa
+        p_asymm(2) = 0.d0
+        p_asymm(3) = 0.d0
+
+        spi_Acc_R_tmp   =   p_asymm(1)*cos(spi_delta_phi) &
+                          - p_asymm(3)*sin(spi_delta_phi)
+        spi_Acc_R_tmp   =   spi_Acc_R_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_Z_tmp   =   p_asymm(2)
+        spi_Acc_Z_tmp   =   spi_Acc_Z_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+        spi_Acc_RxZ_tmp =   p_asymm(1)*sin(spi_delta_phi) &
+                          + p_asymm(3)*cos(spi_delta_phi)
+        spi_Acc_RxZ_tmp =   spi_Acc_Rxz_tmp * (Pi * pellets(i_p)%spi_radius**2.) / spi_frag_mass_tmp
+      else
+        write(*,*) "Unknown rocket effect model, terminating now!"
+        stop
       end if
 
       pellets(i_p)%spi_Vel_R   = pellets(i_p)%spi_Vel_R + spi_Acc_R_tmp * tstep * t_norm
@@ -866,6 +890,9 @@ module pellet_module
   
     end do loop_over_shards
   
+    if (index_now < SIZE(xtime_spi_ablation, dim=2))    xtime_spi_ablation(i_inj,index_now+1)    = xtime_spi_ablation(i_inj,index_now) 
+    if (index_now < SIZE(xtime_spi_ablation_bg, dim=2)) xtime_spi_ablation_bg(i_inj,index_now+1) = xtime_spi_ablation_bg(i_inj,index_now) 
+
     if (spi_tor_rot) then
       ns_phi_rotate  = ns_phi_rotate + tor_frequency * 2. * PI * tstep / V_normalisation
     end if
@@ -1052,7 +1079,7 @@ module pellet_module
         case('Ne')
           ! Only Parks formula can properly treat the mixing of neon and D2/H2,
           ! otherwise we assume neon and D2/H2 formed seperately.
-          if (spi_abl_model(i_inj) == 3 .and. mix_ratio < 1. .and. mix_ratio > 0.) then
+          if ((spi_abl_model(i_inj) == 3 .or. spi_abl_model(i_inj) == 4) .and. mix_ratio < 1. .and. mix_ratio > 0.) then
             do i = 1, n_spi
               i_p = i - 1 + n_spi_begin
               pellets(i_p)%spi_species = spi_quantity/(spi_quantity + spi_quantity_bg)
@@ -1221,19 +1248,19 @@ module pellet_module
       deallocate(rnd)
 
       if (allocated(xtime_spi_ablation)) call tr_deallocate(xtime_spi_ablation,"xtime_spi_ablation",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_spi_tot,1,nstep,"xtime_spi_ablation")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_inj,1,nstep,"xtime_spi_ablation")
 
       if (allocated(xtime_spi_ablation_rate)) &
       call tr_deallocate(xtime_spi_ablation_rate,"xtime_spi_ablation_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_inj,1,nstep,"xtime_spi_ablation_rate")
 
       if (allocated(xtime_spi_ablation_bg)) &
       call tr_deallocate(xtime_spi_ablation_bg,"xtime_spi_ablation_bg",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_inj,1,nstep,"xtime_spi_ablation_bg")
 
       if (allocated(xtime_spi_ablation_bg_rate)) &
       call tr_deallocate(xtime_spi_ablation_bg_rate,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_inj,1,nstep,"xtime_spi_ablation_bg_rate")
 
     else
       write(*,*) "ERROR in pellet_module: n_spi<1"
@@ -1471,7 +1498,7 @@ module pellet_module
         case('Ne')
           ! Only Parks formula can properly treat the mixing of neon and D2/H2.
           ! otherwise we assume neon and D2/H2 formed separately.
-          if (spi_abl_model(i_inj) == 3) then
+          if (spi_abl_model(i_inj) == 3 .or. spi_abl_model(i_inj) == 4) then
             do i = 1, n_spi
               i_p = i - 1 + n_spi_begin
               spi_species_atomic_tmp = 1.d0 - 2.d0 * spi_species_molar_D2_tmp(i) / (spi_species_molar_D2_tmp(i) + 1.d0)
@@ -1498,7 +1525,7 @@ module pellet_module
                 spi_density_tmp = pellet_density_bg
                 real_spi_quantity(1) = real_spi_quantity(1) + (4./3.) * PI * (spi_radius_tmp(i)**3) * spi_density_tmp *1.d20
               else
-                write(*,*) "ERROR in pellet_module: Only 'spi_abl_model(i_inj) = 3' can properly treat the mixing of neon and D2/H2  , exiting."
+                write(*,*) "ERROR in pellet_module: Only 'spi_abl_model(i_inj) = 3 .or. 4' can properly treat the mixing of neon and D2/H2  , exiting."
                 stop
               end if
             end do
@@ -1563,19 +1590,19 @@ module pellet_module
       end do
 
       if (allocated(xtime_spi_ablation)) call tr_deallocate(xtime_spi_ablation,"xtime_spi_ablation",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_spi_tot,1,nstep,"xtime_spi_ablation")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation,1,n_inj,1,nstep,"xtime_spi_ablation")
 
       if (allocated(xtime_spi_ablation_rate)) &
       call tr_deallocate(xtime_spi_ablation_rate,"xtime_spi_ablation_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_rate,1,n_inj,1,nstep,"xtime_spi_ablation_rate")
 
       if (allocated(xtime_spi_ablation_bg)) &
       call tr_deallocate(xtime_spi_ablation_bg,"xtime_spi_ablation_bg",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg,1,n_inj,1,nstep,"xtime_spi_ablation_bg")
 
       if (allocated(xtime_spi_ablation_bg_rate)) &
       call tr_deallocate(xtime_spi_ablation_bg_rate,"xtime_spi_ablation_bg_rate",CAT_UNKNOWN)
-      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_spi_tot,1,nstep,"xtime_spi_ablation_bg_rate")
+      if (nstep .gt. 0) call tr_allocate(xtime_spi_ablation_bg_rate,1,n_inj,1,nstep,"xtime_spi_ablation_bg_rate")
 
     else
       write(*,*) "ERROR in pellet_module: n_spi<1"

@@ -150,5 +150,6 @@
  ns_deltaphi    = 6.d-1     
  t_ns = 4.d2
  spi_shard_file = 'none'    
+ spi_abl_history_old = .t.
  
 /

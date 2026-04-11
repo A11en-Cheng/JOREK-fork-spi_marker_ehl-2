@@ -585,7 +585,7 @@ subroutine preset_parameters
   zk_e_perp_file     = 'none'
   zk_i_perp_file     = 'none'
   R_Z_psi_bnd_file   = 'none'
-  wall_file          = 'none'
+  wall_file          = 'wall.txt'
   rot_file           = 'none'
   visco_file         = 'none'
   domm_file          = 'none'
@@ -653,9 +653,9 @@ subroutine preset_parameters
   use_pastix_eq      = .false.              ! Use PASTIX equilibrium solver
   use_strumpack_eq   = .false.              ! Use STRUMPACK equilibrium olver  
   
-  use_mumps_prj      = .true.               ! Use MUMPS equilibrium solver
-  use_pastix_prj     = .false.              ! Use PASTIX equilibrium solver
-  use_strumpack_prj  = .false.              ! Use STRUMPACK equilibrium olver  
+  use_mumps_prj      = .true.               ! Use MUMPS projection solver
+  use_pastix_prj     = .false.              ! Use PASTIX projection solver
+  use_strumpack_prj  = .false.              ! Use STRUMPACK projection olver  
 
   refinement         = .false.              ! enable mesh refinement
   force_central_node = .true.               ! force all nodes in the grid center to have the same values in flux surface aligned grids
@@ -805,6 +805,7 @@ subroutine preset_parameters
   spi_rkt_str_R(:)  = 0.d0
   spi_rkt_str_Z(:)  = 0.d0
   spi_rkt_str_phi(:)= 0.d0
+  spi_rkt_H_m_mod(:)= 1.d0
   spi_shard_file(:) = 'none'
   spi_plume_file(:) = 'none'
   spi_plume_hdf5  = .false.
@@ -815,6 +816,7 @@ subroutine preset_parameters
   restart_spi     = .true.
   nonlocal_abl    = .false.
   n_nonlocal_array= 0
+  spi_abl_history_old = .false.
 
   output_prad_phi = .false.
 
@@ -889,6 +891,7 @@ subroutine preset_parameters
   puffingtime       = 1.d-3 
 
 !===================== particle input values
+use_particles      = .false.
 n_particles        = 0
 nstep_particles    = 0
 nsubstep_particles = 1

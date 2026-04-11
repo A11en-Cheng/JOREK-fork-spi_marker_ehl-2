@@ -989,6 +989,7 @@ write(*,'(1x,a)',advance='no') ' USE_CATALYST : '
      write(*,REAL_FMT) 'spi_rkt_str_R       ',  spi_rkt_str_R
      write(*,REAL_FMT) 'spi_rkt_str_Z       ',  spi_rkt_str_Z
      write(*,REAL_FMT) 'spi_rkt_str_phi     ',  spi_rkt_str_phi
+     write(*,REAL_FMT) 'spi_rkt_H_m_mod     ',  spi_rkt_H_m_mod
      do i = 1,n_inj
        write(*,CHAR_FMT2) 'spi_shard_file(',i,')    ',  trim(spi_shard_file(i))
      end do

@@ -91,7 +91,7 @@ contains
     real*8,  allocatable :: my_rhs(:,:), y_tmp(:)
     integer, allocatable :: recv_counts(:), recv_disp(:)
     integer :: n_rhs, n_rhs_f, i_rhs, n_tor_local, i_tor_local, n_loc_n
-    integer :: in_local, in_global, index_n, id_master_in_world, offset
+    integer :: in_local, in_global, index_n, id_master_in_world, offset, i_glob1, i_glob2
     logical :: halt(size(IEEE_USUAL,1)), found_nan
 
     call MPI_COMM_RANK(MPI_COMM_WORLD, my_id, ierr)
@@ -268,26 +268,37 @@ contains
         
             index = this%node_list%node(i)%index(k)
 
+            i_glob1 = 2*(index-1) + 1 + 2*this%n_dof*(i_var-1)
+
             if (this%do_zonal) then
-              this%node_list%node(i)%values(1,k,i_var) = y_tmp(2*(index-1) + 1 + 2*this%n_dof*(i_var-1)) + y_tmp(2*(index-1) + 2 + 2*this%n_dof*(i_var-1))
-              this%node_list%node(i)%values(1,k,2)     = y_tmp(2*(index-1) + 2 + 2*this%n_dof*(i_var-1))
+              this%node_list%node(i)%deltas(1,k,i_var) = y_tmp(i_glob1) + y_tmp(i_glob1+1) - this%node_list%node(i)%values(1,k, i_var)
+              this%node_list%node(i)%deltas(1,k,2)     = y_tmp(i_glob1+1)                  - this%node_list%node(i)%values(1,k,     2)
+              
+              this%node_list%node(i)%values(1,k,i_var) = y_tmp(i_glob1) + y_tmp(i_glob1+1)
+              this%node_list%node(i)%values(1,k,2)     = y_tmp(i_glob1+1)
             else
-              this%node_list%node(i)%values(1,k,i_var) = y_tmp(2*(index-1) + 1 + 2*this%n_dof*(i_var-1))
+              this%node_list%node(i)%deltas(1,k,i_var) = y_tmp(i_glob1) - this%node_list%node(i)%values(1,   k, i_var)
+              this%node_list%node(i)%values(1,k,i_var) = y_tmp(i_glob1)
             endif
 
             offset = 2*this%n_dof * this%rhs_vec%nrhs
             
             do i_tor=2,n_tor,2
 
-              this%node_list%node(i)%values(i_tor,  k,i_var) = y_tmp(2*(index-1) + 1 + offset + 2*this%n_dof*(i_var-1) + (i_tor-2)*this%n_dof * this%rhs_vec%nrhs)
-              this%node_list%node(i)%values(i_tor+1,k,i_var) = y_tmp(2*(index-1) + 2 + offset + 2*this%n_dof*(i_var-1) + (i_tor-2)*this%n_dof * this%rhs_vec%nrhs)
+              i_glob2 = 2*(index-1) + 1 + offset + 2*this%n_dof*(i_var-1) + (i_tor-2)*this%n_dof * this%rhs_vec%nrhs
+
+              this%node_list%node(i)%deltas(i_tor,  k,i_var) = y_tmp(i_glob2)   - this%node_list%node(i)%values(i_tor,   k, i_var)
+              this%node_list%node(i)%deltas(i_tor+1,k,i_var) = y_tmp(i_glob2+1) - this%node_list%node(i)%values(i_tor+1, k, i_var)
+
+              this%node_list%node(i)%values(i_tor,  k,i_var) = y_tmp(i_glob2)   
+              this%node_list%node(i)%values(i_tor+1,k,i_var) = y_tmp(i_glob2+1)
             
             end do
           
           enddo    ! order
           
           ! Check for NaNs in the projection
-          if (any(ieee_is_nan(this%node_list%node(i)%values(:,:,i_var)))) then
+          if (any(ieee_is_nan(this%node_list%node(i)%values(:,:,i_var))) .or. any(ieee_is_nan(this%node_list%node(i)%deltas(:,:,i_var)))) then
             found_nan = .true.
           end if
         

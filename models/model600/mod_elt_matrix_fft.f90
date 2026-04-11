@@ -5399,6 +5399,14 @@ subroutine construct_imp_charge_states()
      Z_imp_s    = (Z_imp_s - n_imp_s * Z_imp) / n_imp
      Z_imp_t    = (Z_imp_t - n_imp_t * Z_imp) / n_imp
 
+     if (Z_imp > imp_adas(index_main_imp)%n_Z) then
+       Z_imp       = imp_adas(index_main_imp)%n_Z
+       Z_imp_x     = 0.d0 
+       Z_imp_y     = 0.d0 
+       Z_imp_p     = 0.d0 
+       Z_imp_s     = 0.d0 
+       Z_imp_t     = 0.d0 
+     endif
   else if (use_rcs) then
 
      E_ion     = 0.

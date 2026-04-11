@@ -123,7 +123,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 ns_amplitude, ns_R, ns_Z, ns_phi, ns_radius,        &
                 spi_Vel_Rref,spi_Vel_Zref, using_spi, n_spi, n_inj, &
                 spi_Vel_RxZref, spi_quantity, spi_abl_model,        &
-                spi_rkt_model,                                      &
+                spi_rkt_model, spi_rkt_H_m_mod,                     &
                 spi_rkt_str_R, spi_rkt_str_Z, spi_rkt_str_phi,      &
                 nonlocal_abl, n_nonlocal_array,                     &
                 spi_quantity_bg, pellet_density_bg,                 &
@@ -134,7 +134,7 @@ namelist /in1/  tstep, nstep, tstep_n, nstep_n,                     &
                 spi_Vel_diff, t_ns, JET_MGI, ASDEX_MGI,             &
                 imp_type, delta_n_convection, nimp_bg,              &
                 index_main_imp, diff_diffusive_flux,                &
-                spi_abl_mag_reduction,                              &
+                spi_abl_mag_reduction, spi_abl_history_old,         &
                 adas_dir, output_prad_phi, n_adas,                  &
                 RMP_on, RMP_har_cos,RMP_har_sin, spi_shard_file,    &
                 spi_plume_file, spi_plume_hdf5,                     &

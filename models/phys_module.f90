@@ -493,6 +493,7 @@ module phys_module
   real*8, allocatable  :: xtime_spi_ablation_rate(:,:)    !< The time history of SPI ablation rate
   real*8, allocatable  :: xtime_spi_ablation_bg(:,:)      !< The time history of SPI ablation for background species
   real*8, allocatable  :: xtime_spi_ablation_bg_rate(:,:) ! <The time history of SPI ablation rate for bg species
+  logical              :: spi_abl_history_old        !< If this is .t., convert the old spi_abl_history format to the new one upon restart.
 
   real*8, allocatable  :: xtime_radiation(:)         !< The time history of radiated energy in SI unit
   real*8, allocatable  :: xtime_rad_power(:)         !< The time history of radiated power in SI unit
@@ -520,6 +521,7 @@ module phys_module
   real*8  :: spi_rkt_str_R(n_inj_max)  !< The strength of rocket effect in R of each frag., in SI unit
   real*8  :: spi_rkt_str_Z(n_inj_max)  !< The strength of rocket effect in Z of each frag., in SI unit
   real*8  :: spi_rkt_str_phi(n_inj_max)  !< The strength of rocket effect in phi of each frag., in SI unit
+  real*8  :: spi_rkt_H_m_mod(n_inj_max)  !< The mass modification coefficient in case of injected hydrogen isotopes are different from the background species. For example, injecting H into D palsma makes this coefficient 0.5.
   integer :: spi_rnd_seed(40)   !< Random seed array used for the generation of the SPI velocity spread
 
   character(len=256) :: spi_shard_file(n_inj_max)!< The name of the shard size file
@@ -982,6 +984,7 @@ module phys_module
   real*8  :: D_neutral
 
   !> @name Particles-related input parameters
+  logical :: use_particles       ! Flag if simulation contains particles
   integer :: n_aux_var = n_var   ! number of variables in aux_node_list (= n_var is temporary)
   integer :: n_diag_var = n_var  ! number of variables in diag_node_list (= n_var is temporary)
   logical :: restart_particles

@@ -276,10 +276,10 @@ module mod_plasma_response
     !$omp parallel default(none)                                                           &
     !$omp   shared(my_id,element_list,node_list, H, H_s, H_t, HZ_local, ife_min, ife_max, n_phi_int,    &
     !$omp          delta_phi, n_points, x, y, z, bx_tmp, by_tmp, bz_tmp, Ax_tmp, Ay_tmp, Az_tmp, wgauss_copy)      &
-    !$omp   private(ife,iv,inode,element,nodes,i,j, in, mp, ms, mt,                        &
+    !$omp   private(ife,iv,inode,element,i,j, in, mp, ms, mt,                        &
     !$omp           x_g, y_g, x_s, y_s, x_t, y_t, xjac, eq_g, zj0, R, xp, yp, zp, dd, phi, &
-    !$omp           d_vec, J_vec, cross, dB, dA, wst, omp_nthreads,omp_tid)
-    
+    !$omp           d_vec, J_vec, cross, dB, dA, wst, omp_nthreads,omp_tid) &
+    !$omp   firstprivate(nodes)
 #ifdef _OPENMP
     omp_nthreads = omp_get_num_threads()
     omp_tid      = omp_get_thread_num()
@@ -297,7 +297,7 @@ module mod_plasma_response
 
       do iv = 1, n_vertex_max
         inode     = element%vertex(iv)
-        nodes(iv) = node_list%node(inode)
+        call make_deep_copy_node(node_list%node(inode), nodes(iv))
       enddo
       
       x_g(:,:)    = 0.d0; x_s(:,:)    = 0.d0; x_t(:,:)    = 0.d0;

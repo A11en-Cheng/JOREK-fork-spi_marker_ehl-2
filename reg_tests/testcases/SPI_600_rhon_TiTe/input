@@ -48,6 +48,7 @@
  spi_Vel_diff   = 20.d0
  spi_angle      = 0.349
  spi_L_inj      = 0.20
+ spi_abl_history_old = .t.
  ksi_ion = 1.8d-24
  nimp_bg = 0. 
  adas_dir = './'
