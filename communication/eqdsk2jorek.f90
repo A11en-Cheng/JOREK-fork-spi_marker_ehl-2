@@ -22,7 +22,7 @@ integer,allocatable :: iwrk(:)
 real*8             :: angle, ellip, tria_u, tria_l, quad_u, quad_l, r0, z0, a0, PI
 real*8             :: dummy(3), xdim,zdim,rzero,rgrid1,zmid,rmaxis,zmaxis,ssimag,ssibry,bcentr,a_minor
 real*8             :: xip,xdum1,xdum2,xdum3,xdum4,xdum5
-real*8             :: psi_sep, sig_sep, tanh1, zmu0, zn0, zmd, rho_bnd, T_bnd
+real*8             :: psi_sep, sig_sep, tanh1, tanh2, zmu0, zn0, zmd, rho_bnd, T_bnd
 real*8             :: pres_bnd, sig_ext, dpdpsi_sep
 real*8             :: xb ,xe, yb, ye, smth, fp, fout
 real*8             :: B_scale, I_scale, R_scale, F_axis, factor, dfactor
@@ -640,9 +640,9 @@ rho_ext(1:n_psi) = 1.d0
 df2_ext(n_psi-1:n_ext) = df2_ext(n_psi)
 rho_ext(n_psi-1:n_ext) = rho_ext(n_psi)
 
-psi_sep = 1.0d0     ! in normalised psi units
-sig_sep = 0.005     ! in normalised psi units
-rho_bnd = 0.01      ! in jorek units
+psi_sep = 1.0    ! in normalised psi units
+sig_sep = 0.03   !0.005  ! in normalised psi units
+rho_bnd = 0.03d0     ! 修改：将密度本底从 0.01 提高到 0.1，让外围密度不至于降得太低
 T_bnd   = 2.d-5     ! in jorek units
 
 psi_ext(1:n_psi) = psi(1:n_psi)
@@ -669,13 +669,20 @@ p_ext(n_psi+1:n_ext) = (p(n_psi)-pres_bnd)*( 1 - tanh((psi_ext(n_psi+1:n_ext)-ps
 
 do i=1,n_ext
   tanh1 = tanh((psi_ext(i) - psi_sep)/sig_sep)
+  ! 修改：构建一个双阶跃双曲正切函数，给密度保留一个台基。
+  ! 第一项在0.9处下降，由于第二项在psi_sep下降，我们在0.9到psi_sep之间需要足够高的密度来压住温度峰。
+  ! 为了使得 T = p / rho 不出现凸起，rho 衰减的速度必须比 p 衰减的速度更慢。由于 p 的权重是 tanh1，
+  ! 如果我们在过渡区使用完全平的台基，温度最后反而会在台基外延翘起。
+  ! 最简单彻底的方法：直接强制 T 不超过原先由 tanh1 算出的那条曲线的值，但物理上我们应该让 rho 的 
+  ! 第二个下降斜率放缓。这里改为保持 20% 台基，并把第二下降区的 sig_sep 展宽。
+  tanh2 = 0.8d0*tanh((psi_ext(i) - 0.97d0)/(sig_sep)) + 0.2d0*tanh((psi_ext(i) - psi_sep)/(sig_sep * 2.0d0)) 
   df2_ext(i) = df2_ext(i) * (0.5d0 - 0.5d0*tanh1)
   !rho_ext(i) = (rho_ext(i) - rho_bnd) * (0.5d0 - 0.5d0*tanh1) + rho_bnd
   if (allocated(ne_spline)) then
     rho_ext(i) = rho_ext(i) * ne_spline(i) + rho_bnd * (0.5 + 0.5*tanh1)
     !rho_ext(i) = rho_ext(i) * ne_spline(i) * (0.5d0 - 0.5d0*tanh1) + 1.d-2 * (0.5 + 0.5*tanh1)
   else
-    rho_ext(i) = (rho_ext(i) - rho_bnd) * (0.5d0 - 0.5d0*tanh1) + rho_bnd
+    rho_ext(i) = (rho_ext(i) - rho_bnd) * (0.5d0 - 0.5d0*tanh2) + rho_bnd
   end if
   !T_ext(i)   = T_ext(i)   * (0.5d0 - 0.5d0*tanh1) * zmu0 
   T_ext(i)   = p_ext(i) * zmu0 * (0.5d0 - 0.5d0*tanh1) / rho_ext(i) + T_bnd * (0.5 + 0.5*tanh1)

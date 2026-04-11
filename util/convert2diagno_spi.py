@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 JOREK H5 to CSV Converter with Multi-threading
-Converts jorek*.h5 sequences to fragments*.csv using jorek2_diagno_spi binary
+Converts jorek*.h5 sequences to fragments*.csv using jorek2_diagno_spi binary.
 """
 
 import os
@@ -33,6 +33,68 @@ class JorekConverter:
         # Thread safety
         self.lock = threading.Lock()
         self.active_threads: Dict[int, str] = {}
+
+    def extract_namelist_file_refs(self) -> Set[str]:
+        """Extract likely filename references from the namelist text."""
+        refs: Set[str] = set()
+
+        try:
+            text = self.namelist_path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return refs
+
+        for raw_line in text.splitlines():
+            line = raw_line.split("!", 1)[0].strip()
+            if not line or "=" not in line:
+                continue
+
+            _, rhs = line.split("=", 1)
+
+            # Quoted values in namelists are typical file paths.
+            for quoted in re.findall(r"['\"]([^'\"]+)['\"]", rhs):
+                val = quoted.strip()
+                if val and val.lower() not in {"none", "__no_filename__"}:
+                    refs.add(val)
+
+            # Some namelists use unquoted tokens.
+            for token in re.findall(r"\b[\w./-]+\b", rhs):
+                lower = token.lower()
+                if lower in {"t", "f", "true", "false", "none", "__no_filename__"}:
+                    continue
+                if token.isdigit():
+                    continue
+                if any(ch in token for ch in ("/", ".")) or token.startswith("jorek_"):
+                    refs.add(token)
+
+        return refs
+
+    def link_auxiliary_inputs(self, thread_dir: Path, file_refs: Set[str]):
+        """Link namelist-referenced input files into a thread workspace."""
+        search_dirs = [self.namelist_path.parent, self.source_dir]
+
+        for ref in file_refs:
+            ref_path = Path(ref)
+            target = thread_dir / ref_path.name
+            if target.exists():
+                continue
+
+            candidates: List[Path] = []
+            if ref_path.is_absolute():
+                candidates.append(ref_path)
+            else:
+                for base in search_dirs:
+                    candidates.append(base / ref)
+                    candidates.append(base / ref_path.name)
+
+            src = next((c for c in candidates if c.is_file()), None)
+            if src is None:
+                continue
+
+            try:
+                os.symlink(src, target)
+            except OSError:
+                # Symlink can fail on some filesystems; fallback to copy.
+                shutil.copy2(src, target)
         
     def parse_step_range(self, range_str: str) -> Set[int]:
         """Parse step range specification like '1500-1700,1900' or '1500,1700,1900'"""
@@ -84,7 +146,8 @@ class JorekConverter:
         if thread_dir.exists():
             shutil.rmtree(thread_dir)
 
-    def convert_single_step(self, step_num: int, h5_file: Path, thread_id: int) -> bool:
+    def convert_single_step(self, step_num: int, h5_file: Path, thread_id: int,
+                            file_refs: Set[str]) -> bool:
         """Convert single H5 file to CSV"""
         thread_dir = self.setup_thread_workspace(thread_id)
         
@@ -102,6 +165,9 @@ class JorekConverter:
             # Copy namelist file
             target_namelist = thread_dir / self.namelist_path.name
             shutil.copy2(self.namelist_path, target_namelist)
+
+            # Link profile and other auxiliary inputs referenced by namelist.
+            self.link_auxiliary_inputs(thread_dir, file_refs)
             
             try:
                 # jorek2_diagno_spi reads namelist from stdin in this mode.
@@ -167,6 +233,8 @@ class JorekConverter:
 
     def convert_parallel(self, step_range: str, max_workers: int = None):
         """Main conversion function with parallel processing"""
+        file_refs = self.extract_namelist_file_refs()
+
         # Parse step range
         steps = self.parse_step_range(step_range)
         print(f"Found {len(steps)} steps to process: {sorted(steps)}")
@@ -194,13 +262,15 @@ class JorekConverter:
             future_to_step = {}
             for step_num, h5_file in h5_files:
                 thread_counter += 1
+                thread_id = thread_counter
                 future = executor.submit(
                     self.convert_single_step, 
                     step_num, 
                     h5_file, 
-                    thread_counter
+                    thread_id,
+                    file_refs
                 )
-                future_to_step[future] = (step_num, thread_counter)
+                future_to_step[future] = (step_num, thread_id)
             
             # Monitor progress
             completed = 0

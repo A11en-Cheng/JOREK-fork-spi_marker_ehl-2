@@ -1267,6 +1267,8 @@ subroutine get_symmetric_separatrix_contours(node_list, element_list, sep_list)
   integer               :: i_part_1, i_part_2
   integer               :: i_dir_1,  i_dir_2
   integer               :: i_beg, i_end, dir
+  real*8                :: dist_main, dist_second
+  integer               :: part_main, part_second
   real*8                :: rr, ss, st, dr_flux, ds_flux
   integer               :: main_xpoint, second_xpoint
   real*8                :: R,R1,R2,dR_dr,dR_ds,dR_drs,dR_drr,dR_dss
@@ -1320,6 +1322,60 @@ subroutine get_symmetric_separatrix_contours(node_list, element_list, sep_list)
       endif
     enddo
   enddo
+
+  ! --- Fallback for missing exact X-point element match (symmetric x-points average flux issue)
+  if (i_part_1 .eq. 0 .or. i_part_2 .eq. 0) then
+    write(*,*) "Warning: Strict X-point element match failed. Activating geometric distance fallback."
+    dist_main   = 1.0d30
+    dist_second = 1.0d30
+    part_main   = 0
+    part_second = 0
+    do i_part = 1,sep_list%flux_surfaces(i_surf)%n_parts
+      do i_piece = sep_list%flux_surfaces(i_surf)%parts_index(i_part),sep_list%flux_surfaces(i_surf)%parts_index(i_part+1)-1
+        i_elm = sep_list%flux_surfaces(i_surf)%elm(i_piece)
+        call interp_RZ(node_list,element_list,i_elm, &
+                       sep_list%flux_surfaces(i_surf)%s(1,i_piece), &
+                       sep_list%flux_surfaces(i_surf)%t(1,i_piece), &
+                       R1,dR_dr,dR_ds,dR_drs,dR_drr,dR_dss, &
+                       Z1,dZ_dr,dZ_ds,dZ_drs,dZ_drr,dZ_dss)
+        
+        distance = sqrt( (R1-ES%R_xpoint(main_xpoint))**2 + (Z1-ES%Z_xpoint(main_xpoint))**2 )
+        if (distance .lt. dist_main) then
+          dist_main = distance
+          part_main = i_part
+        endif
+        
+        distance = sqrt( (R1-ES%R_xpoint(second_xpoint))**2 + (Z1-ES%Z_xpoint(second_xpoint))**2 )
+        if (distance .lt. dist_second) then
+          dist_second = distance
+          part_second = i_part
+        endif
+      enddo
+    enddo
+    
+    ! Map them keeping original logic intent
+    if (part_main .gt. 0 .and. part_second .gt. 0) then
+      if (part_main .lt. part_second) then
+        i_part_1 = part_main
+        i_dir_1  = 1
+        i_part_2 = part_second
+        i_dir_2  = 1
+      else if (part_second .lt. part_main) then
+        i_part_1 = part_second
+        i_dir_1  = -1
+        i_part_2 = part_main
+        i_dir_2  = -1
+      else
+        ! Same part?! Give a sane default
+        i_part_1 = part_main
+        i_dir_1  = 1
+        i_part_2 = part_second
+        i_dir_2  = 1
+      endif
+    endif
+    write(*,*) "Geometric fallback fixed x-points! part_1=", i_part_1, " part_2=", i_part_2
+  endif
+
   ! ---Get contour by stepping along
   start_stop = .false.
   n_separatrix_contour = 0
