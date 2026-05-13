@@ -52,17 +52,33 @@ def load_abl_history(abl_file):
         print(f"Failed to read {abl_file}: {e}")
         return None
 
-def load_energies(energy_file, time_scaling):
-    if not os.path.exists(energy_file):
+def load_energies(live_data_file, time_scaling):
+    """提取 macroscopic_vars.dat 中的 integrated_energies 数据
+    返回 DataFrame: time_jorek, time_si, total_energy, magnetic, kin_par, kin_perp, thermal, e_thermal, i_thermal
+    """
+    if not os.path.exists(live_data_file):
         return None
-    try:
-        col_names = ["time_jorek", "total_energy", "magnetic", "kin_par", "kin_perp", "thermal", "e_thermal", "i_thermal"]
-        df = pd.read_csv(energy_file, delim_whitespace=True, comment='%', names=col_names, engine='python')
-        df['time_si'] = df['time_jorek'] * time_scaling
-        return df
-    except Exception as e:
-        print(f"Failed to read {energy_file}: {e}")
-        return None
+    data = []
+    with open(live_data_file, 'r') as f:
+        for line in f:
+            if line.startswith('@integrated_energies:') and not line.startswith('@integrated_energies_'):
+                parts = line.strip().split()
+                if len(parts) >= 9 and '%' not in parts[1]:
+                    try:
+                        t_jorek = float(parts[1])
+                        total_energy = float(parts[2])
+                        magnetic = float(parts[3])
+                        kin_par = float(parts[4])
+                        kin_perp = float(parts[5])
+                        thermal = float(parts[6])
+                        e_thermal = float(parts[7])
+                        i_thermal = float(parts[8])
+                        data.append((t_jorek, t_jorek * time_scaling, total_energy, magnetic, kin_par, kin_perp, thermal, e_thermal, i_thermal))
+                    except ValueError:
+                        pass
+    if data:
+        return pd.DataFrame(data, columns=['time_jorek', 'time_si', 'total_energy', 'magnetic', 'kin_par', 'kin_perp', 'thermal', 'e_thermal', 'i_thermal'])
+    return None
 
 def load_radiated_power(live_data_file, time_scaling):
     """提取 macroscopic_vars.dat 中的 radiated power 数据
@@ -107,7 +123,7 @@ def get_target_q_psi_n(q_profile_file, target_q=-2.0):
         print(f"Failed to read/interpolate {q_profile_file}: {e}")
         return None
 
-def load_psi_n_h5(filename):
+def load_psi_n_h5(filename, bounds=None):
     """
     专门读取 jorek2_postproc 导出的 rectangle (.h5) 2D网格，返回所有点集供插值 Psi_N。
     """
@@ -120,10 +136,41 @@ def load_psi_n_h5(filename):
         print(f"HDF5 Variables detected: {variables}")
         v = f['values'][()]
         
-        # H5 可能会有 0 填充 (Fortran 0-based buffer)
-        R_pts = v[0].flatten()
-        Z_pts = v[1].flatten()
-        psi_pts = v[-1].flatten() # 默认选取设定的第三个变量(理想中是Psi_N)
+        if len(v.shape) == 3 and v.shape[0] == 1:
+            # We only have 1 variable, so it's probably the rectangle output
+            import numpy as np
+            if 'axis1' in f:
+                ax1 = f['axis1'][()]
+                ax2 = f['axis2'][()]
+            elif 'grid1' in f:
+                ax1 = f['grid1'][()]
+                ax2 = f['grid2'][()]
+            else:
+                # If neither exist, generate generic axes based on shape
+                if bounds is not None and len(bounds) == 4:
+                    rmin, rmax, zmin, zmax = bounds
+                    ax1 = np.linspace(rmin, rmax, v.shape[1])
+                    ax2 = np.linspace(zmin, zmax, v.shape[2])
+                else:
+                    ax1 = np.linspace(0, 1, v.shape[1])
+                    ax2 = np.linspace(0, 1, v.shape[2])
+
+            # Ensure we assign the positive coordinate to R
+            if ax1.mean() > ax2.mean() and ax1.min() >= 0:
+                R_ax, Z_ax = ax1, ax2
+            else:
+                R_ax, Z_ax = ax2, ax1
+                
+            # indexing='xy' so that R varies fastest when flattened (matching Fortran's column-major mapped to h5py row-major)
+            R_mesh, Z_mesh = np.meshgrid(R_ax, Z_ax, indexing='xy')
+            R_pts = R_mesh.flatten()
+            Z_pts = Z_mesh.flatten()
+            psi_pts = v[0].flatten()
+        else:
+            # Fallback to older logic just in case
+            R_pts = v[0].flatten()
+            Z_pts = v[1].flatten()
+            psi_pts = v[-1].flatten()
         
         mask = (R_pts != 0) | (Z_pts != 0)
         return R_pts[mask], Z_pts[mask], psi_pts[mask]
@@ -142,6 +189,7 @@ def main():
     parser.add_argument("--target_q", type=float, default=-2.0, help="Target q-value to draw horizontal line in penetration plot")
     parser.add_argument("--out_csv", type=str, default="pellet_average_trajectory.csv", help="Output trajectory file")
     parser.add_argument("--out_plot", type=str, default="penetration_trajectory.png", help="Output visualization plot")
+    parser.add_argument("--bounds", type=float, nargs=4, metavar=('RMIN', 'RMAX', 'ZMIN', 'ZMAX'), default=None, help="Bounding box of the rectangle grid if needed")
     
     args = parser.parse_args()
 
@@ -157,7 +205,7 @@ def main():
 
     # 1. 载入磁场网格数据
     from scipy.interpolate import LinearNDInterpolator
-    R_data, Z_data, Psi_data = load_psi_n_h5(args.psi_file)
+    R_data, Z_data, Psi_data = load_psi_n_h5(args.psi_file, bounds=args.bounds)
     print(f"Loaded 2D grid data with {len(R_data)} valid points for Psi_N interpolation.")
     
     psi_interpolator = LinearNDInterpolator(list(zip(R_data, Z_data)), Psi_data)
@@ -198,22 +246,23 @@ def main():
             # print(f"Skipping file: {csv_file}, no valid data.")
             continue
 
-        # 在第一个存在的步数过滤出排名最大的 N 个碎片的编号 i_spi
-        if target_ids is None:
-            top_df = df.sort_values(by='spi_radius', ascending=False).head(args.top_n)
-            target_ids = top_df['i_spi'].tolist()
-            print(f"Tracking fixed top {len(target_ids)} pellet fragments (IDs: {target_ids}) from step {step}")
-
-        # 仅追踪这些固定编号的弹丸
-        df_tracked = df[df['i_spi'].isin(target_ids)]
+        # 选取所有半径大于 0 的碎片
+        df_active = df[df['spi_radius'] > 0]
         
-        if df_tracked.empty:
-            continue
-        
-        # 计算固定碎片的平均位置与平均半径
-        avg_R = df_tracked['spi_R'].mean()
-        avg_Z = df_tracked['spi_Z'].mean()
-        avg_radius = df_tracked['spi_radius'].mean()
+        if df_active.empty:
+            # 如果没有活着的碎块，设定半径为 0
+            avg_R = df['spi_R'].mean()
+            avg_Z = df['spi_Z'].mean()
+            avg_radius = 0.0
+            total_mass = 0.0
+        else:
+            # 以体积（半径的三次方）为权重计算质心位置
+            volumes = df_active['spi_radius']**3
+            total_mass = volumes.sum()
+            avg_R = (df_active['spi_R'] * volumes).sum() / total_mass
+            avg_Z = (df_active['spi_Z'] * volumes).sum() / total_mass
+            # 平均半径可用于指示消融进程
+            avg_radius = df_active['spi_radius'].mean()
         
         # 计算平均中心距该磁面曲面的最短距离，或者是精准网格插值的Psi_N
         # 直接通过2D网格插值获取精确的 Psi_N 归一化磁通
@@ -279,7 +328,7 @@ def main():
 
     t0 = args.start_time if args.start_time is not None else res_df['time_si'].min()
 
-    energy_df = load_energies(args.energy_file, time_scaling)
+    energy_df = load_energies(args.live_data, time_scaling)
     if energy_df is not None and not energy_df.empty:
         if args.start_time is not None:
             energy_df = energy_df[energy_df['time_si'] >= args.start_time]
@@ -443,7 +492,8 @@ def main():
 
     # 第一张子图: 穿深
     ax_depth = axes[ax_ind]
-    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', label=f"Avg Psi_N (Num {len(target_ids)})")
+    target_ids_len = len(target_ids) if target_ids is not None else "All"
+    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', label=f"Avg Psi_N (Num {target_ids_len})")
     
     if target_q_psi is not None:
         ax_depth.axhline(target_q_psi, color='#9467bd', linestyle='--', linewidth=2.5, label=f"q={args.target_q} (Psi_N={target_q_psi:.3f})")
@@ -458,7 +508,7 @@ def main():
 
     # 第二张子图: 碎片半径演化
     ax_rad = axes[ax_ind]
-    ax_rad.plot(x_val*1e3, res_df['avg_radius'] * 1e3, color='#2ca02c', linestyle='-', label=f"Avg Radius (Num {len(target_ids)})")
+    ax_rad.plot(x_val*1e3, res_df['avg_radius'] * 1e3, color='#2ca02c', linestyle='-', label=f"Avg Radius (Num {target_ids_len})")
     ax_rad.set_ylabel("Radius (mm)")
     import matplotlib.ticker as ticker
     ax_rad.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))

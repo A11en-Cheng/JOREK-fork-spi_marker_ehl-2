@@ -156,7 +156,7 @@ class JorekConverter:
             with self.lock:
                 self.active_threads[thread_id] = f"step_{step_num:06d}"
             
-            print(f"Thread {thread_id}: Processing step {step_num:06d}")
+            #print(f"Thread {thread_id}: Processing step {step_num:06d}")
             
             # Copy H5 file to thread workspace as jorek_restart.h5
             target_h5 = thread_dir / "jorek_restart.h5"
@@ -237,7 +237,7 @@ class JorekConverter:
 
         # Parse step range
         steps = self.parse_step_range(step_range)
-        print(f"Found {len(steps)} steps to process: {sorted(steps)}")
+        # print(f"Found {len(steps)} steps to process: {sorted(steps)}")
         
         # Find matching H5 files
         h5_files = self.find_h5_files(steps)
