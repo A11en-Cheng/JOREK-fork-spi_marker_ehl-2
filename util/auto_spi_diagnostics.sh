@@ -16,7 +16,7 @@ MACRO_VARS=${3:-./macroscopic_vars.dat}
 NAMELIST=${4:-input_EHL_t2}
 
 # Number of parallel workers (adjust based on available cores)
-N_PARALLEL=16
+N_PARALLEL=8
 
 # All outputs go under this directory
 OUTPUT_DIR="auto_diagno_spi"
@@ -118,7 +118,7 @@ if [ $? -eq 0 ] && [ ! -z "$BOUNDS" ]; then
     cat <<EOF > "$OUTPUT_DIR/postproc_step3.in"
 namelist $NAMELIST
 set_postproc_dir $POSTPROC_DIR
-expressions Psi_N
+expressions Psi_N Psi
 for step $START_STEP do
   rectangle $RMIN $RMAX 200 $ZMIN $ZMAX 200 0.
 done
@@ -193,7 +193,7 @@ for ((w=0; w<N_PARALLEL; w++)); do
 namelist $NAMELIST
 set_postproc_dir $POSTPROC_DIR
 si-units
-expressions Psi_N T_e
+expressions Psi_N T_e nimp Psi
 mark_coords 1
 set surfaces 120
 for step $w_start to $w_end do
