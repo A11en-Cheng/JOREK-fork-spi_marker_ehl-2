@@ -5,7 +5,8 @@
 # jorek2_postproc, and track_largest_pellets.py to fully automate
 # SPI pellet injection tracking and diagnostics.
 #
-
+export OMP_NUM_THREADS=1
+ulimit -s unlimited
 set -e
 
 # Option / Parameter parsing could be added here, but for now we take defaults.
@@ -18,6 +19,20 @@ CSV_FOLDER="csv_file_automatic"
 echo "================================================="
 echo "      JOREK Automated SPI Diagnostics Workflow     "
 echo "================================================="
+
+# Wrapper to try MPI multi-threading first, then fallback to single core
+run_postproc() {
+    local in_file=$1
+    local log_file=$2
+    if command -v mpirun >/dev/null 2>&1; then
+        echo "[INFO] Attempting postproc via mpirun -np 16..."
+        if mpirun -np 16 "$POSTPROC_BIN" < "$in_file" > "$log_file" 2>&1; then
+            return 0
+        fi
+        echo "[INFO] mpirun failed or unsupported for this binary, falling back to single core..."
+    fi
+    "$POSTPROC_BIN" < "$in_file" > "$log_file" 2>&1
+}
 
 # SPI start timestep: minimum step from part*.h5 names
 START_STEP_RAW=$(ls part*.h5 2>/dev/null | sed -n 's/^.*part\([0-9]\+\)\.h5.*$/\1/p' | sort -n | head -1)
@@ -34,7 +49,7 @@ echo "[INFO] Detected SPI start step: $START_STEP"
 # ==============================================================================
 echo "[STEP 1] Generating CSV files using convert2diagno_spi.py..."
 mkdir -p "$CSV_FOLDER"
-python3 util/convert2diagno_spi.py "$DIAGNO_BIN" "$NAMELIST" "${START_STEP}-99999" -t "$CSV_FOLDER" -j16
+python3 util/convert2diagno_spi.py "$DIAGNO_BIN" "$NAMELIST" "${START_STEP}-99999" -t "$CSV_FOLDER" -j8
 
 # ==============================================================================
 # Step 2: Extract Ablation history 
@@ -93,13 +108,14 @@ if [ $? -eq 0 ] && [ ! -z "$BOUNDS" ]; then
     # 清理之前可能产生的同名残留文件以避免 HDF5 写入冲突
     rm -f postproc/exprs_*.h5 2>/dev/null
     
-    cat <<EOF | "$POSTPROC_BIN" > postproc_step3.log
+    cat <<EOF > postproc_step3.in
 namelist $NAMELIST
 expressions Psi_N
 for step $START_STEP do
   rectangle $RMIN $RMAX 200 $ZMIN $ZMAX 200 0.
 done
 EOF
+    run_postproc postproc_step3.in postproc_step3.log
 
     RECC_FILE=$(ls postproc/exprs_*.h5 2>/dev/null | tail -1)
     if [ -n "$RECC_FILE" ]; then
@@ -118,12 +134,13 @@ fi
 # Step 4: Generate precise q-profile for TQ thresholds
 # ==============================================================================
 echo "[STEP 4] Generating q-profile..."
-cat <<EOF | "$POSTPROC_BIN" > postproc_step4.log
+cat <<EOF > postproc_step4.in
 namelist $NAMELIST
 for step $START_STEP do
   qprofile
 done
 EOF
+run_postproc postproc_step4.in postproc_step4.log
 
 QPROF_FILE=$(ls postproc/qprofile_*.dat 2>/dev/null | tail -1)
 if [ -n "$QPROF_FILE" ]; then
@@ -132,6 +149,22 @@ if [ -n "$QPROF_FILE" ]; then
 else
     echo "Warning: Failed to generate qprofile_*.dat file in postproc/"
 fi
+
+# ==============================================================================
+# Step 4.5: Generate averaged Te profile for local TQ detection
+# ==============================================================================
+echo "[STEP 4.5] Generating averaged Te profiles..."
+cat <<EOF > postproc_step45.in
+namelist $NAMELIST
+si-units
+expressions Psi_N T_e
+mark_coords 1
+set surfaces 120
+for step $START_STEP to $LAST_STEP do
+  average
+done
+EOF
+run_postproc postproc_step45.in postproc_step45.log
 
 # ==============================================================================
 # Step 5: Final Python Diagnostic Plots

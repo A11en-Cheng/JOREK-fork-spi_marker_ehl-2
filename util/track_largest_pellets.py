@@ -123,6 +123,76 @@ def get_target_q_psi_n(q_profile_file, target_q=-2.0):
         print(f"Failed to read/interpolate {q_profile_file}: {e}")
         return None
 
+def get_te_evolution_at_psi(psi_target, time_map, time_scaling, t0, limit_ev=10.0):
+    """提取目标面局部Te演变，并寻找局部热猝灭（Te < 10eV）时间"""
+    if psi_target is None:
+        return None, None, pd.DataFrame()
+    import glob
+    from scipy.interpolate import interp1d
+    
+    # 优先查找合并后的多时间步文件（带有 ..）
+    combined_files = sorted(glob.glob("postproc/exprs_averaged_s*..*.dat"))
+    if combined_files:
+        # 取排在最后的合并文件（通常覆盖范围最全）
+        files = [combined_files[-1]]
+    else:
+        # 若未找到合并文件，则降级为读取单独的文件，并排除带 .. 的
+        all_files = sorted(glob.glob("postproc/exprs_averaged_s*.dat"))
+        files = [f for f in all_files if ".." not in f]
+        
+    te_history = []
+    t_tq = None
+    t_tq_step = None
+    
+    for f in files:
+        current_step = None
+        data_rows = []
+        
+        def process_block(step, rows):
+            nonlocal t_tq, t_tq_step
+            try:
+                df = pd.DataFrame(rows, columns=['psi_n', 'Te'])
+                df = df.dropna().sort_values(by="psi_n")
+                if not df.empty and psi_target >= df["psi_n"].min() and psi_target <= df["psi_n"].max():
+                    f_te = interp1d(df["psi_n"], df["Te"])
+                    te_val = float(f_te(psi_target))
+                    real_time = time_map.get(step, step) * time_scaling
+                    if real_time >= t0:
+                        te_history.append((step, real_time, te_val))
+                        if te_val <= limit_ev and t_tq is None:
+                            t_tq = float(real_time)
+                            t_tq_step = step
+            except Exception:
+                pass
+
+        with open(f, "r") as fp:
+            for line in fp:
+                line = line.strip()
+                if not line: continue
+                if line.startswith("#"):
+                    if "time step" in line:
+                        if current_step is not None and data_rows:
+                            process_block(current_step, data_rows)
+                            data_rows = []
+                        try:
+                            # Parse step like "# time step #002750"
+                            step_str = line.split("#")[-1].strip()
+                            current_step = int(step_str)
+                        except ValueError:
+                            pass
+                else:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        data_rows.append([float(parts[0]), float(parts[1])])
+                        
+        if current_step is not None and data_rows:
+            process_block(current_step, data_rows)
+            
+    te_df = pd.DataFrame(te_history, columns=["step", "time_si", "Te"])
+    if not te_df.empty:
+        te_df = te_df.sort_values(by="time_si")
+    return t_tq, t_tq_step, te_df
+
 def load_psi_n_h5(filename, bounds=None):
     """
     专门读取 jorek2_postproc 导出的 rectangle (.h5) 2D网格，返回所有点集供插值 Psi_N。
@@ -251,22 +321,38 @@ def main():
         
         if df_active.empty:
             # 如果没有活着的碎块，设定半径为 0
-            avg_R = df['spi_R'].mean()
-            avg_Z = df['spi_Z'].mean()
-            avg_radius = 0.0
-            total_mass = 0.0
+            avg_R, avg_Z, avg_radius, total_mass = df['spi_R'].mean(), df['spi_Z'].mean(), 0.0, 0.0
+            psi_n_val, psi_n_std = np.nan, 0.0
         else:
             # 以体积（半径的三次方）为权重计算质心位置
             volumes = df_active['spi_radius']**3
             total_mass = volumes.sum()
             avg_R = (df_active['spi_R'] * volumes).sum() / total_mass
             avg_Z = (df_active['spi_Z'] * volumes).sum() / total_mass
-            # 平均半径可用于指示消融进程
-            avg_radius = df_active['spi_radius'].mean()
+            # 使用总体积等效半径来指示消融进程（解决从小碎片先死导致的算术平均值假象）
+            avg_radius = total_mass**(1/3)
         
-        # 计算平均中心距该磁面曲面的最短距离，或者是精准网格插值的Psi_N
-        # 直接通过2D网格插值获取精确的 Psi_N 归一化磁通
-        psi_n_val = float(psi_interpolator(avg_R, avg_Z))
+            # 计算每个碎片的精确 Psi_N 并求质量加权标准差
+            fragment_R = df_active['spi_R'].values
+            fragment_Z = df_active['spi_Z'].values
+            fragment_psi = psi_interpolator(fragment_R, fragment_Z)
+            
+            valid_mask = ~np.isnan(fragment_psi)
+            if valid_mask.sum() == 0:
+                psi_n_val = np.nan
+                psi_n_std = 0.0
+            else:
+                frag_psi_valid = fragment_psi[valid_mask]
+                frag_vol_valid = volumes.values[valid_mask]
+                mass_valid = frag_vol_valid.sum()
+                
+                if mass_valid > 0:
+                    psi_n_val = float(np.average(frag_psi_valid, weights=frag_vol_valid))
+                    variance = np.average((frag_psi_valid - psi_n_val)**2, weights=frag_vol_valid)
+                    psi_n_std = float(np.sqrt(variance))
+                else:
+                    psi_n_val = np.nan
+                    psi_n_std = 0.0
 
         if time_map:
             jorek_time = time_map.get(step, None)
@@ -280,7 +366,8 @@ def main():
             'avg_R': avg_R,
             'avg_Z': avg_Z,
             'avg_radius': avg_radius,
-            'psi_n': psi_n_val
+            'psi_n': psi_n_val,
+            'psi_n_std': psi_n_std
         })
 
     if not time_series:
@@ -382,6 +469,9 @@ def main():
             
     _t0_idx = (res_df['time_si'] - t0).abs().idxmin()
     t0_step = int(res_df.loc[_t0_idx, 'step'])
+    
+    # 查找局部温度 TQ 和获取 Te 演化历史
+    t_local_tq, t_local_tq_step, te_df = get_te_evolution_at_psi(target_q_psi, time_map, time_scaling, t0, limit_ev=10.0)
 
     print("\n" + "="*50)
     print("                EVENT TIMINGS")
@@ -396,6 +486,7 @@ def main():
     print_event("Reached q_95 (Psi_N=0.95)", t_psi95, t_psi95_step)
     if target_q_psi is not None:
         print_event(f"Reached Target q={args.target_q}", t_target_q, t_target_q_step)
+        print_event(f"Local TQ (Te<10eV at q={args.target_q})", t_local_tq, t_local_tq_step)
     print_event("Thermal Quench (~90% drop)", t_10_percent_thermal, t_10_percent_step)
     print_event("Complete Ablation", t_r0, t_r0_step)
     print("="*50 + "\n")
@@ -481,9 +572,13 @@ def main():
         if t_target_q is not None and t_target_q >= t0:
             tx = (t_target_q - t0)*1e3
             ax.axvline(tx, color='#9467bd', linestyle='-.', alpha=0.9, linewidth=2.0)
-        if t_10_percent_thermal is not None and t_10_percent_thermal >= t0:
-            tx = (t_10_percent_thermal - t0)*1e3
+        
+        # 优先画出基于局部表面温度10eV标记的TQ线，如果没有数据退化回90%下降的
+        t_tq_plot = t_local_tq if (t_local_tq is not None) else t_10_percent_thermal
+        if t_tq_plot is not None and t_tq_plot >= t0:
+            tx = (t_tq_plot - t0)*1e3
             ax.axvline(tx, color='darkorange', linestyle='-.', alpha=0.9, linewidth=2.5)
+            
         if t_r0 is not None and t_r0 >= t0:
             tx = (t_r0 - t0)*1e3
             ax.axvline(tx, color='grey', linestyle='-.', alpha=0.9, linewidth=2.5)
@@ -493,10 +588,18 @@ def main():
     # 第一张子图: 穿深
     ax_depth = axes[ax_ind]
     target_ids_len = len(target_ids) if target_ids is not None else "All"
-    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', label=f"Avg Psi_N (Num {target_ids_len})")
+    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', label=f"Mass-Weighted Avg Psi_N")
+    if 'psi_n_std' in res_df.columns:
+        ax_depth.fill_between(
+            x_val*1e3,
+            res_df['psi_n'] - res_df['psi_n_std'],
+            res_df['psi_n'] + res_df['psi_n_std'],
+            color='#1f77b4', alpha=0.3, label="±1σ Cloud Thickness"
+        )
     
+    # 横线不再绘制，保留垂直线（在最后由 draw_event_lines 绘制）
     if target_q_psi is not None:
-        ax_depth.axhline(target_q_psi, color='#9467bd', linestyle='--', linewidth=2.5, label=f"q={args.target_q} (Psi_N={target_q_psi:.3f})")
+         ax_depth.axhline(target_q_psi, color='#9467bd', linestyle='--', linewidth=2.5, label=f"q={args.target_q} (Psi_N={target_q_psi:.3f})")
         
     ax_depth.set_ylabel("Psi_N")
     ax_depth.set_title("Pellet Penetration and Evolution")
@@ -506,16 +609,17 @@ def main():
     ax_depth.set_ylim(bottom=0)
     ax_ind += 1
 
-    # 第二张子图: 碎片半径演化
-    ax_rad = axes[ax_ind]
-    ax_rad.plot(x_val*1e3, res_df['avg_radius'] * 1e3, color='#2ca02c', linestyle='-', label=f"Avg Radius (Num {target_ids_len})")
-    ax_rad.set_ylabel("Radius (mm)")
-    import matplotlib.ticker as ticker
-    ax_rad.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.3f'))
-    ax_rad.grid(True)
-    ax_rad.legend()
-    ax_rad.set_xlim(left=0, right=args.max_time_ms)
-#    ax_rad.set_ylim(bottom=0)
+    # 第二张子图: q=target_q 面的 Te 演化
+    ax_te = axes[ax_ind]
+    if not te_df.empty:
+        te_x = (te_df['time_si'] - t0) * 1e3
+        ax_te.plot(te_x, te_df['Te'], color='#ff7f0e', linestyle='-', linewidth=2.5, label=f"Te at q={args.target_q}")
+        ax_te.axhline(10.0, color='darkorange', linestyle=':', linewidth=2, label="10 eV Limit")
+    ax_te.set_ylabel("Te (eV)")
+    ax_te.set_yscale('log')
+    ax_te.grid(True, which="both", ls="--", alpha=0.6)
+    ax_te.legend()
+    ax_te.set_xlim(left=0, right=args.max_time_ms)
     ax_ind += 1
 
     # 第三张子图 (可选): 消融率
@@ -577,17 +681,24 @@ def main():
 
     # --- 后期补充所有事件线和文字，用于第二张图 ---
     draw_event_lines(ax_depth)
-    draw_event_lines(ax_rad)
+    draw_event_lines(ax_te)
     if has_abl: draw_event_lines(ax_abl)
     if has_egy: draw_event_lines(ax_egy)
     
     if t_r0 is not None and t_r0 >= t0:
         tx = (t_r0 - t0)*1e3
         y_loc = res_df['psi_n'].max() if not res_df.empty else 1.0
-        ax_rad.text(tx, 0.1, f' r->0 ({tx:.2f}ms) ', color='dimgrey', va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
-    if t_10_percent_thermal is not None and t_10_percent_thermal >= t0:
-        tx = (t_10_percent_thermal - t0)*1e3
-        ax_egy.text(tx, 0.5e6, f' TQ ({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
+        ax_te.text(tx, 1e2, f' r->0 ({tx:.2f}ms) ', color='dimgrey', va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
+        
+    t_tq_plot = t_local_tq if (t_local_tq is not None) else t_10_percent_thermal
+    if t_tq_plot is not None and t_tq_plot >= t0:
+        tx = (t_tq_plot - t0)*1e3
+        label_text = ' Local TQ ' if (t_local_tq is not None) else ' TQ (90%) '
+        if has_egy:
+            ax_egy.text(tx, 0.5e6, f'{label_text}({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
+        else:
+            ax_depth.text(tx, 0.5, f'{label_text}({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
+
     if t_psi95 is not None and t_psi95 >= t0:
         tx = (t_psi95 - t0)*1e3
         ax_depth.text(tx, 0.8, f' q95 ({tx:.2f}ms) ', color='black', va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
