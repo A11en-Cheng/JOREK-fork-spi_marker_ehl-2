@@ -123,28 +123,42 @@ def get_target_q_psi_n(q_profile_file, target_q=-2.0):
         print(f"Failed to read/interpolate {q_profile_file}: {e}")
         return None
 
-def get_te_evolution_at_psi(psi_target, time_map, time_scaling, t0, limit_ev=10.0):
-    """提取目标面局部Te演变，并寻找局部热猝灭（Te < 10eV）时间"""
+def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling, t0, limit_ev=10.0):
+    """提取目标面局部Te演变，并寻找局部热猝灭（Te < 10eV）时间
+    
+    Parameters
+    ----------
+    psi_target : float or None
+        目标 Psi_N 值
+    te_profile_files : list of str
+        由外部传入的 Te profile 文件路径列表（已解析好的，不再内部搜索）
+    time_map : dict
+        step → jorek time 映射
+    time_scaling : float
+        时间缩放因子
+    t0 : float
+        起始时间
+    limit_ev : float
+        Te 低于此阈值 (eV) 视为局部 TQ
+        
+    Returns
+    -------
+    t_tq : float or None
+    t_tq_step : int or None
+    te_df : pd.DataFrame
+    """
     if psi_target is None:
         return None, None, pd.DataFrame()
-    import glob
-    from scipy.interpolate import interp1d
+    if not te_profile_files:
+        return None, None, pd.DataFrame()
     
-    # 优先查找合并后的多时间步文件（带有 ..）
-    combined_files = sorted(glob.glob("postproc/exprs_averaged_s*..*.dat"))
-    if combined_files:
-        # 取排在最后的合并文件（通常覆盖范围最全）
-        files = [combined_files[-1]]
-    else:
-        # 若未找到合并文件，则降级为读取单独的文件，并排除带 .. 的
-        all_files = sorted(glob.glob("postproc/exprs_averaged_s*.dat"))
-        files = [f for f in all_files if ".." not in f]
+    from scipy.interpolate import interp1d
         
     te_history = []
     t_tq = None
     t_tq_step = None
     
-    for f in files:
+    for f in te_profile_files:
         current_step = None
         data_rows = []
         
@@ -260,6 +274,7 @@ def main():
     parser.add_argument("--out_csv", type=str, default="pellet_average_trajectory.csv", help="Output trajectory file")
     parser.add_argument("--out_plot", type=str, default="penetration_trajectory.png", help="Output visualization plot")
     parser.add_argument("--bounds", type=float, nargs=4, metavar=('RMIN', 'RMAX', 'ZMIN', 'ZMAX'), default=None, help="Bounding box of the rectangle grid if needed")
+    parser.add_argument("--te_profile", type=str, default=None, help="Path to averaged Te profile .dat file (from jorek2_postproc average command)")
     
     args = parser.parse_args()
 
@@ -471,7 +486,34 @@ def main():
     t0_step = int(res_df.loc[_t0_idx, 'step'])
     
     # 查找局部温度 TQ 和获取 Te 演化历史
-    t_local_tq, t_local_tq_step, te_df = get_te_evolution_at_psi(target_q_psi, time_map, time_scaling, t0, limit_ev=10.0)
+    # 由外部传入 te_profile 文件路径（支持单独调用），若未传则自动搜索
+    if args.te_profile:
+        te_files = [args.te_profile]
+    else:
+        import glob as _glob
+        # 自动搜索：优先新目录结构，降级到旧路径
+        _candidates = [
+            "auto_diagno_spi/postproc/exprs_averaged_merged.dat",
+            "postproc/exprs_averaged_merged.dat",
+        ]
+        te_files = []
+        for _cand in _candidates:
+            if os.path.exists(_cand):
+                te_files = [_cand]
+                break
+        if not te_files:
+            _combined = sorted(_glob.glob("auto_diagno_spi/postproc/exprs_averaged_s*..*.dat"))
+            if not _combined:
+                _combined = sorted(_glob.glob("postproc/exprs_averaged_s*..*.dat"))
+            if _combined:
+                te_files = [_combined[-1]]
+            else:
+                _all = sorted(_glob.glob("auto_diagno_spi/postproc/exprs_averaged_s*.dat"))
+                if not _all:
+                    _all = sorted(_glob.glob("postproc/exprs_averaged_s*.dat"))
+                te_files = [f for f in _all if ".." not in f]
+    t_local_tq, t_local_tq_step, te_df = get_te_evolution_at_psi(
+        target_q_psi, te_files, time_map, time_scaling, t0, limit_ev=10.0)
 
     print("\n" + "="*50)
     print("                EVENT TIMINGS")

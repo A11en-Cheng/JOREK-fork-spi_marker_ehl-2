@@ -14,7 +14,14 @@ DIAGNO_BIN=${1:-./jorek2_diagno_spi}
 POSTPROC_BIN=${2:-./jorek2_postproc}
 MACRO_VARS=${3:-./macroscopic_vars.dat}
 NAMELIST=${4:-input_EHL_t2}
-CSV_FOLDER="csv_file_automatic"
+N_PARALLEL=16
+
+# All outputs go under this directory
+OUTPUT_DIR="auto_diagno_spi"
+POSTPROC_DIR="$OUTPUT_DIR/postproc"
+CSV_FOLDER="$OUTPUT_DIR/csv_files"
+
+mkdir -p "$POSTPROC_DIR" "$CSV_FOLDER"
 
 echo "================================================="
 echo "      JOREK Automated SPI Diagnostics Workflow     "
@@ -48,7 +55,6 @@ echo "[INFO] Detected SPI start step: $START_STEP"
 # Step 1: Create CSV folder mapping 3D positions over time
 # ==============================================================================
 echo "[STEP 1] Generating CSV files using convert2diagno_spi.py..."
-mkdir -p "$CSV_FOLDER"
 python3 util/convert2diagno_spi.py "$DIAGNO_BIN" "$NAMELIST" "${START_STEP}-99999" -t "$CSV_FOLDER" -j8
 
 # ==============================================================================
@@ -71,8 +77,11 @@ cp "$JOREK_FILE" jorek_restart.h5
 cp "$PART_FILE" part_restart.h5
 
 # Execute diagno_spi taking the namelist as input
-"$DIAGNO_BIN" < "$NAMELIST" > diagno_spi_step2.log || true
-if [ ! -f "abl_history.dat" ]; then
+"$DIAGNO_BIN" < "$NAMELIST" > "$OUTPUT_DIR/diagno_spi_step2.log" || true
+if [ -f "abl_history.dat" ]; then
+    cp abl_history.dat "$OUTPUT_DIR/abl_history.dat"
+    echo "[INFO] abl_history.dat copied to $OUTPUT_DIR/"
+else
     echo "Warning: abl_history.dat was not produced!"
 fi
 
@@ -106,23 +115,24 @@ if [ $? -eq 0 ] && [ ! -z "$BOUNDS" ]; then
     echo "[INFO] Fragment trajectory bounding box: R[$RMIN, $RMAX], Z[$ZMIN, $ZMAX]"
     
     # 清理之前可能产生的同名残留文件以避免 HDF5 写入冲突
-    rm -f postproc/exprs_*.h5 2>/dev/null
+    rm -f "$POSTPROC_DIR"/exprs_*.h5 2>/dev/null
     
-    cat <<EOF > postproc_step3.in
+    cat <<EOF > "$OUTPUT_DIR/postproc_step3.in"
 namelist $NAMELIST
+set_postproc_dir $POSTPROC_DIR
 expressions Psi_N
 for step $START_STEP do
   rectangle $RMIN $RMAX 200 $ZMIN $ZMAX 200 0.
 done
 EOF
-    run_postproc postproc_step3.in postproc_step3.log
+    run_postproc "$OUTPUT_DIR/postproc_step3.in" "$OUTPUT_DIR/postproc_step3.log"
 
-    RECC_FILE=$(ls postproc/exprs_*.h5 2>/dev/null | tail -1)
+    RECC_FILE=$(ls "$POSTPROC_DIR"/exprs_*.h5 2>/dev/null | tail -1)
     if [ -n "$RECC_FILE" ]; then
-        cp "$RECC_FILE" rectangle_psi.h5
-        echo "[INFO] Successfully copied $RECC_FILE to rectangle_psi.h5"
+        cp "$RECC_FILE" "$OUTPUT_DIR/rectangle_psi.h5"
+        echo "[INFO] Successfully copied $RECC_FILE to $OUTPUT_DIR/rectangle_psi.h5"
     else
-        echo "Error: Failed to generate exprs_*.h5 file in postproc/"
+        echo "Error: Failed to generate exprs_*.h5 file in $POSTPROC_DIR/"
         exit 1
     fi
 else
@@ -134,53 +144,123 @@ fi
 # Step 4: Generate precise q-profile for TQ thresholds
 # ==============================================================================
 echo "[STEP 4] Generating q-profile..."
-cat <<EOF > postproc_step4.in
+cat <<EOF > "$OUTPUT_DIR/postproc_step4.in"
 namelist $NAMELIST
+set_postproc_dir $POSTPROC_DIR
 for step $START_STEP do
   qprofile
 done
 EOF
-run_postproc postproc_step4.in postproc_step4.log
+run_postproc "$OUTPUT_DIR/postproc_step4.in" "$OUTPUT_DIR/postproc_step4.log"
 
-QPROF_FILE=$(ls postproc/qprofile_*.dat 2>/dev/null | tail -1)
+QPROF_FILE=$(ls "$POSTPROC_DIR"/qprofile_*.dat 2>/dev/null | tail -1)
 if [ -n "$QPROF_FILE" ]; then
-    cp "$QPROF_FILE" qprofile.dat
-    echo "[INFO] Successfully copied $QPROF_FILE to qprofile.dat"
+    cp "$QPROF_FILE" "$OUTPUT_DIR/qprofile.dat"
+    echo "[INFO] Successfully copied $QPROF_FILE to $OUTPUT_DIR/qprofile.dat"
 else
-    echo "Warning: Failed to generate qprofile_*.dat file in postproc/"
+    echo "Warning: Failed to generate qprofile_*.dat file in $POSTPROC_DIR/"
 fi
 
 # ==============================================================================
 # Step 4.5: Generate averaged Te profile for local TQ detection
 # ==============================================================================
-echo "[STEP 4.5] Generating averaged Te profiles..."
-cat <<EOF > postproc_step45.in
+echo "[STEP 4.5] Generating averaged Te profiles (parallelized)..."
+
+# Number of parallel workers (adjust based on available cores)
+
+TOTAL_STEPS=$((LAST_STEP - START_STEP + 1))
+STEPS_PER_WORKER=$(( (TOTAL_STEPS + N_PARALLEL - 1) / N_PARALLEL ))
+
+echo "[INFO] Total steps: $TOTAL_STEPS, workers: $N_PARALLEL, steps/worker: ~$STEPS_PER_WORKER"
+
+# Clean up previous temp files
+rm -f "$POSTPROC_DIR"/exprs_averaged_*.dat 2>/dev/null
+
+# Launch parallel postproc workers
+worker_pids=()
+for ((w=0; w<N_PARALLEL; w++)); do
+    w_start=$((START_STEP + w * STEPS_PER_WORKER))
+    w_end=$((w_start + STEPS_PER_WORKER - 1))
+    if [ $w_end -gt $LAST_STEP ]; then
+        w_end=$LAST_STEP
+    fi
+    if [ $w_start -gt $LAST_STEP ]; then
+        break
+    fi
+
+    worker_in="$OUTPUT_DIR/postproc_step45_worker${w}.in"
+    worker_log="$OUTPUT_DIR/postproc_step45_worker${w}.log"
+
+    cat <<EOF > "$worker_in"
 namelist $NAMELIST
+set_postproc_dir $POSTPROC_DIR
 si-units
 expressions Psi_N T_e
 mark_coords 1
 set surfaces 120
-for step $START_STEP to $LAST_STEP do
+for step $w_start to $w_end do
   average
 done
 EOF
-run_postproc postproc_step45.in postproc_step45.log
+
+    echo "[INFO] Launching worker $w: steps $w_start -> $w_end"
+    "$POSTPROC_BIN" < "$worker_in" > "$worker_log" 2>&1 &
+    worker_pids+=($!)
+done
+
+# Wait for all workers to finish
+echo "[INFO] Waiting for ${#worker_pids[@]} postproc workers to complete..."
+wait "${worker_pids[@]}"
+echo "[INFO] All workers finished."
+
+# Merge output files: collect all .dat files, keep step delimiters, deduplicate column headers
+MERGED_OUT="$POSTPROC_DIR/exprs_averaged_merged.dat"
+first_file=true
+for dat_file in "$POSTPROC_DIR"/exprs_averaged_s*.dat; do
+    [ -f "$dat_file" ] || continue
+    if $first_file; then
+        # Keep entire first file (header + all step blocks)
+        cp "$dat_file" "$MERGED_OUT"
+        first_file=false
+    else
+        # Skip column header block, keep everything from first "# time step" onward
+        awk 'BEGIN{found=0} /^# time step #/{found=1} found{print}' "$dat_file" >> "$MERGED_OUT"
+    fi
+done
+
+if [ -f "$MERGED_OUT" ]; then
+    echo "[INFO] Merged averaged profiles into $MERGED_OUT ($(wc -l < "$MERGED_OUT") lines)"
+else
+    echo "Warning: No averaged profile output files found."
+fi
+
+# Cleanup worker temp files
+rm -f "$OUTPUT_DIR"/postproc_step45_worker*.in "$OUTPUT_DIR"/postproc_step45_worker*.log 2>/dev/null
 
 # ==============================================================================
 # Step 5: Final Python Diagnostic Plots
 # ==============================================================================
 echo "[STEP 5] Generating visualization and data synthesis..."
+TE_PROFILE_ARG=""
+if [ -f "$MERGED_OUT" ]; then
+    TE_PROFILE_ARG="--te_profile $MERGED_OUT"
+    echo "[INFO] Passing Te profile: $MERGED_OUT"
+else
+    echo "[INFO] No merged Te profile found, Python will auto-search."
+fi
 python3 util/track_largest_pellets.py \
     --csv_dir "$CSV_FOLDER" \
-    --psi_file rectangle_psi.h5 \
+    --psi_file "$OUTPUT_DIR/rectangle_psi.h5" \
     --top_n 100 \
-    --abl_file abl_history.dat \
-    --q_profile qprofile.dat \
+    --abl_file "$OUTPUT_DIR/abl_history.dat" \
+    --q_profile "$OUTPUT_DIR/qprofile.dat" \
     --live_data "$MACRO_VARS" \
     --max_time_ms 2.0 \
     --bounds $RMIN $RMAX $ZMIN $ZMAX \
-    --out_plot spi_diagnostic_overview.png
+    $TE_PROFILE_ARG \
+    --out_plot "$OUTPUT_DIR/spi_diagnostic_overview.png" \
+    --out_csv "$OUTPUT_DIR/pellet_trajectory_summary.csv"
 
 echo "================================================="
 echo "[SUCCESS] SPI Diagnostics Complete."
-echo "Please check spi_diagnostic_overview.png."
+echo "Please check $OUTPUT_DIR/spi_diagnostic_overview.png."
