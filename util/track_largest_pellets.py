@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import os
+import re
 import glob
 import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d, LinearNDInterpolator
 
 def load_time_mapping(live_data_file):
     """解析 macroscopic_vars.dat 以提取 step 到 time 的映射及单位换算常数"""
@@ -116,7 +118,6 @@ def get_target_q_psi_n(q_profile_file, target_q=-2.0):
             print(f"Target q={target_q} is out of bounds in {q_profile_file}.")
             return None
         
-        from scipy.interpolate import interp1d
         f_psi_n = interp1d(df_sorted["q"], df_sorted["psi_n"])
         return float(f_psi_n(target_q))
     except Exception as e:
@@ -152,8 +153,6 @@ def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling
     if not te_profile_files:
         return None, None, pd.DataFrame()
     
-    from scipy.interpolate import interp1d
-        
     te_history = []
     t_tq = None
     t_tq_step = None
@@ -222,7 +221,6 @@ def load_psi_n_h5(filename, bounds=None):
         
         if len(v.shape) == 3 and v.shape[0] == 1:
             # We only have 1 variable, so it's probably the rectangle output
-            import numpy as np
             if 'axis1' in f:
                 ax1 = f['axis1'][()]
                 ax2 = f['axis2'][()]
@@ -263,10 +261,8 @@ def main():
     parser = argparse.ArgumentParser(description="Track the average penetration of the largest N pellet fragments.")
     parser.add_argument("--csv_dir", type=str, required=True, help="Directory containing fragments_position_*.csv from convert2diagno_spi.py")
     parser.add_argument("--psi_file", type=str, required=True, help="Flux surface dat file exported from jorek2_postproc")
-    parser.add_argument("--top_n", type=int, default=10, help="Number of largest fragments to track")
     parser.add_argument("--live_data", type=str, default='macroscopic_vars.dat', help="Path to macroscopic_vars.dat to extract physical time")
     parser.add_argument("--abl_file", type=str, default="abl_history.dat", help="Path to abl_history.dat produced by jorek2_diagno_spi")
-    parser.add_argument("--energy_file", type=str, default="integrated_energies.dat", help="Path to integrated_energies.dat")
     parser.add_argument("--start_time", type=float, default=None, help="Optional start time (in SI seconds) to plot from")
     parser.add_argument("--max_time_ms", type=float, default=3.0, help="Maximum plotted time in ms from the start_time (default: 3.0 ms)")
     parser.add_argument("--q_profile", type=str, default=None, help="Path to q_profile dat file")
@@ -289,14 +285,12 @@ def main():
             print(f"Warning: {args.live_data} not found, will only use steps.")
 
     # 1. 载入磁场网格数据
-    from scipy.interpolate import LinearNDInterpolator
     R_data, Z_data, Psi_data = load_psi_n_h5(args.psi_file, bounds=args.bounds)
     print(f"Loaded 2D grid data with {len(R_data)} valid points for Psi_N interpolation.")
     
     psi_interpolator = LinearNDInterpolator(list(zip(R_data, Z_data)), Psi_data)
 
     # 2. 遍历并严格过滤所需前缀的 CSV (或 dat 重命名) 文件
-    import re
     all_files = glob.glob(os.path.join(args.csv_dir, "*.csv"))
     csv_files = sorted([f for f in all_files if re.match(r"fragments_position_\d+\.csv", os.path.basename(f))])
     
@@ -308,8 +302,6 @@ def main():
     # 按照 Fortran 中 write(20,'(i7,3f12.3,e14.6,f12.3)') 输出定义的各列数据标题
     col_names = ['i_spi', 'spi_R', 'spi_Z', 'spi_phi', 'spi_radius', 'spi_species']
     
-    target_ids = None
-
     for csv_file in csv_files:
         # 尝试从文件名萃取 step
         step_str = os.path.basename(csv_file).replace("fragments_position_", "").replace(".csv", "")
@@ -490,7 +482,6 @@ def main():
     if args.te_profile:
         te_files = [args.te_profile]
     else:
-        import glob as _glob
         # 自动搜索：优先新目录结构，降级到旧路径
         _candidates = [
             "auto_diagno_spi/postproc/exprs_averaged_merged.dat",
@@ -502,15 +493,15 @@ def main():
                 te_files = [_cand]
                 break
         if not te_files:
-            _combined = sorted(_glob.glob("auto_diagno_spi/postproc/exprs_averaged_s*..*.dat"))
+            _combined = sorted(glob.glob("auto_diagno_spi/postproc/exprs_averaged_s*..*.dat"))
             if not _combined:
-                _combined = sorted(_glob.glob("postproc/exprs_averaged_s*..*.dat"))
+                _combined = sorted(glob.glob("postproc/exprs_averaged_s*..*.dat"))
             if _combined:
                 te_files = [_combined[-1]]
             else:
-                _all = sorted(_glob.glob("auto_diagno_spi/postproc/exprs_averaged_s*.dat"))
+                _all = sorted(glob.glob("auto_diagno_spi/postproc/exprs_averaged_s*.dat"))
                 if not _all:
-                    _all = sorted(_glob.glob("postproc/exprs_averaged_s*.dat"))
+                    _all = sorted(glob.glob("postproc/exprs_averaged_s*.dat"))
                 te_files = [f for f in _all if ".." not in f]
     t_local_tq, t_local_tq_step, te_df = get_te_evolution_at_psi(
         target_q_psi, te_files, time_map, time_scaling, t0, limit_ev=10.0)
@@ -610,27 +601,26 @@ def main():
     def draw_event_lines(ax):
         if t_psi95 is not None and t_psi95 >= t0:
             tx = (t_psi95 - t0)*1e3
-            ax.axvline(tx, color='black', linestyle='-.', alpha=0.9, linewidth=2.0)
+            ax.axvline(tx, color='black', linestyle='-.', alpha=0.8, linewidth=2.0)
         if t_target_q is not None and t_target_q >= t0:
             tx = (t_target_q - t0)*1e3
-            ax.axvline(tx, color='#9467bd', linestyle='-.', alpha=0.9, linewidth=2.0)
+            ax.axvline(tx, color='#9467bd', linestyle='-.', alpha=0.8, linewidth=2.0)
         
         # 优先画出基于局部表面温度10eV标记的TQ线，如果没有数据退化回90%下降的
         t_tq_plot = t_local_tq if (t_local_tq is not None) else t_10_percent_thermal
         if t_tq_plot is not None and t_tq_plot >= t0:
             tx = (t_tq_plot - t0)*1e3
-            ax.axvline(tx, color='darkorange', linestyle='-.', alpha=0.9, linewidth=2.5)
+            ax.axvline(tx, color='darkorange', linestyle='-.', alpha=0.8, linewidth=2.0)
             
         if t_r0 is not None and t_r0 >= t0:
             tx = (t_r0 - t0)*1e3
-            ax.axvline(tx, color='grey', linestyle='-.', alpha=0.9, linewidth=2.5)
+            ax.axvline(tx, color='grey', linestyle='-.', alpha=0.8, linewidth=2.0)
 
     ax_ind = 0
 
     # 第一张子图: 穿深
     ax_depth = axes[ax_ind]
-    target_ids_len = len(target_ids) if target_ids is not None else "All"
-    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', label=f"Mass-Weighted Avg Psi_N")
+    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', label="Mass-Weighted Avg Psi_N")
     if 'psi_n_std' in res_df.columns:
         ax_depth.fill_between(
             x_val*1e3,
@@ -736,10 +726,7 @@ def main():
     if t_tq_plot is not None and t_tq_plot >= t0:
         tx = (t_tq_plot - t0)*1e3
         label_text = ' Local TQ ' if (t_local_tq is not None) else ' TQ (90%) '
-        if has_egy:
-            ax_egy.text(tx, 0.5e6, f'{label_text}({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
-        else:
-            ax_depth.text(tx, 0.5, f'{label_text}({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
+        ax_te.text(tx, 0.5e6, f'{label_text}({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
 
     if t_psi95 is not None and t_psi95 >= t0:
         tx = (t_psi95 - t0)*1e3

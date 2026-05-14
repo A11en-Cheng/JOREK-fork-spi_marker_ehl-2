@@ -14,6 +14,8 @@ DIAGNO_BIN=${1:-./jorek2_diagno_spi}
 POSTPROC_BIN=${2:-./jorek2_postproc}
 MACRO_VARS=${3:-./macroscopic_vars.dat}
 NAMELIST=${4:-input_EHL_t2}
+
+# Number of parallel workers (adjust based on available cores)
 N_PARALLEL=16
 
 # All outputs go under this directory
@@ -23,21 +25,17 @@ CSV_FOLDER="$OUTPUT_DIR/csv_files"
 
 mkdir -p "$POSTPROC_DIR" "$CSV_FOLDER"
 
+# Cleanup worker temp files
+rm -f "$OUTPUT_DIR"/postproc_step45_worker*.in "$OUTPUT_DIR"/postproc_step45_worker*.log 2>/dev/null
+
 echo "================================================="
 echo "      JOREK Automated SPI Diagnostics Workflow     "
 echo "================================================="
 
-# Wrapper to try MPI multi-threading first, then fallback to single core
+# Wrapper to run postproc (single-core, stdin-driven Fortran program)
 run_postproc() {
     local in_file=$1
     local log_file=$2
-    if command -v mpirun >/dev/null 2>&1; then
-        echo "[INFO] Attempting postproc via mpirun -np 16..."
-        if mpirun -np 16 "$POSTPROC_BIN" < "$in_file" > "$log_file" 2>&1; then
-            return 0
-        fi
-        echo "[INFO] mpirun failed or unsupported for this binary, falling back to single core..."
-    fi
     "$POSTPROC_BIN" < "$in_file" > "$log_file" 2>&1
 }
 
@@ -55,7 +53,7 @@ echo "[INFO] Detected SPI start step: $START_STEP"
 # Step 1: Create CSV folder mapping 3D positions over time
 # ==============================================================================
 echo "[STEP 1] Generating CSV files using convert2diagno_spi.py..."
-python3 util/convert2diagno_spi.py "$DIAGNO_BIN" "$NAMELIST" "${START_STEP}-99999" -t "$CSV_FOLDER" -j8
+python3 util/convert2diagno_spi.py "$DIAGNO_BIN" "$NAMELIST" "${START_STEP}-99999" -t "$CSV_FOLDER" -j ${N_PARALLEL}
 
 # ==============================================================================
 # Step 2: Extract Ablation history 
@@ -166,7 +164,7 @@ fi
 # ==============================================================================
 echo "[STEP 4.5] Generating averaged Te profiles (parallelized)..."
 
-# Number of parallel workers (adjust based on available cores)
+
 
 TOTAL_STEPS=$((LAST_STEP - START_STEP + 1))
 STEPS_PER_WORKER=$(( (TOTAL_STEPS + N_PARALLEL - 1) / N_PARALLEL ))
@@ -234,8 +232,7 @@ else
     echo "Warning: No averaged profile output files found."
 fi
 
-# Cleanup worker temp files
-rm -f "$OUTPUT_DIR"/postproc_step45_worker*.in "$OUTPUT_DIR"/postproc_step45_worker*.log 2>/dev/null
+
 
 # ==============================================================================
 # Step 5: Final Python Diagnostic Plots
@@ -251,7 +248,6 @@ fi
 python3 util/track_largest_pellets.py \
     --csv_dir "$CSV_FOLDER" \
     --psi_file "$OUTPUT_DIR/rectangle_psi.h5" \
-    --top_n 100 \
     --abl_file "$OUTPUT_DIR/abl_history.dat" \
     --q_profile "$OUTPUT_DIR/qprofile.dat" \
     --live_data "$MACRO_VARS" \
