@@ -25,7 +25,7 @@
 
 默认只监看 jorek_restart.h5，每 60 秒刷新一次；
 也可以通过 --pattern 选择其他文件模式（例如 "jorek*.h5" 会始终选最新的文件）。
-支持的场名：psi, phi, rho, T, v_par, T_e
+支持的场名：psi, phi, omega, rho, T, v_par, T_e
 """
 
 import argparse
@@ -47,7 +47,7 @@ import numpy as np
 class GraphData:
     """简化版数据结构，仅包含可视化所需信息（全部为 numpy 数组）。"""
 
-    x: np.ndarray          # [n_nodes, 6] 节点物理量 (psi, Phi, rho, T, v_par, T_e)
+    x: np.ndarray          # [n_nodes, 7] 节点物理量 (psi, Phi, omega, rho, T, v_par, T_e)
     pos: np.ndarray        # [n_nodes, 2] 节点坐标 (R, Z)
     triangles: Optional[np.ndarray]  # [n_tri, 3] 三角形拓扑 (0-based)，或 None
     time: float            # 当前物理时间 t_now
@@ -92,7 +92,7 @@ class JorekDataParser:
             else:
                 raise ValueError(f"Unexpected shape for 'values': {values_data.shape}")
 
-            # 按照约定提取 6 个变量: psi, Phi, rho, T (Ti), v_par, T_e
+            # 按照约定提取 7 个变量: psi, Phi, omega, rho, T (Ti), v_par, T_e
             if values_raw.shape[0] <= 8:
                 raise ValueError(
                     "Channel index 8 (T_e) is not available in 'values'. "
@@ -100,11 +100,12 @@ class JorekDataParser:
                 )
             psi = np.array(values_raw[2, :], dtype=np.float32)
             Phi = np.array(values_raw[1, :], dtype=np.float32)
+            omega = np.array(values_raw[3, :], dtype=np.float32)
             rho = np.array(values_raw[4, :], dtype=np.float32)
             T = np.array(values_raw[5, :], dtype=np.float32)
             v_par = np.array(values_raw[6, :], dtype=np.float32)
             T_e = np.array(values_raw[8, :], dtype=np.float32)
-            x = np.stack([psi, Phi, rho, T, v_par, T_e], axis=1)  # [n_nodes, 6]
+            x = np.stack([psi, Phi, omega, rho, T, v_par, T_e], axis=1)  # [n_nodes, 7]
 
             # 3. 时间戳
             if "t_now" in f:
@@ -144,27 +145,30 @@ class JorekDataParser:
 FIELD_NAME_TO_INDEX = {
     "psi": 0,
     "phi": 1,  # 对应 Phi
-    "rho": 2,
-    "t": 3,    # 温度 Ti
-    "ti": 3,
-    "temperature": 3,
-    "v_par": 4,
-    "vpar": 4,
-    "t_e": 5,
-    "te": 5,
-    "electron_temperature": 5,
+    "omega": 2,
+    "w": 2,
+    "rho": 3,
+    "t": 4,    # 温度 Ti
+    "ti": 4,
+    "temperature": 4,
+    "v_par": 5,
+    "vpar": 5,
+    "t_e": 6,
+    "te": 6,
+    "electron_temperature": 6,
 }
 
 INDEX_TO_CANONICAL_FIELD = {
     0: "psi",
     1: "phi",
-    2: "rho",
-    3: "t",
-    4: "v_par",
-    5: "t_e",
+    2: "omega",
+    3: "rho",
+    4: "t",
+    5: "v_par",
+    6: "t_e",
 }
 
-FIELD_CYCLE = ["psi", "phi", "rho", "t", "v_par", "t_e"]
+FIELD_CYCLE = ["psi", "phi", "omega", "rho", "t", "v_par", "t_e"]
 
 
 def find_latest_file(directory: str, pattern: str) -> Optional[str]:

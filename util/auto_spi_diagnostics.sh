@@ -33,7 +33,7 @@ cleanup_temp() { rm -rf "$UNIQUE_TEMP"; }
 trap cleanup_temp EXIT
 
 # Cleanup worker temp files
-rm -f "$OUTPUT_DIR"/postproc_step45_worker*.in "$OUTPUT_DIR"/postproc_step45_worker*.log 2>/dev/null
+rm -f "$OUTPUT_DIR"/postproc_step3_worker*.in "$OUTPUT_DIR"/postproc_step3_worker*.log 2>/dev/null
 
 echo "============================================================"
 echo "       JOREK SPI Diagnostic Suite — Automated Workflow        "
@@ -61,13 +61,13 @@ echo "[INFO] Detected SPI start step: $START_STEP"
 # ==============================================================================
 # Step 1: Extract 3D fragment positions across all time steps (→ fragments_position_*.csv)
 # ==============================================================================
-echo "[STEP 1/5] Extracting fragment (R,Z,φ) trajectories from all part*.h5 …"
+echo "[STEP 1/4] Extracting fragment (R,Z,φ) trajectories from all part*.h5 …"
 python3 util/convert2diagno_spi.py "$DIAGNO_BIN" "$NAMELIST" "${START_STEP}-99999" -t "$CSV_FOLDER" -j ${N_PARALLEL} --temp-dir "$UNIQUE_TEMP"
 
 # ==============================================================================
 # Step 2: Ablation-rate history from the final restart file
 # ==============================================================================
-echo "[STEP 2/5] Computing ablation-rate history (abl_history.dat) …"
+echo "[STEP 2/4] Computing ablation-rate history (abl_history.dat) …"
 LAST_STEP_RAW=$(ls part*.h5 2>/dev/null | sed -n 's/^.*part\([0-9]\+\)\.h5.*$/\1/p' | sort -n | tail -1)
 LAST_STEP=$((10#$LAST_STEP_RAW))
 echo "[INFO]   Last available step: $LAST_STEP"
@@ -92,11 +92,16 @@ else
     echo "[WARN]   abl_history.dat was not produced; ablation integrals will be skipped."
 fi
 
+# Compute total steps (used by Step 3)
+TOTAL_STEPS=$((LAST_STEP - START_STEP + 1))
+STEPS_PER_WORKER=$(( (TOTAL_STEPS + N_PARALLEL - 1) / N_PARALLEL ))
+
 # ==============================================================================
-# Step 3: Export a 2D (R,Z) snapshot of the initial-equilibrium Psi_N and Psi fields
-#         — serves as the fixed reference coordinate frame for the whole diagnostic
+# Step 3: Unified parallel diagnostics — rectangle + qprofile + average
+#         All three commands run in a single for-loop per worker,
+#         sharing one restart load per time step (≈30–40% less wall time).
 # ==============================================================================
-echo "[STEP 3/5] Exporting initial-equilibrium Psi_N(R,Z) and Psi(R,Z) at step ${START_STEP} …"
+echo "[STEP 3/4] Unified diagnostics (rectangle + qprofile + average) for all ${TOTAL_STEPS} steps …"
 BOUNDS=$(python3 -c "
 import glob, sys, pandas as pd, re, os
 csvs = glob.glob('$CSV_FOLDER/*.csv')
@@ -114,78 +119,30 @@ if not dfs: sys.exit(1)
 df = pd.concat(dfs)
 rmin, rmax = df.iloc[:, 1].min(), df.iloc[:, 1].max()
 zmin, zmax = df.iloc[:, 2].min(), df.iloc[:, 2].max()
-# Add safety margin
 print(f'{rmin-0.1:.4f} {rmax+0.1:.4f} {zmin-0.1:.4f} {zmax+0.1:.4f}')
 ")
 
 if [ $? -eq 0 ] && [ ! -z "$BOUNDS" ]; then
     read RMIN RMAX ZMIN ZMAX <<< "$BOUNDS"
     echo "[INFO]   Fragment (R,Z) envelope: R in [$RMIN, $RMAX]  Z in [$ZMIN, $ZMAX]"
-    
-    # 清理之前可能产生的同名残留文件以避免 HDF5 写入冲突
-    rm -f "$POSTPROC_DIR"/exprs_*.h5 2>/dev/null
-    
-    cat <<EOF > "$OUTPUT_DIR/postproc_step3.in"
-namelist $NAMELIST
-set_postproc_dir $POSTPROC_DIR
-expressions Psi_N Psi
-for step $START_STEP do
-  rectangle $RMIN $RMAX 200 $ZMIN $ZMAX 200 0.
-done
-EOF
-    run_postproc "$OUTPUT_DIR/postproc_step3.in" "$OUTPUT_DIR/postproc_step3.log"
-
-    RECC_FILE=$(ls "$POSTPROC_DIR"/exprs_*.h5 2>/dev/null | tail -1)
-    if [ -n "$RECC_FILE" ]; then
-        cp "$RECC_FILE" "$OUTPUT_DIR/rectangle_psi.h5"
-        echo "[INFO]   Initial-equilibrium grid saved → $OUTPUT_DIR/rectangle_psi.h5"
-    else
-        echo "[ERROR]  jorek2_postproc did not produce an exprs_*.h5 file in $POSTPROC_DIR/"
-        exit 1
-    fi
 else
     echo "[ERROR]  Failed to compute fragment (R,Z) boundaries from CSV files."
     exit 1
 fi
 
-# ==============================================================================
-# Step 4: q-profile at the START_STEP — used to locate rational surfaces
-# ==============================================================================
-echo "[STEP 4/5] Extracting initial q-profile (q vs Psi_N) …"
-cat <<EOF > "$OUTPUT_DIR/postproc_step4.in"
-namelist $NAMELIST
-set_postproc_dir $POSTPROC_DIR
-for step $START_STEP do
-  qprofile
-done
-EOF
-run_postproc "$OUTPUT_DIR/postproc_step4.in" "$OUTPUT_DIR/postproc_step4.log"
-
-QPROF_FILE=$(ls "$POSTPROC_DIR"/qprofile_*.dat 2>/dev/null | tail -1)
-if [ -n "$QPROF_FILE" ]; then
-    cp "$QPROF_FILE" "$OUTPUT_DIR/qprofile.dat"
-    echo "[INFO]   q-profile saved → $OUTPUT_DIR/qprofile.dat"
-else
-    echo "[WARN]   q-profile was not generated; target-q line will be omitted."
-fi
-
-# ==============================================================================
-# Step 4.5: Time-evolving flux-surface averages of Te, nimp, and Psi
-#           — used for the impurity heatmap and local-TQ detection
-#           — Psi column enables mapping back to the initial-equilibrium frame
-# ==============================================================================
-echo "[STEP 4.5/5] Computing flux-surface averages (Te, nimp, Psi) over ${TOTAL_STEPS} steps …"
-
-TOTAL_STEPS=$((LAST_STEP - START_STEP + 1))
-STEPS_PER_WORKER=$(( (TOTAL_STEPS + N_PARALLEL - 1) / N_PARALLEL ))
+# ---- Clean up all output files from previous runs ----
+rm -f "$POSTPROC_DIR"/exprs_Rmin*.h5 2>/dev/null
+rm -f "$POSTPROC_DIR"/qprofile_s*.dat 2>/dev/null
+rm -f "$POSTPROC_DIR"/exprs_averaged_s*.dat 2>/dev/null
+QPROF_MERGED="$POSTPROC_DIR/qprofile_merged.dat"
+MERGED_OUT="$POSTPROC_DIR/exprs_averaged_merged.dat"
+rm -f "$QPROF_MERGED" "$MERGED_OUT" 2>/dev/null
+rm -f "$OUTPUT_DIR"/postproc_step3_worker*.in "$OUTPUT_DIR"/postproc_step3_worker*.log 2>/dev/null
 
 echo "[INFO]   ${TOTAL_STEPS} steps ÷ ${N_PARALLEL} workers ≈ ${STEPS_PER_WORKER} steps/worker"
 
-# Clean up previous temp files
-rm -f "$POSTPROC_DIR"/exprs_averaged_*.dat 2>/dev/null
-
-# Launch parallel postproc workers
-worker_pids=()
+# ---- Launch unified parallel workers ----
+unified_pids=()
 for ((w=0; w<N_PARALLEL; w++)); do
     w_start=$((START_STEP + w * STEPS_PER_WORKER))
     w_end=$((w_start + STEPS_PER_WORKER - 1))
@@ -196,42 +153,68 @@ for ((w=0; w<N_PARALLEL; w++)); do
         break
     fi
 
-    worker_in="$OUTPUT_DIR/postproc_step45_worker${w}.in"
-    worker_log="$OUTPUT_DIR/postproc_step45_worker${w}.log"
+    worker_in="$OUTPUT_DIR/postproc_step3_worker${w}.in"
+    worker_log="$OUTPUT_DIR/postproc_step3_worker${w}.log"
 
     cat <<EOF > "$worker_in"
 namelist $NAMELIST
 set_postproc_dir $POSTPROC_DIR
 si-units
-expressions Psi_N T_e nimp Psi
+expressions Psi_N T_e nimp
 mark_coords 1
 set surfaces 120
 for step $w_start to $w_end do
+  rectangle $RMIN $RMAX 200 $ZMIN $ZMAX 200 0.
+  qprofile
   average
 done
 EOF
 
-    echo "[INFO]   Worker ${w}: steps ${w_start} → ${w_end}"
+    echo "[INFO]   Unified worker ${w}: steps ${w_start} → ${w_end}"
     "$POSTPROC_BIN" < "$worker_in" > "$worker_log" 2>&1 &
-    worker_pids+=($!)
+    unified_pids+=($!)
 done
 
-# Wait for all workers to finish
-echo "[INFO]   Waiting for ${#worker_pids[@]} workers …"
-wait "${worker_pids[@]}"
-echo "[INFO]   All workers finished."
+echo "[INFO]   Waiting for ${#unified_pids[@]} unified workers …"
+wait "${unified_pids[@]}"
+echo "[INFO]   All unified workers finished."
 
-# Merge output files: collect all .dat files, keep step delimiters, deduplicate column headers
-MERGED_OUT="$POSTPROC_DIR/exprs_averaged_merged.dat"
+# ---- Verify rectangle HDF5 files ----
+RECT_COUNT=$(ls "$POSTPROC_DIR"/exprs_Rmin*.h5 2>/dev/null | wc -l)
+if [ "$RECT_COUNT" -gt 0 ]; then
+    echo "[INFO]   ${RECT_COUNT} rectangle HDF5 files exported → $POSTPROC_DIR/"
+else
+    echo "[ERROR]  jorek2_postproc did not produce any exprs_Rmin*.h5 files in $POSTPROC_DIR/"
+    exit 1
+fi
+
+# ---- Merge qprofile output files ----
+first_file=true
+for dat_file in "$POSTPROC_DIR"/qprofile_s*.dat; do
+    [ -f "$dat_file" ] || continue
+    if $first_file; then
+        cp "$dat_file" "$QPROF_MERGED"
+        first_file=false
+    else
+        awk 'BEGIN{found=0} /^# time step #/{found=1} found{print}' "$dat_file" >> "$QPROF_MERGED"
+    fi
+done
+
+if [ -f "$QPROF_MERGED" ]; then
+    cp "$QPROF_MERGED" "$OUTPUT_DIR/qprofile_merged.dat"
+    echo "[INFO]   Merged q-profile → $OUTPUT_DIR/qprofile_merged.dat  ($(wc -l < "$QPROF_MERGED") lines)"
+else
+    echo "[WARN]   No qprofile output files produced; target-q tracking will be skipped."
+fi
+
+# ---- Merge average output files ----
 first_file=true
 for dat_file in "$POSTPROC_DIR"/exprs_averaged_s*.dat; do
     [ -f "$dat_file" ] || continue
     if $first_file; then
-        # Keep entire first file (header + all step blocks)
         cp "$dat_file" "$MERGED_OUT"
         first_file=false
     else
-        # Skip column header block, keep everything from first "# time step" onward
         awk 'BEGIN{found=0} /^# time step #/{found=1} found{print}' "$dat_file" >> "$MERGED_OUT"
     fi
 done
@@ -245,24 +228,31 @@ fi
 
 
 # ==============================================================================
-# Step 5: Python synthesis — centroid tracking, heatmap, event detection, PDF
+# Step 4: Python synthesis — centroid tracking, heatmap, event detection, PDF
 # ==============================================================================
-echo "[STEP 5/5] Running track_largest_pellets.py (centroid + cloud heatmap + events) …"
+echo "[STEP 4/4] Running track_largest_pellets.py (centroid + cloud heatmap + events) …"
 TE_PROFILE_ARG=""
 if [ -f "$MERGED_OUT" ]; then
     TE_PROFILE_ARG="--te_profile $MERGED_OUT"
-    echo "[INFO]   Feeding Te/nimp/Psi profile: $MERGED_OUT"
+    echo "[INFO]   Feeding Te/nimp profile: $MERGED_OUT"
 else
     echo "[INFO]   No merged profile available; Python will attempt auto-discovery."
 fi
+QPROF_ARG=""
+if [ -f "$QPROF_MERGED" ]; then
+    QPROF_ARG="--q_profile $QPROF_MERGED"
+    echo "[INFO]   Feeding evolving q-profile: $QPROF_MERGED"
+else
+    echo "[INFO]   No merged q-profile available; target-q line will be omitted."
+fi
 python3 util/track_largest_pellets.py \
     --csv_dir "$CSV_FOLDER" \
-    --psi_file "$OUTPUT_DIR/rectangle_psi.h5" \
+    --rectangle_dir "$POSTPROC_DIR" \
     --abl_file "$OUTPUT_DIR/abl_history.dat" \
-    --q_profile "$OUTPUT_DIR/qprofile.dat" \
     --live_data "$MACRO_VARS" \
     --max_time_ms 2.0 \
     --bounds $RMIN $RMAX $ZMIN $ZMAX \
+    $QPROF_ARG \
     $TE_PROFILE_ARG \
     --out_plot "$OUTPUT_DIR/spi_diagnostic_overview.png" \
     --out_csv "$OUTPUT_DIR/pellet_trajectory_summary.csv"

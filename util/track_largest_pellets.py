@@ -106,13 +106,14 @@ def load_radiated_power(live_data_file, time_scaling):
     return None
 
 def get_target_q_psi_n(q_profile_file, target_q=-2.0):
+    """(DEPRECATED) 从单个 q-profile 文件读取初始 q(Psi_N) 并插值固定 Psi_N。
+    保留此函数仅用于向后兼容；新流程应使用 load_qprofile_evolution()。"""
     if not q_profile_file or not os.path.exists(q_profile_file):
         return None
     try:
         col_names = ["psi_n", "q"]
         df = pd.read_csv(q_profile_file, delim_whitespace=True, comment='#', names=col_names)
         
-        # 移除重复或者无用的数值
         df_sorted = df.drop_duplicates(subset=["q"]).sort_values(by="q")
         if target_q < df_sorted["q"].min() or target_q > df_sorted["q"].max():
             print(f"Target q={target_q} is out of bounds in {q_profile_file}.")
@@ -124,21 +125,252 @@ def get_target_q_psi_n(q_profile_file, target_q=-2.0):
         print(f"Failed to read/interpolate {q_profile_file}: {e}")
         return None
 
-def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling, t0, limit_ev=10.0):
-    """提取目标面局部Te演变，并寻找局部热猝灭（Te < 10eV）时间
+def load_qprofile_evolution(q_profile_file, time_map, time_scaling, t0, target_q=-2.0):
+    """解析合并的 q-profile 时间演化文件，返回每个时刻 q=target_q 所在的 Psi_N。
+    
+    输入文件格式（由 jorek2_postproc qprofile 命令在 for 循环中输出）：
+        # time step #XXXXXX
+        Psi_N   q
+        ...     ...
+        # time step #YYYYYY
+        ...
     
     Parameters
     ----------
-    psi_target : float or None
-        目标 Psi_N 值
-    te_profile_files : list of str
-        由外部传入的 Te profile 文件路径列表（已解析好的，不再内部搜索）
+    q_profile_file : str
+        合并后的 q-profile 文件路径
     time_map : dict
         step → jorek time 映射
     time_scaling : float
-        时间缩放因子
     t0 : float
         起始时间
+    target_q : float
+        目标 q 值
+    
+    Returns
+    -------
+    psi_n_at_q : np.ndarray (n_steps,) or None
+        每个时间步的 Psi_N(q=target_q)
+    time_si_at_q : np.ndarray (n_steps,) or None
+    steps_at_q : np.ndarray (n_steps,) or None
+    """
+    if not q_profile_file or not os.path.exists(q_profile_file):
+        return None, None, None
+    
+    blocks = []  # list of (step, time_si, psi_n_at_target)
+    
+    current_step = None
+    psi_n_vals = []
+    q_vals = []
+    
+    def process_block(step, pn, qv):
+        if step is None or len(pn) < 2:
+            return
+        try:
+            # 按 q 排序并去重
+            order = np.argsort(qv)
+            pn_sorted = np.array(pn)[order]
+            q_sorted = np.array(qv)[order]
+            unique_mask = np.concatenate([[True], np.diff(q_sorted) > 0])
+            pn_unique = pn_sorted[unique_mask]
+            q_unique = q_sorted[unique_mask]
+            
+            if len(q_unique) < 2:
+                return
+            if target_q < q_unique.min() or target_q > q_unique.max():
+                return
+            
+            f_pn = interp1d(q_unique, pn_unique, kind='linear')
+            psi_n_tgt = float(f_pn(target_q))
+            real_time = time_map.get(step, step) * time_scaling
+            if real_time >= t0:
+                blocks.append((step, real_time, psi_n_tgt))
+        except Exception:
+            pass
+    
+    with open(q_profile_file, "r") as fp:
+        for line in fp:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("#"):
+                if "time step" in line:
+                    if current_step is not None:
+                        process_block(current_step, psi_n_vals, q_vals)
+                        psi_n_vals = []
+                        q_vals = []
+                    try:
+                        step_str = line.split("#")[-1].strip()
+                        current_step = int(step_str)
+                    except ValueError:
+                        pass
+            else:
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        psi_n_vals.append(float(parts[0]))
+                        q_vals.append(float(parts[1]))
+                    except ValueError:
+                        pass
+    
+    if current_step is not None:
+        process_block(current_step, psi_n_vals, q_vals)
+    
+    if not blocks:
+        return None, None, None
+    
+    blocks.sort(key=lambda x: x[1])
+    steps_arr = np.array([b[0] for b in blocks])
+    times_arr = np.array([b[1] for b in blocks])
+    psi_n_arr = np.array([b[2] for b in blocks])
+    
+    return psi_n_arr, times_arr, steps_arr
+
+def build_rectangle_step_map(rectangle_dir):
+    """扫描目录中由 jorek2_postproc rectangle 导出的 HDF5 文件，
+    建立 step → file_path 映射。
+    
+    文件命名格式: exprs_Rmin*_Rmax*_Zmin*_Zmax*_phi*_sXXXXXX.h5
+    """
+    step_map = {}
+    pattern = re.compile(r'_s(\d{6})\.h5$')
+    for f in sorted(glob.glob(os.path.join(rectangle_dir, "exprs_Rmin*.h5"))):
+        m = pattern.search(os.path.basename(f))
+        if m:
+            step = int(m.group(1))
+            step_map[step] = f
+    return step_map
+
+def infer_bounds_from_fragment_csv(csv_dir, margin=0.1):
+    """从 fragments_position_*.csv 自动推断 (RMIN, RMAX, ZMIN, ZMAX)。
+
+    仅使用匹配文件名的数据，并对边界增加固定 margin。
+    """
+    all_files = glob.glob(os.path.join(csv_dir, "*.csv"))
+    csv_files = sorted([f for f in all_files if re.match(r"fragments_position_\d+\.csv", os.path.basename(f))])
+    if not csv_files:
+        return None
+
+    r_min = np.inf
+    r_max = -np.inf
+    z_min = np.inf
+    z_max = -np.inf
+    found = False
+
+    for csv_file in csv_files:
+        try:
+            df = pd.read_csv(csv_file, delim_whitespace=True, header=None, engine='python')
+        except Exception:
+            continue
+
+        # 需要至少包含列: i_spi, R, Z
+        if df.empty or len(df.columns) < 3:
+            continue
+
+        r_col = pd.to_numeric(df.iloc[:, 1], errors='coerce')
+        z_col = pd.to_numeric(df.iloc[:, 2], errors='coerce')
+        valid = r_col.notna() & z_col.notna()
+        if not valid.any():
+            continue
+
+        r_vals = r_col[valid].values
+        z_vals = z_col[valid].values
+        r_min = min(r_min, float(np.min(r_vals)))
+        r_max = max(r_max, float(np.max(r_vals)))
+        z_min = min(z_min, float(np.min(z_vals)))
+        z_max = max(z_max, float(np.max(z_vals)))
+        found = True
+
+    if not found:
+        return None
+
+    return (r_min - margin, r_max + margin, z_min - margin, z_max + margin)
+
+def centers_to_edges(values):
+    """将离散采样中心点转换为绘图边界。
+
+    适用于非均匀网格：相邻中心点之间采用中点作为边界，
+    首尾边界外推半个间隔。
+    """
+    values = np.asarray(values, dtype=float)
+    if values.ndim != 1 or values.size == 0:
+        return values
+    if values.size == 1:
+        delta = 0.5 if values[0] == 0 else abs(values[0]) * 0.5
+        return np.array([values[0] - delta, values[0] + delta], dtype=float)
+
+    edges = np.empty(values.size + 1, dtype=float)
+    edges[1:-1] = 0.5 * (values[:-1] + values[1:])
+    edges[0] = values[0] - 0.5 * (values[1] - values[0])
+    edges[-1] = values[-1] + 0.5 * (values[-1] - values[-2])
+    return edges
+
+# Cache for Psi_N interpolators to avoid reloading the same HDF5 repeatedly
+_psi_interp_cache = {}  # step → LinearNDInterpolator
+_MAX_CACHE_SIZE = 8
+
+def get_psi_n_interpolator(step, step_map, bounds=None):
+    """获取指定 step 的 Psi_N(R,Z) 插值器（带 LRU 缓存）。
+    
+    Parameters
+    ----------
+    step : int
+    step_map : dict
+        step → rectangle HDF5 file path
+    bounds : tuple or None
+        (RMIN, RMAX, ZMIN, ZMAX) 备用边界
+    
+    Returns
+    -------
+    LinearNDInterpolator or None
+    """
+    global _psi_interp_cache
+    
+    if step in _psi_interp_cache:
+        return _psi_interp_cache[step]
+    
+    # 找最接近的步骤（前后各取一个候选，取最近的）
+    if step not in step_map:
+        available = sorted(step_map.keys())
+        if not available:
+            return None
+        # 找最近的步骤
+        idx = np.searchsorted(available, step)
+        candidates = []
+        if idx < len(available):
+            candidates.append(available[idx])
+        if idx > 0:
+            candidates.append(available[idx - 1])
+        best_step = min(candidates, key=lambda s: abs(s - step))
+        # 只在差距合理时使用（差距 > 10 步则警告）
+        if abs(best_step - step) > 10:
+            print(f"Warning: step {step} has no rectangle, nearest is {best_step} (Δ={abs(best_step-step)})")
+        step = best_step
+    
+    file_path = step_map[step]
+    R_data, Z_data, Psi_N_data, _ = load_psi_n_h5(file_path, bounds=bounds)
+    interpolator = LinearNDInterpolator(list(zip(R_data, Z_data)), Psi_N_data)
+    
+    # LRU eviction
+    if len(_psi_interp_cache) >= _MAX_CACHE_SIZE:
+        oldest = next(iter(_psi_interp_cache))
+        del _psi_interp_cache[oldest]
+    _psi_interp_cache[step] = interpolator
+    
+    return interpolator
+
+def get_te_evolution_at_moving_psi(psi_n_lookup, te_profile_files, time_map, time_scaling, t0, limit_ev=10.0):
+    """提取移动磁面（Psi_N 随时间变化）上的局部 Te 演变，并寻找局部 TQ 时间。
+    
+    Parameters
+    ----------
+    psi_n_lookup : dict or None
+        step → Psi_N 映射（由 load_qprofile_evolution 构建）
+    te_profile_files : list of str
+        average 输出的 profile 文件路径列表
+    time_map : dict
+    time_scaling : float
+    t0 : float
     limit_ev : float
         Te 低于此阈值 (eV) 视为局部 TQ
         
@@ -147,13 +379,21 @@ def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling
     t_tq : float or None
     t_tq_step : int or None
     te_df : pd.DataFrame
+    psi_n_track : list of (step, psi_n_used)
     """
-    if psi_target is None:
-        return None, None, pd.DataFrame()
-    if not te_profile_files:
-        return None, None, pd.DataFrame()
+    if psi_n_lookup is None or not te_profile_files:
+        return None, None, pd.DataFrame(), []
+    
+    # 构建 step → Psi_N 快速查询
+    if isinstance(psi_n_lookup, dict):
+        psi_n_dict = psi_n_lookup
+    else:
+        # 假设是 (psi_n_arr, times_arr, steps_arr) 三元组
+        psi_n_arr, times_arr, steps_arr = psi_n_lookup
+        psi_n_dict = {int(s): float(p) for s, p in zip(steps_arr, psi_n_arr)}
     
     te_history = []
+    psi_n_track = []
     t_tq = None
     t_tq_step = None
     
@@ -163,15 +403,19 @@ def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling
         
         def process_block(step, rows):
             nonlocal t_tq, t_tq_step
+            if step not in psi_n_dict:
+                return
+            psi_target = psi_n_dict[step]
             try:
                 df = pd.DataFrame(rows, columns=['psi_n', 'Te'])
                 df = df.dropna().sort_values(by="psi_n")
                 if not df.empty and psi_target >= df["psi_n"].min() and psi_target <= df["psi_n"].max():
                     f_te = interp1d(df["psi_n"], df["Te"])
-                    te_val = float(f_te(psi_target))
+                    te_val = max(float(f_te(psi_target)), 1e-4)
                     real_time = time_map.get(step, step) * time_scaling
                     if real_time >= t0:
                         te_history.append((step, real_time, te_val))
+                        psi_n_track.append((step, psi_target))
                         if te_val <= limit_ev and t_tq is None:
                             t_tq = float(real_time)
                             t_tq_step = step
@@ -188,7 +432,6 @@ def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling
                             process_block(current_step, data_rows)
                             data_rows = []
                         try:
-                            # Parse step like "# time step #002750"
                             step_str = line.split("#")[-1].strip()
                             current_step = int(step_str)
                         except ValueError:
@@ -196,7 +439,10 @@ def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling
                 else:
                     parts = line.split()
                     if len(parts) >= 2:
-                        data_rows.append([float(parts[0]), float(parts[1])])
+                        try:
+                            data_rows.append([float(parts[0]), float(parts[1])])
+                        except ValueError:
+                            pass
                         
         if current_step is not None and data_rows:
             process_block(current_step, data_rows)
@@ -204,17 +450,14 @@ def get_te_evolution_at_psi(psi_target, te_profile_files, time_map, time_scaling
     te_df = pd.DataFrame(te_history, columns=["step", "time_si", "Te"])
     if not te_df.empty:
         te_df = te_df.sort_values(by="time_si")
-    return t_tq, t_tq_step, te_df
+    return t_tq, t_tq_step, te_df, psi_n_track
 
-def load_averaged_nimp(profile_files, time_map, time_scaling, t0, psi_to_psin_init=None):
+def load_averaged_nimp(profile_files, time_map, time_scaling, t0):
     """
-    解析 average 命令输出的径向 profile 文件，提取 nimp(Psi_N_initial, t) 二维分布。
+    解析 average 命令输出的径向 profile 文件，提取 nimp(Psi_N_current, t) 二维分布。
     
-    期望输入文件包含 3 或 4 列:
-      3 列: Psi_N_current, T_e, nimp
-      4 列: Psi_N_current, T_e, nimp, Psi
-    
-    若提供 psi_to_psin_init 映射且文件含 4 列，则用 Psi 将坐标映射到初始 Psi_N。
+    输入文件包含 3 列: Psi_N_current, T_e, nimp
+    直接使用当前时刻的 Psi_N，不做初始磁面映射。
     
     Parameters
     ----------
@@ -222,8 +465,6 @@ def load_averaged_nimp(profile_files, time_map, time_scaling, t0, psi_to_psin_in
     time_map : dict
     time_scaling : float
     t0 : float
-    psi_to_psin_init : callable or None
-        Psi → Psi_N_initial 的插值函数
     
     Returns
     -------
@@ -239,16 +480,12 @@ def load_averaged_nimp(profile_files, time_map, time_scaling, t0, psi_to_psin_in
     for f in profile_files:
         current_step = None
         data_rows = []
-        n_cols = None  # 每个文件独立检测列数
         
-        def commit_block(step, rows, ncols):
+        def commit_block(step, rows):
             if step is None or not rows:
                 return
             try:
-                if ncols == 4:
-                    cols = ['psi_n_cur', 'Te', 'nimp', 'psi']
-                else:
-                    cols = ['psi_n_cur', 'Te', 'nimp']
+                cols = ['psi_n_cur', 'Te', 'nimp']
                 df = pd.DataFrame(rows, columns=cols)
                 df = df.dropna()
                 if df.empty or len(df) < 2:
@@ -257,16 +494,7 @@ def load_averaged_nimp(profile_files, time_map, time_scaling, t0, psi_to_psin_in
                     return
                 real_time = time_map.get(step, step) * time_scaling
                 if real_time >= t0:
-                    if ncols == 4 and psi_to_psin_init is not None:
-                        # 用 Psi → Psi_N_initial 映射
-                        psi_n_init = psi_to_psin_init(df['psi'].values)
-                        # 过滤超出范围的插值结果
-                        valid = ~np.isnan(psi_n_init)
-                        if valid.sum() < 2:
-                            return
-                        all_blocks.append((step, real_time, psi_n_init[valid], df['nimp'].values[valid]))
-                    else:
-                        all_blocks.append((step, real_time, df['psi_n_cur'].values, df['nimp'].values))
+                    all_blocks.append((step, real_time, df['psi_n_cur'].values, df['nimp'].values))
             except Exception:
                 pass
         
@@ -277,7 +505,7 @@ def load_averaged_nimp(profile_files, time_map, time_scaling, t0, psi_to_psin_in
                 if line.startswith("#"):
                     if "time step" in line:
                         if current_step is not None and data_rows:
-                            commit_block(current_step, data_rows, n_cols)
+                            commit_block(current_step, data_rows)
                             data_rows = []
                         try:
                             step_str = line.split("#")[-1].strip()
@@ -286,15 +514,13 @@ def load_averaged_nimp(profile_files, time_map, time_scaling, t0, psi_to_psin_in
                             pass
                 else:
                     parts = line.split()
-                    if n_cols is None:
-                        n_cols = len(parts)
                     if len(parts) >= 3:
                         try:
-                            data_rows.append([float(p) for p in parts[:n_cols]])
+                            data_rows.append([float(parts[0]), float(parts[1]), float(parts[2])])
                         except ValueError:
                             pass
         if current_step is not None and data_rows:
-            commit_block(current_step, data_rows, n_cols or 3)
+            commit_block(current_step, data_rows)
     
     if not all_blocks:
         return None, None, None
@@ -318,15 +544,24 @@ def load_averaged_nimp(profile_files, time_map, time_scaling, t0, psi_to_psin_in
     time_rows = []
     
     for step, t_si, psi_arr, nimp_arr in all_blocks:
-        f_interp = interp1d(psi_arr, nimp_arr, kind='linear', 
-                           bounds_error=False, fill_value=0.0)
-        nimp_rows.append(f_interp(psi_bins))
+        # 沿 Psi 轴线性外推缺失边界区域
+        try:
+            f_interp = interp1d(psi_arr, nimp_arr, kind='linear',
+                               bounds_error=False, fill_value='extrapolate')
+        except ValueError:
+            # 旧版 scipy 不支持 'extrapolate'，回退到边界常值
+            print('Warning: interp1d does not support "extrapolate", falling back to edge values for out-of-bounds.')
+            f_interp = interp1d(psi_arr, nimp_arr, kind='linear',
+                               bounds_error=False,
+                               fill_value=(float(nimp_arr[0]), float(nimp_arr[-1])))
+        nimp_interped = f_interp(psi_bins)
+        # 裁剪线性外推可能产生的物理上不可能的负值
+        nimp_interped = np.maximum(nimp_interped, 0.0)
+        nimp_rows.append(nimp_interped)
         time_rows.append(t_si)
     
     nimp_2d = np.array(nimp_rows)
     time_si = np.array(time_rows)
-    
-    nimp_2d = np.maximum(nimp_2d, 1e-10)
     
     if nimp_2d.max() <= 0 or np.allclose(nimp_2d, nimp_2d[0], atol=1e-30):
         return None, None, None
@@ -406,20 +641,22 @@ def load_psi_n_h5(filename, bounds=None):
 def main():
     parser = argparse.ArgumentParser(description="Track the average penetration of the largest N pellet fragments.")
     parser.add_argument("--csv_dir", type=str, required=True, help="Directory containing fragments_position_*.csv from convert2diagno_spi.py")
-    parser.add_argument("--psi_file", type=str, required=True, help="Flux surface dat file exported from jorek2_postproc")
+    parser.add_argument("--rectangle_dir", type=str, required=True, help="Directory containing time-dependent Psi_N(R,Z) rectangle HDF5 files from jorek2_postproc")
     parser.add_argument("--live_data", type=str, default='macroscopic_vars.dat', help="Path to macroscopic_vars.dat to extract physical time")
     parser.add_argument("--abl_file", type=str, default="abl_history.dat", help="Path to abl_history.dat produced by jorek2_diagno_spi")
     parser.add_argument("--start_time", type=float, default=None, help="Optional start time (in SI seconds) to plot from")
-    parser.add_argument("--max_time_ms", type=float, default=3.0, help="Maximum plotted time in ms from the start_time (default: 3.0 ms)")
-    parser.add_argument("--q_profile", type=str, default=None, help="Path to q_profile dat file")
-    parser.add_argument("--target_q", type=float, default=-2.0, help="Target q-value to draw horizontal line in penetration plot")
+    parser.add_argument("--max_time_ms", type=float, default=2.0, help="Maximum plotted time in ms from the start_time (default: 2.0 ms)")
+    parser.add_argument("--q_profile", type=str, default=None, help="Path to merged q-profile evolution dat file (from jorek2_postproc qprofile in for loop)")
+    parser.add_argument("--target_q", type=float, default=-2.0, help="Target q-value to track evolving rational surface")
     parser.add_argument("--out_csv", type=str, default="pellet_average_trajectory.csv", help="Output trajectory file")
     parser.add_argument("--out_plot", type=str, default="penetration_trajectory.png", help="Output visualization plot")
     parser.add_argument("--bounds", type=float, nargs=4, metavar=('RMIN', 'RMAX', 'ZMIN', 'ZMAX'), default=None, help="Bounding box of the rectangle grid if needed")
     parser.add_argument("--te_profile", type=str, default=None, help="Path to averaged Te profile .dat file (from jorek2_postproc average command)")
     parser.add_argument("--nimp_profile", type=str, default=None, help="Path to averaged nimp profile .dat file (defaults to --te_profile if not given)")
+    parser.add_argument("--debug", type=int, default=0, help="Enable debug output when set to 1")
     
     args = parser.parse_args()
+    debug_enabled = int(args.debug) == 1
 
     # 0. 载入时间映射表
     time_map = {}
@@ -431,30 +668,30 @@ def main():
         if args.live_data:
             print(f"Warning: {args.live_data} not found, will only use steps.")
 
-    # 1. 载入磁场网格数据
-    R_data, Z_data, Psi_N_data, Psi_data = load_psi_n_h5(args.psi_file, bounds=args.bounds)
-    print(f"Loaded 2D grid data with {len(R_data)} valid points for Psi_N interpolation.")
+    # 1. 构建时间依赖的 Psi_N(R,Z) 插值器映射
+    step_map = build_rectangle_step_map(args.rectangle_dir)
+    if not step_map:
+        print(f"No rectangle HDF5 files (exprs_Rmin*.h5) found in {args.rectangle_dir}")
+        return
+    print(f"Found {len(step_map)} rectangle HDF5 files in {args.rectangle_dir} (steps {min(step_map.keys())}–{max(step_map.keys())})")
+
+    # 若未显式提供 bounds，则自动从 fragment CSV 推断边界，
+    # 以避免某些 HDF5 缺少坐标轴时回退到 [0,1] 导致插值失效。
+    if args.bounds is None:
+        auto_bounds = infer_bounds_from_fragment_csv(args.csv_dir, margin=0.1)
+        if auto_bounds is not None:
+            args.bounds = auto_bounds
+            print("Auto-inferred bounds from fragment CSVs: "
+                  f"R=[{args.bounds[0]:.4f}, {args.bounds[1]:.4f}], "
+                  f"Z=[{args.bounds[2]:.4f}, {args.bounds[3]:.4f}]")
+        else:
+            print("Warning: failed to infer bounds from fragment CSVs; \
+falling back to HDF5 axis (or [0,1] if axis missing).")
     
-    psi_interpolator = LinearNDInterpolator(list(zip(R_data, Z_data)), Psi_N_data)
-    
-    # 构建 Psi → Psi_N_initial 映射（用于将 average 输出的 Psi 翻回初始 Psi_N）
-    has_psi_mapping = Psi_data is not None
-    if has_psi_mapping:
-        # 以 Psi 为自变量，Psi_N 为因变量，通过排序构建单调映射
-        order = np.argsort(Psi_data)
-        psi_sorted = Psi_data[order]
-        psi_n_sorted = Psi_N_data[order]
-        # 去重（Psi 值可能因网格分辨率有重复）
-        unique_mask = np.concatenate([[True], np.diff(psi_sorted) > 0])
-        psi_to_psin_init = interp1d(psi_sorted[unique_mask], psi_n_sorted[unique_mask],
-                                    kind='linear', bounds_error=False, 
-                                    fill_value=(psi_n_sorted[unique_mask][0], psi_n_sorted[unique_mask][-1]))
-        psi_axis_init = float(psi_sorted[unique_mask][0])
-        psi_bnd_init = float(psi_sorted[unique_mask][-1])
-        print(f"Built Psi→Psi_N_initial mapping: Psi_axis={psi_axis_init:.4f}, Psi_bnd={psi_bnd_init:.4f}")
-    else:
-        psi_to_psin_init = None
-        psi_axis_init = psi_bnd_init = None
+    # 预热第一个插值器以验证数据
+    first_step = min(step_map.keys())
+    test_interp = get_psi_n_interpolator(first_step, step_map, bounds=args.bounds)
+    print(f"Psi_N interpolator for step {first_step} ready.")
 
     # 2. 遍历并严格过滤所需前缀的 CSV (或 dat 重命名) 文件
     all_files = glob.glob(os.path.join(args.csv_dir, "*.csv"))
@@ -506,9 +743,11 @@ def main():
             avg_radius = total_mass**(1/3)
         
             # 计算每个碎片的精确 Psi_N 并求质量加权标准差
+            # 使用当前时间步的 Psi_N(R,Z) 映射（而非初始平衡）
+            step_interp = get_psi_n_interpolator(step, step_map, bounds=args.bounds)
             fragment_R = df_active['spi_R'].values
             fragment_Z = df_active['spi_Z'].values
-            fragment_psi = psi_interpolator(fragment_R, fragment_Z)
+            fragment_psi = step_interp(fragment_R, fragment_Z) if step_interp is not None else np.full(len(fragment_R), np.nan)
             
             valid_mask = ~np.isnan(fragment_psi)
             if valid_mask.sum() == 0:
@@ -602,14 +841,36 @@ def main():
     has_egy = energy_df is not None and not energy_df.empty
     has_rad = rad_power_df is not None and not rad_power_df.empty
     
-    target_q_psi = get_target_q_psi_n(args.q_profile, args.target_q)
-    if target_q_psi is not None:
-        print(f"Interpolated Psi_N for q={args.target_q} is {target_q_psi:.6f}")
+    # 加载 q-profile 时间演化，获取每个时刻 q=target_q 所在的 Psi_N
+    psi_n_at_q_arr, time_at_q_arr, steps_at_q_arr = load_qprofile_evolution(
+        args.q_profile, time_map, time_scaling, t0, target_q=args.target_q)
+    
+    has_q_evo = psi_n_at_q_arr is not None and len(psi_n_at_q_arr) > 0
+    if has_q_evo:
+        print(f"Loaded q-profile evolution: {len(psi_n_at_q_arr)} time steps, "
+              f"Psi_N(q={args.target_q}) from {psi_n_at_q_arr[0]:.4f} to {psi_n_at_q_arr[-1]:.4f}")
+        # 构建 step → Psi_N(q=target_q) 查询字典
+        psi_n_at_q_dict = {int(s): float(p) for s, p in zip(steps_at_q_arr, psi_n_at_q_arr)}
+        # 初始时刻的 q=-2 Psi_N（用于 subplot 1 参考线）
+        target_q_psi_initial = float(psi_n_at_q_arr[0])
+    else:
+        psi_n_at_q_dict = {}
+        target_q_psi_initial = None
+        # 降级: 尝试从 qprofile 文件获取固定 Psi_N
+        target_q_psi_initial = get_target_q_psi_n(args.q_profile, args.target_q)
+        if target_q_psi_initial is not None:
+            print(f"Interpolated Psi_N for q={args.target_q} is {target_q_psi_initial:.6f} (static, no evolution data)")
+    
+    # 构建时间插值函数 Psi_N(q=target_q, t) 用于 fragment 穿深事件检测
+    if has_q_evo:
+        f_psin_at_q_vs_t = interp1d(time_at_q_arr, psi_n_at_q_arr, kind='linear',
+                                     bounds_error=False, fill_value='extrapolate')
+    else:
+        f_psin_at_q_vs_t = None
 
     # 计算标记事件时间
     t_r0 = None 
     t_r0_step = None
-    # 半径小于等于 1e-10 就视作 0
     radius_drop_idx = res_df[res_df['avg_radius'] <= 1e-10].first_valid_index()
     if radius_drop_idx is not None:
         t_r0 = float(res_df.loc[radius_drop_idx, 'time_si'])
@@ -625,17 +886,23 @@ def main():
             _closest_idx = (res_df['time_si'] - t_10_percent_thermal).abs().idxmin()
             t_10_percent_step = int(res_df.loc[_closest_idx, 'step'])
 
-    t_psi95 = None
-    t_psi95_step = None
-    psi95_idx = res_df[res_df['psi_n'] <= 0.95].first_valid_index()
-    if psi95_idx is not None:
-        t_psi95 = float(res_df.loc[psi95_idx, 'time_si'])
-        t_psi95_step = int(res_df.loc[psi95_idx, 'step'])
-
+    # 碎片穿深到达移动 q=-2 面的时刻
     t_target_q = None
     t_target_q_step = None
-    if target_q_psi is not None:
-        target_q_idx = res_df[res_df['psi_n'] <= target_q_psi].first_valid_index()
+    if has_q_evo and f_psin_at_q_vs_t is not None:
+        # 对每个时刻，比较碎片 Psi_N 与移动 q=-2 面的 Psi_N
+        for _, row in res_df.iterrows():
+            t_si = row['time_si']
+            pn_frag = row['psi_n']
+            if np.isnan(pn_frag):
+                continue
+            pn_q = float(f_psin_at_q_vs_t(t_si))
+            if pn_frag <= pn_q:
+                t_target_q = float(t_si)
+                t_target_q_step = int(row['step'])
+                break
+    elif target_q_psi_initial is not None:
+        target_q_idx = res_df[res_df['psi_n'] <= target_q_psi_initial].first_valid_index()
         if target_q_idx is not None:
             t_target_q = float(res_df.loc[target_q_idx, 'time_si'])
             t_target_q_step = int(res_df.loc[target_q_idx, 'step'])
@@ -643,12 +910,10 @@ def main():
     _t0_idx = (res_df['time_si'] - t0).abs().idxmin()
     t0_step = int(res_df.loc[_t0_idx, 'step'])
     
-    # 查找局部温度 TQ 和获取 Te 演化历史
-    # 由外部传入 te_profile 文件路径（支持单独调用），若未传则自动搜索
+    # 查找 Te 文件路径
     if args.te_profile:
         te_files = [args.te_profile]
     else:
-        # 自动搜索：优先新目录结构，降级到旧路径
         _candidates = [
             "auto_diagno_spi/postproc/exprs_averaged_merged.dat",
             "postproc/exprs_averaged_merged.dat",
@@ -669,35 +934,38 @@ def main():
                 if not _all:
                     _all = sorted(glob.glob("postproc/exprs_averaged_s*.dat"))
                 te_files = [f for f in _all if ".." not in f]
-    t_local_tq, t_local_tq_step, te_df = get_te_evolution_at_psi(
-        target_q_psi, te_files, time_map, time_scaling, t0, limit_ev=10.0)
     
-    # 加载 nimp(Psi_N, t) 二维分布用于热力图
+    # 查找局部温度 TQ —— 跟踪移动 q=-2 面上的 Te
+    t_local_tq, t_local_tq_step, te_df, psi_n_track = get_te_evolution_at_moving_psi(
+        psi_n_at_q_dict, te_files, time_map, time_scaling, t0, limit_ev=10.0)
+    
+    if psi_n_track:
+        print(f"Te tracked at evolving q={args.target_q} surface: {len(te_df)} points")
+    
+    # 加载 nimp(Psi_N, t) 二维分布用于热力图（使用当前时刻 Psi_N，不做映射）
     if args.nimp_profile:
+        print(f"Using specified nimp profile file: {args.nimp_profile}")
         nimp_files = [args.nimp_profile]
     else:
-        nimp_files = te_files  # 默认复用 Te 文件（同一 average 输出含 nimp 列）
+        nimp_files = te_files
     nimp_2d, psi_bins_nimp, time_si_nimp = load_averaged_nimp(
-        nimp_files, time_map, time_scaling, t0, psi_to_psin_init=psi_to_psin_init)
+        nimp_files, time_map, time_scaling, t0)
     if nimp_2d is not None:
-        # 减去本底（首步的 nimp profile），只显示 SPI 贡献的杂质增量
-        nimp_baseline = nimp_2d[0, :].copy()
-        nimp_excess = nimp_2d - nimp_baseline[np.newaxis, :]
-        nimp_excess = np.maximum(nimp_excess, 0.0)
-        # 计算 Psi_N 坐标下的云扩散前沿（超过阈值的最小 Psi_N）和云峰
-        nimp_threshold = 0.05 * nimp_excess.max() if nimp_excess.max() > 0 else 1.0
+        nimp_raw_excess = nimp_2d
+        nimp_raw_excess = np.maximum(nimp_raw_excess, 0.0)
+        nimp_display = np.maximum(nimp_raw_excess, 1e-10) * 1e-20
+        nimp_threshold = 0.05 * nimp_raw_excess.max() if nimp_raw_excess.max() > 0 else np.inf
         cloud_front_psi = np.array([
-            psi_bins_nimp[np.where(row > nimp_threshold)[0][0]] 
+            psi_bins_nimp[np.where(row > nimp_threshold)[0][0]]
             if np.any(row > nimp_threshold) else np.nan
-            for row in nimp_excess
+            for row in nimp_raw_excess
         ])
         cloud_peak_psi = np.array([
             psi_bins_nimp[np.argmax(row)] if row.max() > 0 else np.nan
-            for row in nimp_excess
+            for row in nimp_raw_excess
         ])
         has_nimp = True
-        psi_label = "Psi_N_initial" if has_psi_mapping else "Psi_N_current"
-        print(f"Loaded nimp 2D distribution: {nimp_2d.shape[0]} time steps × {nimp_2d.shape[1]} {psi_label} bins")
+        print(f"Loaded nimp 2D distribution: {nimp_2d.shape[0]} time steps × {nimp_2d.shape[1]} Psi_N bins")
     else:
         has_nimp = False
         print("No valid nimp data found, falling back to ±1σ envelope.")
@@ -712,9 +980,8 @@ def main():
             print(f"- {name:<27}: Not Reached")
             
     print_event("Injection / Start", t0, t0_step)
-    print_event("Reached q_95 (Psi_N=0.95)", t_psi95, t_psi95_step)
-    if target_q_psi is not None:
-        print_event(f"Reached Target q={args.target_q}", t_target_q, t_target_q_step)
+    if has_q_evo or target_q_psi_initial is not None:
+        print_event(f"Reached evolving q={args.target_q}", t_target_q, t_target_q_step)
         print_event(f"Local TQ (Te<10eV at q={args.target_q})", t_local_tq, t_local_tq_step)
     print_event("Thermal Quench (~90% drop)", t_10_percent_thermal, t_10_percent_step)
     print_event("Complete Ablation", t_r0, t_r0_step)
@@ -724,6 +991,10 @@ def main():
         print("="*50)
         print("             INTEGRATED ABLATION")
         print("="*50)
+
+        # 统一积分上限：优先使用局部 Te<10eV 的 TQ，其次回退到 90% 热量下降时刻
+        integration_tq_time = t_local_tq if t_local_tq is not None else t_10_percent_thermal
+        print_event("Ablation/Radiation TQ Upper Bound", integration_tq_time, t_local_tq_step if t_local_tq is not None else t_10_percent_step)
         
         def calculate_integrated_ablation(end_time):
             if end_time is None or end_time < t0:
@@ -734,7 +1005,7 @@ def main():
                 return 0.0
             return np.trapz(df_sub['abl_rate_inj1'], df_sub['time_si'])
 
-        abl_to_tq = calculate_integrated_ablation(t_10_percent_thermal)
+        abl_to_tq = calculate_integrated_ablation(integration_tq_time)
         abl_to_r0 = calculate_integrated_ablation(t_r0)
         abl_total = calculate_integrated_ablation(abl_df['time_si'].max())
         
@@ -759,7 +1030,7 @@ def main():
                 return 0.0
             return np.trapz(df_sub['radiated_power'], df_sub['time_si'])
 
-        rad_to_tq = calculate_integrated_radiation(t_10_percent_thermal)
+        rad_to_tq = calculate_integrated_radiation(integration_tq_time)
         rad_to_r0 = calculate_integrated_radiation(t_r0)
         rad_total = calculate_integrated_radiation(rad_power_df['time_si'].max())
         
@@ -795,9 +1066,9 @@ def main():
     
     # 画事件竖线的辅助函数
     def draw_event_lines(ax):
-        if t_psi95 is not None and t_psi95 >= t0:
-            tx = (t_psi95 - t0)*1e3
-            ax.axvline(tx, color='black', linestyle='-.', alpha=0.8, linewidth=2.0)
+        # if t_psi95 is not None and t_psi95 >= t0:
+        #     tx = (t_psi95 - t0)*1e3
+        #     ax.axvline(tx, color='black', linestyle='-.', alpha=0.8, linewidth=2.0)
         if t_target_q is not None and t_target_q >= t0:
             tx = (t_target_q - t0)*1e3
             ax.axvline(tx, color='#9467bd', linestyle='-.', alpha=0.8, linewidth=2.0)
@@ -818,40 +1089,60 @@ def main():
     ax_depth = axes[ax_ind]
     
     if has_nimp:
-        from matplotlib.colors import LogNorm
+        # 使用线性色标（替换原先的对数色标）
         time_ms_nimp = (time_si_nimp - t0) * 1e3
-        
+
         # 裁剪到绘图时间范围
         mask_t = (time_ms_nimp >= 0) & (time_ms_nimp <= args.max_time_ms)
         if mask_t.sum() >= 2:
             t_plot = time_ms_nimp[mask_t]
-            nimp_plot = nimp_excess[mask_t, :]
-            
-            # 动态色标范围: vmin 取最大值的 1e-5 或数据中位数, 避免噪声
-            vmax = nimp_plot.max()
-            vmin = max(vmax * 1e-5, np.median(nimp_plot[nimp_plot > 0]) if np.any(nimp_plot > 0) else 1e15)
-            
-            im = ax_depth.imshow(
+            nimp_plot = nimp_display[mask_t, :]
+            time_edges = centers_to_edges(t_plot)
+            psi_edges = centers_to_edges(psi_bins_nimp)
+
+            dt = np.diff(t_plot)
+            if debug_enabled and len(dt) > 0:
+                dt_min = float(np.min(dt))
+                dt_max = float(np.max(dt))
+                if dt_min > 0 and dt_max / dt_min > 1.05:
+                    print(f"nimp heatmap uses non-uniform time spacing: dt_min={dt_min:.6e} ms, dt_max={dt_max:.6e} ms")
+
+            # 动态色标范围: vmin 取非零数据的 5th 百分位以避免被噪声拉低
+            vmax = float(nimp_plot.max())
+            if np.any(nimp_plot > 0):
+                vmin = float(np.percentile(nimp_plot[nimp_plot > 0], 5))
+            else:
+                vmin = 0.0
+
+            im = ax_depth.pcolormesh(
+                time_edges,
+                psi_edges,
                 nimp_plot.T,
-                aspect='auto',
-                origin='lower',
-                extent=[t_plot[0], t_plot[-1], psi_bins_nimp[0], psi_bins_nimp[-1]],
                 cmap='inferno',
-                norm=LogNorm(vmin=vmin, vmax=vmax),
-                interpolation='bilinear'
+                vmin=vmin,
+                vmax=vmax,
+                shading='flat'
             )
-            cbar = plt.colorbar(im, ax=ax_depth, label=r'n$_{imp}$ excess (m$^{-3}$)', 
+            cbar = plt.colorbar(im, ax=ax_depth, label=r'$n_{imp}$ ($10^{20}\,m^{-3}$)', 
                                pad=0.015, fraction=0.046)
             cbar.ax.tick_params(labelsize=11)
-        
+
+            if debug_enabled:
+                print('time_edges:' + str(time_edges[0]) + ', ' + str(time_edges[-1]) + ' , ' + str(psi_edges[0]) + ', ' + str(psi_edges[-1]))
+                print(f"nimp_plot shape: {nimp_plot.shape}, t_plot length: {len(t_plot)}, psi_bins_nimp length: {len(psi_bins_nimp)}")
+                print(f'nimp_plot.T min: {nimp_plot.T.min():.4e}, 5th percentile: {vmin:.4e}, max: {vmax:.4e}')
+                print(f'nimp_plot.T raw data xrange and len: {t_plot[0]}-{t_plot[-1]}, {nimp_plot.T.shape[0]}')
+                print(f'nimp_plot.T raw data yrange and len: {psi_bins_nimp[0]}-{psi_bins_nimp[-1]}, {nimp_plot.T.shape[1]}')
+                print(f"cloud_front_ range: {np.nanmin(cloud_front_psi):.4f} - {np.nanmax(cloud_front_psi):.4f}")
+                
         # 叠加云前沿和云峰线（虚线）
         cloud_front = cloud_front_psi[mask_t]
         cloud_peak  = cloud_peak_psi[mask_t]
-        ax_depth.plot(t_plot, cloud_front, color='white', linestyle='--', linewidth=1.5, alpha=1, label='Cloud Front (5% max)')
-        ax_depth.plot(t_plot, cloud_peak, color='#ffdd44', linestyle='--', linewidth=1.5, alpha=1, label='Cloud Peak Density')
+        ax_depth.plot(t_plot, cloud_front, color='white', linestyle='--', linewidth=1.5, alpha=1, label='Cloud Front')
+        ax_depth.plot(t_plot, cloud_peak, color='#ffdd44', linestyle='--', linewidth=1.5, alpha=1, label='Peak Density')
     
     # 叠加质量加权质心线（始终绘制，在热力图上清晰可见）
-    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', linewidth=2.8, label="Mass-Weighted Avg Psi_N")
+    ax_depth.plot(x_val*1e3, res_df['psi_n'], color='#1f77b4', linestyle='-', linewidth=2.8, label="Avg Psi_N")
     
     if not has_nimp and 'psi_n_std' in res_df.columns:
         # 无 nimp 数据时回退到 ±1σ 包络
@@ -859,13 +1150,22 @@ def main():
             x_val*1e3,
             res_df['psi_n'] - res_df['psi_n_std'],
             res_df['psi_n'] + res_df['psi_n_std'],
-            color='#1f77b4', alpha=0.3, label="±1σ Cloud Thickness"
+            color='#1f77b4', alpha=0.3, label="Cloud Thickness"
         )
     
-    if target_q_psi is not None:
-         ax_depth.axhline(target_q_psi, color='#9467bd', linestyle='--', linewidth=2.5, label=f"q={args.target_q} (Psi_N={target_q_psi:.3f})")
+    # 叠加移动 q=-2 面的 Psi_N 位置曲线
+    if has_q_evo:
+        t_q_ms = (time_at_q_arr - t0) * 1e3
+        mask_q = (t_q_ms >= 0) & (t_q_ms <= args.max_time_ms)
+        if mask_q.sum() >= 2:
+            ax_depth.plot(t_q_ms[mask_q], psi_n_at_q_arr[mask_q],
+                         color='#9467bd', linestyle='--', linewidth=2.5,
+                         label=f"q={args.target_q} surface")
+    elif target_q_psi_initial is not None:
+        ax_depth.axhline(target_q_psi_initial, color='#9467bd', linestyle='--', linewidth=2.5,
+                        label=f"q={args.target_q} (Psi_N={target_q_psi_initial:.3f})")
         
-    ax_depth.set_ylabel("Psi_N (initial equilibrium)")
+    ax_depth.set_ylabel("Psi_N")
     ax_depth.set_title("Pellet Penetration and Ablation Cloud Evolution")
     ax_depth.grid(True, alpha=0.3)
     ax_depth.legend(loc='upper right')
@@ -873,11 +1173,12 @@ def main():
     ax_depth.set_ylim(bottom=0, top=1.0)
     ax_ind += 1
 
-    # 第二张子图: q=target_q 面的 Te 演化
+    # 第二张子图: 移动 q=target_q 面的 Te 演化
     ax_te = axes[ax_ind]
     if not te_df.empty:
         te_x = (te_df['time_si'] - t0) * 1e3
-        ax_te.plot(te_x, te_df['Te'], color='#ff7f0e', linestyle='-', linewidth=2.5, label=f"Te at q={args.target_q}")
+        ax_te.plot(te_x, te_df['Te'], color='#ff7f0e', linestyle='-', linewidth=2.5,
+                   label=f"Te at evolving q={args.target_q} surface")
         ax_te.axhline(10.0, color='darkorange', linestyle=':', linewidth=2, label="10 eV Limit")
     ax_te.set_ylabel("Te (eV)")
     ax_te.set_yscale('log')
@@ -899,8 +1200,9 @@ def main():
         
         ax_abl.plot(t_abl_ms, abl_df['abl_rate_inj1'], color='#d62728', linestyle='-', label=label_text)
         
-        # 确定积分区间的上限时间
-        t_end_val = t_r0 if t_r0 is not None else (t_10_percent_thermal if t_10_percent_thermal is not None else None)
+        # 确定积分区间的上限时间（优先取 local TQ 即 Te<10eV 时刻）
+        t_tq_for_fill = t_local_tq if t_local_tq is not None else t_10_percent_thermal
+        t_end_val = t_r0 if t_r0 is not None else t_tq_for_fill
         if t_end_val is not None:
             mask = abl_df['time_si'] <= t_end_val
             t_fill_ms = t_abl_ms[mask]
@@ -951,21 +1253,32 @@ def main():
     
     if t_r0 is not None and t_r0 >= t0:
         tx = (t_r0 - t0)*1e3
-        y_loc = res_df['psi_n'].max() if not res_df.empty else 1.0
-        ax_te.text(tx, 1e2, f' r->0 ({tx:.2f}ms) ', color='dimgrey', va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
+        ax_depth.text(
+            tx,
+            0.98,
+            f' Complete Ablation ({tx:.2f}ms) ',
+            transform=ax_depth.get_xaxis_transform(),
+            color='black',
+            va='top',
+            ha='right',
+            rotation=90,
+            fontweight='bold',
+            fontsize=14,
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.75, pad=2.0)
+        )
         
     t_tq_plot = t_local_tq if (t_local_tq is not None) else t_10_percent_thermal
     if t_tq_plot is not None and t_tq_plot >= t0:
         tx = (t_tq_plot - t0)*1e3
-        label_text = ' Local TQ ' if (t_local_tq is not None) else ' TQ (90%) '
-        ax_te.text(tx, 0.5e6, f'{label_text}({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
+        label_text = 'TQ ' if (t_local_tq is not None) else ' TQ (90%) '
+        ax_te.text(tx+0.045, 0.5e2, f'{label_text}({tx:.2f}ms) ', color='darkorange', va='bottom', ha='right', rotation=90, fontweight='bold', fontsize=14)
 
-    if t_psi95 is not None and t_psi95 >= t0:
-        tx = (t_psi95 - t0)*1e3
-        ax_depth.text(tx, 0.8, f' q95 ({tx:.2f}ms) ', color='black', va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
+    # if t_psi95 is not None and t_psi95 >= t0:
+    #     tx = (t_psi95 - t0)*1e3
+    #     ax_depth.text(tx, 0.8, f' q95 ({tx:.2f}ms) ', color='black', va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
     if t_target_q is not None and t_target_q >= t0:
         tx = (t_target_q - t0)*1e3
-        ax_depth.text(tx, 1.3, f' q={args.target_q} ({tx:.2f}ms) ', color='#9467bd', va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
+        ax_depth.text(tx, 0.6, f'q={args.target_q} ({tx:.2f}ms) ', color="#f8f0ff", va='top', ha='right', rotation=90, fontweight='bold', fontsize=14)
 
     annotated_out = args.out_plot.replace('.png', '_annotated.png')
     if annotated_out == args.out_plot:
