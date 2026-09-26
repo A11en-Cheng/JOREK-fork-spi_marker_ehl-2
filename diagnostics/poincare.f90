@@ -20,6 +20,13 @@
 !< 0.99
 !< # energy [eV]
 !< 1.0e3
+!< # shift_angle [rad]
+!< 3.141593
+!<
+!< The last two lines are optional. shift_angle gives the toroidal angle (in radians) of the
+!< poloidal plane on which the Poincare map is recorded, i.e., crossings of the plane
+!< phi = shift_angle (mod 2*pi) are stored with pncrid = 2. If these two lines are omitted,
+!< shift_angle = 0 is used (the plane phi = 0), which reproduces the previous behaviour.
 !<
 !< The Poincare data is collected using jorek_restart.h5 as the field input.
 !<
@@ -58,6 +65,7 @@ integer*4 :: ifail, iprt
 real*8    :: zprev, phiprev, raxis, zaxis, xyz(3), xyz0(3)
 real*8    :: taxis, saxis, psiaxis, ielmaxis
 real*8    :: mass, pitch, energy
+real*8    :: shift_angle !< Toroidal angle [rad] of the poloidal plane used for the Poincare map
 integer*4 :: charge
 character(len=512) :: s
 
@@ -83,6 +91,20 @@ if ( ifail == 0 ) then ! pncr file exists, use it.
    read(21, '(a)') s
    read(21,*) energy
    energy = energy + mass * ATOMIC_MASS_UNIT * SPEED_OF_LIGHT**2 / EL_CHG
+
+   ! Optional: toroidal angle of the poloidal Poincare plane. If the two extra lines
+   ! ("# shift_angle" and the value in radians) are not present, the plane phi = 0 is used.
+   shift_angle = 0.0d0
+   read(21, '(a)', iostat=ifail) s ! read comment line (ignored)
+   if ( ifail == 0 ) then
+      read(21, *, iostat=ifail) shift_angle
+      if ( ifail .ne. 0 ) then
+         shift_angle = 0.0d0
+         write(*,*) "WARNING, could not read shift_angle, using 0 rad (phi = 0 plane)"
+      end if
+   end if
+   shift_angle = modulo(shift_angle, 2*PI) !< Normalized to [0, 2*pi)
+   write(*,*) "Poincare plane at phi = ", shift_angle, " rad"
 
    close(21)
 else
@@ -151,7 +173,7 @@ do while(finished .lt. nprt)
 #else
       !$omp shared(sim, tstep, norb, ndata, mileage, p) &
 #endif
-      !$omp shared(raxis, zaxis, ncross, nprt, rvals, zvals, phivals, psivals, milvals, nextslot, pncrid) &
+      !$omp shared(raxis, zaxis, shift_angle, ncross, nprt, rvals, zvals, phivals, psivals, milvals, nextslot, pncrid) &
       !$omp private(iprt, ifail, zprev, phiprev, xyz, xyz0) &
       !$omp reduction(+:finished)
       do iprt=1,nprt
@@ -167,7 +189,8 @@ do while(finished .lt. nprt)
               mileage(iprt) = mileage(iprt) + norm2(xyz - xyz0)
             endif
             call check_and_store_crossing(sim%fields, iprt, sim%time, mileage(iprt), p(iprt)%i_elm, p(iprt)%st, p(iprt)%x, &
-                 phiprev, zprev, raxis, zaxis, ndata, nextslot, ncross, rvals, zvals, phivals, psivals, milvals, pncrid)
+                 phiprev, zprev, raxis, zaxis, shift_angle, ndata, nextslot, ncross, rvals, zvals, phivals, psivals, &
+                 milvals, pncrid)
          else
             finished = finished + 1
          end if
@@ -187,7 +210,7 @@ do while(finished .lt. nprt)
 #else
       !$omp shared(sim, tstep, norb, ndata, mileage, p) & ! To avoid GNU compiler failure
 #endif
-      !$omp shared(raxis, zaxis, ncross, nprt, rvals, zvals, phivals, psivals, milvals, nextslot, pncrid) &
+      !$omp shared(raxis, zaxis, shift_angle, ncross, nprt, rvals, zvals, phivals, psivals, milvals, nextslot, pncrid) &
       !$omp private(iprt, ifail, zprev, phiprev) &
       !$omp reduction(+:finished)
       do iprt=1,nprt
@@ -198,7 +221,8 @@ do while(finished .lt. nprt)
 
             mileage(iprt) = mileage(iprt) + tstep
             call check_and_store_crossing(sim%fields, iprt, sim%time, mileage(iprt), p(iprt)%i_elm, p(iprt)%st, p(iprt)%x, &
-                 phiprev, zprev, raxis, zaxis, ndata, nextslot, ncross, rvals, zvals, phivals, psivals, milvals, pncrid)
+                 phiprev, zprev, raxis, zaxis, shift_angle, ndata, nextslot, ncross, rvals, zvals, phivals, psivals, &
+                 milvals, pncrid)
          else
             finished = finished + 1
          end if
@@ -214,7 +238,7 @@ call cpu_time(t1)
 write(*,*) 'CPU time: ', t1-t0
 
 ! Store data
-call write_poincare_hdf5(fnout, rvals, zvals, phivals, psivals, milvals, pncrid, mileage)
+call write_poincare_hdf5(fnout, rvals, zvals, phivals, psivals, milvals, pncrid, mileage, shift_angle)
 
 ! Finalize the simulation
 deallocate ( rvals, zvals, phivals, psivals, milvals, pncrid, nextslot, ncross, mileage )
@@ -299,10 +323,13 @@ end subroutine init_markers
 
 !< Check whether Poincare plane was crossed during this time step and store crossing if this was the case.
 !<
+!< Two planes are monitored: the outer mid-plane (pncrid = 1) and the poloidal plane located at
+!< the toroidal angle shift_angle (pncrid = 2).
+!<
 !< Note that this method actually records the position marker has *after* it has crossed the plane, i.e., the
 !< actual location of the crossing is not stored. This method could be improved by performing a linear interpolation
 !< on the marker positions at each side of the plane.
-subroutine check_and_store_crossing(fields, iprt, time, mileage, i_elm, st, x, phiprev, zprev, raxis, zaxis, ndata, &
+subroutine check_and_store_crossing(fields, iprt, time, mileage, i_elm, st, x, phiprev, zprev, raxis, zaxis, shift_angle, ndata, &
      nextslot, ncross, rvals, zvals, phivals, psivals, milvals, pncrid)
   implicit none
   class(fields_base), intent(in) :: fields !< The field structure for evaluating psi
@@ -316,6 +343,7 @@ subroutine check_and_store_crossing(fields, iprt, time, mileage, i_elm, st, x, p
   real*8, intent(in)    :: zprev   !< Marker z coordinate at previous time step
   real*8, intent(in)    :: raxis   !< Magnetic axis R coordinate
   real*8, intent(in)    :: zaxis   !< Magnetic axis z coordinate
+  real*8, intent(in)    :: shift_angle !< Toroidal angle [rad] of the poloidal plane
   integer*4, intent(in) :: ndata   !< Maximum number of data points
   
   integer*4, intent(inout) :: nextslot(:)  !< Array (len=nprt) storing the index of next available slot
@@ -351,8 +379,8 @@ subroutine check_and_store_crossing(fields, iprt, time, mileage, i_elm, st, x, p
      pncrid(iprt, idx)  = 1
   end if
 
-  ! Check whether the poloidal plane at phi = 0 was crossed and store the crossing
-  if (i_elm .gt. 0 .and. floor(phiprev/(2*PI)) .ne. floor(x(3)/(2*PI)) ) then
+  ! Check whether the poloidal plane at phi = shift_angle was crossed and store the crossing
+  if (i_elm .gt. 0 .and. floor((phiprev - shift_angle)/(2*PI)) .ne. floor((x(3) - shift_angle)/(2*PI)) ) then
      nextslot(iprt)     = nextslot(iprt) + 1
      if(nextslot(iprt) .gt. ndata) then
         nextslot(iprt)  = 1
@@ -376,13 +404,13 @@ end subroutine check_and_store_crossing
 !<
 !< The output is stored in 1D arrays. To dissect the data, one of the arrays (iprt)
 !< identifies to which marker this data point corresponds to while one array (pncrid)
-!< identifies the plane that was crossed (1 : outer mid-plane, 2: poloidal plane).
+!< identifies the plane that was crossed (1 : outer mid-plane, 2: poloidal plane at phi = shift_angle).
 !<
 !< The recorded points contain information on the cylindirical coordinates on each crossing.
 !< There is an additional mileage array where mileage(iprt) notes the total distance iprt
 !< marker travelled during the simulation (seconds for particles and meters for field lines).
 !< Therefore, for lost markers mileage is the connection length.
-subroutine write_poincare_hdf5(fnout, rvals, zvals, phivals, psivals, milvals, pncrid, mileage)
+subroutine write_poincare_hdf5(fnout, rvals, zvals, phivals, psivals, milvals, pncrid, mileage, shift_angle)
   implicit none
   character(len=40)     :: fnout        !< File name where the data is written e.g. "poincare.h5"
   real*8, intent(in)    :: rvals(:,:)   !< Recorded R coordinates (nprt, ndata)
@@ -392,6 +420,7 @@ subroutine write_poincare_hdf5(fnout, rvals, zvals, phivals, psivals, milvals, p
   real*8, intent(in)    :: milvals(:,:) !< Recorded mileage at each crossing (nprt, ndata)
   integer*4, intent(in) :: pncrid(:,:)  !< Plane ID for each crosssing (nprt, ndata)
   real*8, intent(in)    :: mileage(:)   !< Travelled distance (nprt)
+  real*8, intent(in)    :: shift_angle  !< Toroidal angle [rad] of the poloidal plane (pncrid = 2)
 
   
   real*8, allocatable :: rvals0(:), zvals0(:)     !< 1D arrays for storing the data once empty points are removed
@@ -451,6 +480,7 @@ subroutine write_poincare_hdf5(fnout, rvals, zvals, phivals, psivals, milvals, p
   call HDF5_array1D_saving_int(file, pncrid0,  npoint, "pncrid")
   call HDF5_array1D_saving_int(file,    iprt,  npoint, "iprt")
   call HDF5_array1D_saving(file, mileage, nprt, "mileage")
+  call HDF5_real_saving(file, shift_angle, "shift_angle")
 
   deallocate( iprt, pncrid0, rvals0, zvals0, phivals0, psivals0, milvals0 )
 

@@ -156,7 +156,7 @@ class JorekConverter:
             with self.lock:
                 self.active_threads[thread_id] = f"step_{step_num:06d}"
             
-            print(f"Thread {thread_id}: Processing step {step_num:06d}")
+            #print(f"Thread {thread_id}: Processing step {step_num:06d}")
             
             # Copy H5 file to thread workspace as jorek_restart.h5
             target_h5 = thread_dir / "jorek_restart.h5"
@@ -198,7 +198,7 @@ class JorekConverter:
                         print(f"STDERR: {result.stderr.strip()}")
                     return False
                 
-                print(f"Thread {thread_id}: Successfully converted step {step_num:06d}")
+                #print(f"Thread {thread_id}: Successfully converted step {step_num:06d}")
                 return True
                 
             except subprocess.TimeoutExpired:
@@ -237,7 +237,7 @@ class JorekConverter:
 
         # Parse step range
         steps = self.parse_step_range(step_range)
-        print(f"Found {len(steps)} steps to process: {sorted(steps)}")
+        print(f"Found {len(steps)} steps to process.")
         
         # Find matching H5 files
         h5_files = self.find_h5_files(steps)
@@ -298,7 +298,7 @@ class JorekConverter:
                     if self.active_threads:
                         active_str = ", ".join([f"thread {tid}({step})" 
                                               for tid, step in self.active_threads.items()])
-                        print(f"Active: {active_str}")
+                        #print(f"Active: {active_str}")
 
         print(f"\nConversion completed: {completed} successful, {failed} failed")
         

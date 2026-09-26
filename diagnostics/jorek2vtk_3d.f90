@@ -58,7 +58,7 @@ nsub            = 5        		! Number of subdivisions of the cubic finite elemen
 without_n0_mode = .false.  		! If true, do not include the n=0 mode (i_tor=1)
 periodic        = .true.		! Are we doing the whole tor?
 density_only    = .false.		! Write density only (for smaller vtk file)
-n_toroidal      = 200 !n_plane 		! Number of toroidal snapshots
+n_toroidal      = 128    		! Number of toroidal snapshots (needed planes)
 RphiZ_coords    = .false.               ! use xyz transformation from JOREK wiki 
 
 ! --- Read parameters from namelist file 'vtk.nml' if it exists
@@ -81,7 +81,11 @@ if(density_only) then
   n_scalars = 1
   n_vectors = 0
 else
-  n_scalars = 7
+  if (with_TiTe) then
+    n_scalars = 8
+  else
+    n_scalars = 7
+  endif
   n_vectors = 2
 endif
 
@@ -105,7 +109,11 @@ if(density_only) then
 else
   allocate(vector_names(n_vectors), vectors(nnos,3,1:n_vectors))
   vector_names = (/ 'B_field' , 'v_field'/)
-  scalar_names = (/ 'flux    ','U       ','j       ','omega   ','density ','T       ','v_par   '/)
+  if (with_TiTe) then
+    scalar_names = (/ 'flux    ','U       ','j       ','omega   ','density ','Ti      ','Te      ','v_par   '/)
+  else
+    scalar_names = (/ 'flux    ','U       ','j       ','omega   ','density ','T       ','v_par   '/)
+  endif
 endif
 
 if (periodic) then
@@ -236,9 +244,15 @@ do m=1, n_toroidal
 
             call interp(node_list,element_list,i,var_rho,i_tor,s,t,P,P_s,P_t,P_st,P_ss,P_tt)
             scalars(inode,5) = scalars(inode,5) + P * HZ(i_tor,m)
-
-            call interp(node_list,element_list,i,var_T,i_tor,s,t,P,P_s,P_t,P_st,P_ss,P_tt)
-            scalars(inode,6) = scalars(inode,6) + P * HZ(i_tor,m)
+            if (with_TiTe) then
+              call interp(node_list,element_list,i,var_Ti,  i_tor,s,t,P,P_s,P_t,P_st,P_ss,P_tt)
+              scalars(inode,6) = scalars(inode,6) + P * HZ(i_tor,m)
+              call interp(node_list,element_list,i,var_Te,  i_tor,s,t,P,P_s,P_t,P_st,P_ss,P_tt)
+              scalars(inode,7) = scalars(inode,7) + P * HZ(i_tor,m)
+            else
+              call interp(node_list,element_list,i,var_T,i_tor,s,t,P,P_s,P_t,P_st,P_ss,P_tt)
+              scalars(inode,6) = scalars(inode,6) + P * HZ(i_tor,m)
+            end if
             
             if (with_Vpar) then
               call interp(node_list,element_list,i,var_Vpar,i_tor,s,t,P,P_s,P_t,P_st,P_ss,P_tt)

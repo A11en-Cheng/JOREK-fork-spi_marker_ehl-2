@@ -1,3 +1,9 @@
 {
-    "extensions.verifySignature": false
+    "extensions.verifySignature": false,
+    "chat.utilityModel": "deepseek/deepseek-v4-pro",
+    "chat.utilitySmallModel": "deepseek/deepseek-v4-pro",
+    "chat.tools.terminal.autoApprove": {
+        "uniq": true,
+        "git for-each-ref": true
+    }
 }

@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d, LinearNDInterpolator
 def load_time_mapping(live_data_file):
     """解析 macroscopic_vars.dat 以提取 step 到 time 的映射及单位换算常数"""
     time_map = {}
-    time_scaling = 1.0
+    time_scaling = None
     with open(live_data_file, 'r') as f:
         for line in f:
             if line.startswith('@sqrt_mu0_rho0:'):
@@ -28,6 +28,12 @@ def load_time_mapping(live_data_file):
                         time_map[step] = time_val
                     except ValueError:
                         continue
+    if time_scaling is None:
+        raise ValueError(
+            f"FATAL: Could not find '@sqrt_mu0_rho0:' in {live_data_file}. "
+            "This file must contain the time normalization factor. "
+            "Ensure macroscopic_vars.dat is from the same simulation run."
+        )
     return time_map, time_scaling
 
 def load_abl_history(abl_file):
@@ -661,12 +667,14 @@ def main():
     # 0. 载入时间映射表
     time_map = {}
     time_scaling = 1.0
-    if args.live_data and os.path.exists(args.live_data):
-        time_map, time_scaling = load_time_mapping(args.live_data)
-        print(f"Loaded {len(time_map)} time steps from {args.live_data} (Scaling factor: {time_scaling:.4e})")
-    else:
-        if args.live_data:
-            print(f"Warning: {args.live_data} not found, will only use steps.")
+    if not args.live_data or not os.path.exists(args.live_data):
+        raise FileNotFoundError(
+            f"FATAL: macroscopic_vars.dat ('{args.live_data}') not found. "
+            "This file is required for physical time conversion. "
+            "Ensure the JOREK simulation has produced it before running diagnostics."
+        )
+    time_map, time_scaling = load_time_mapping(args.live_data)
+    print(f"Loaded {len(time_map)} time steps from {args.live_data} (Scaling factor: {time_scaling:.4e})")
 
     # 1. 构建时间依赖的 Psi_N(R,Z) 插值器映射
     step_map = build_rectangle_step_map(args.rectangle_dir)
@@ -829,6 +837,7 @@ falling back to HDF5 axis (or [0,1] if axis missing).")
 
     energy_df = load_energies(args.live_data, time_scaling)
     if energy_df is not None and not energy_df.empty:
+        energy_df = energy_df.iloc[:-1]  # 取 0 到 -2 的数据区间（去掉最后一行）
         if args.start_time is not None:
             energy_df = energy_df[energy_df['time_si'] >= args.start_time]
 
@@ -970,31 +979,46 @@ falling back to HDF5 axis (or [0,1] if axis missing).")
         has_nimp = False
         print("No valid nimp data found, falling back to ±1σ envelope.")
 
-    print("\n" + "="*50)
-    print("                EVENT TIMINGS")
-    print("="*50)
-    def print_event(name, t_val, step_val):
+    # Determine output directory for text summaries (same as plot)
+    out_dir = os.path.dirname(os.path.abspath(args.out_plot))
+
+    # --- Build and write EVENT TIMINGS ---
+    event_lines = []
+    event_lines.append("="*50)
+    event_lines.append("                EVENT TIMINGS")
+    event_lines.append("="*50)
+    def format_event(name, t_val, step_val):
         if t_val is not None:
-            print(f"- {name:<27}: t = {(t_val - t0)*1000:8.4f} ms (relative), Step ~ {step_val}")
+            return f"- {name:<27}: t = {(t_val - t0)*1000:8.4f} ms (relative), Step ~ {step_val}"
         else:
-            print(f"- {name:<27}: Not Reached")
-            
-    print_event("Injection / Start", t0, t0_step)
+            return f"- {name:<27}: Not Reached"
+    def emit_event(name, t_val, step_val):
+        line = format_event(name, t_val, step_val)
+        print(line)
+        event_lines.append(line)
+    emit_event("Injection / Start", t0, t0_step)
     if has_q_evo or target_q_psi_initial is not None:
-        print_event(f"Reached evolving q={args.target_q}", t_target_q, t_target_q_step)
-        print_event(f"Local TQ (Te<10eV at q={args.target_q})", t_local_tq, t_local_tq_step)
-    print_event("Thermal Quench (~90% drop)", t_10_percent_thermal, t_10_percent_step)
-    print_event("Complete Ablation", t_r0, t_r0_step)
-    print("="*50 + "\n")
+        emit_event(f"Reached evolving q={args.target_q}", t_target_q, t_target_q_step)
+        emit_event(f"Local TQ (Te<10eV at q={args.target_q})", t_local_tq, t_local_tq_step)
+    emit_event("Thermal Quench (~90% drop)", t_10_percent_thermal, t_10_percent_step)
+    emit_event("Complete Ablation", t_r0, t_r0_step)
+    event_lines.append("="*50)
+    event_text = "\n".join(event_lines) + "\n"
+    print()
+    summary_path = os.path.join(out_dir, "diagnostic_summary.txt")
+    with open(summary_path, "w") as f:
+        f.write(event_text)
+    print(f"[INFO]   Event timings saved to {summary_path}")
 
     if has_abl:
-        print("="*50)
-        print("             INTEGRATED ABLATION")
-        print("="*50)
+        abl_lines = []
+        abl_lines.append("="*50)
+        abl_lines.append("             INTEGRATED ABLATION")
+        abl_lines.append("="*50)
 
         # 统一积分上限：优先使用局部 Te<10eV 的 TQ，其次回退到 90% 热量下降时刻
         integration_tq_time = t_local_tq if t_local_tq is not None else t_10_percent_thermal
-        print_event("Ablation/Radiation TQ Upper Bound", integration_tq_time, t_local_tq_step if t_local_tq is not None else t_10_percent_step)
+        abl_lines.append(format_event("Ablation/Radiation TQ Upper Bound", integration_tq_time, t_local_tq_step if t_local_tq is not None else t_10_percent_step))
         
         def calculate_integrated_ablation(end_time):
             if end_time is None or end_time < t0:
@@ -1010,16 +1034,22 @@ falling back to HDF5 axis (or [0,1] if axis missing).")
         abl_total = calculate_integrated_ablation(abl_df['time_si'].max())
         
         if abl_to_tq is not None:
-            print(f"- To Thermal Quench     : {abl_to_tq:.4e}")
+            abl_lines.append(f"- To Thermal Quench     : {abl_to_tq:.4e}")
         if abl_to_r0 is not None:
-            print(f"- To Complete Ablation  : {abl_to_r0:.4e}")
-        print(f"- Total Ablated (Max)   : {abl_total:.4e}")
-        print("="*50 + "\n")
+            abl_lines.append(f"- To Complete Ablation  : {abl_to_r0:.4e}")
+        abl_lines.append(f"- Total Ablated (Max)   : {abl_total:.4e}")
+        abl_lines.append("="*50)
+        abl_text = "\n".join(abl_lines) + "\n"
+        print(abl_text)
+        with open(summary_path, "a") as f:
+            f.write("\n" + abl_text)
+        print(f"[INFO]   Integrated ablation appended to {summary_path}")
 
     if has_rad:
-        print("="*50)
-        print("         INTEGRATED RADIATED ENERGY")
-        print("="*50)
+        rad_lines = []
+        rad_lines.append("="*50)
+        rad_lines.append("         INTEGRATED RADIATED ENERGY")
+        rad_lines.append("="*50)
         
         def calculate_integrated_radiation(end_time):
             if end_time is None or end_time < t0:
@@ -1035,11 +1065,16 @@ falling back to HDF5 axis (or [0,1] if axis missing).")
         rad_total = calculate_integrated_radiation(rad_power_df['time_si'].max())
         
         if rad_to_tq is not None:
-            print(f"- To Thermal Quench     : {rad_to_tq:.4e} J")
+            rad_lines.append(f"- To Thermal Quench     : {rad_to_tq:.4e} J")
         if rad_to_r0 is not None:
-            print(f"- To Complete Ablation  : {rad_to_r0:.4e} J")
-        print(f"- Total Radiated (Max)  : {rad_total:.4e} J")
-        print("="*50 + "\n")
+            rad_lines.append(f"- To Complete Ablation  : {rad_to_r0:.4e} J")
+        rad_lines.append(f"- Total Radiated (Max)  : {rad_total:.4e} J")
+        rad_lines.append("="*50)
+        rad_text = "\n".join(rad_lines) + "\n"
+        print(rad_text)
+        with open(summary_path, "a") as f:
+            f.write("\n" + rad_text)
+        print(f"[INFO]   Integrated radiated energy appended to {summary_path}")
 
     num_subplots = 2
     if has_abl:

@@ -462,9 +462,10 @@ module mod_position
     real*8                   :: vec_out(2)
     logical                  :: s_const
     type(t_pol_pos), pointer :: pos
+    real*8                   :: i
 
     i_bnd = 0  ! index for bnd point
-    bnd_shift = 0.0 ! The inward shift of the boundary
+    bnd_shift = 0.00 ! The inward shift of the boundary
   
     ! --- alllocate position list
     call alloc_pol_pos(pos_list, (/1, n_elm_pts * bnd_elm_list%n_bnd_elements /))

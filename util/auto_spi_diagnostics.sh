@@ -1,22 +1,45 @@
 #!/bin/bash
 # 
 # Automated SPI Diagnostics Workflow script
-# This script orchestrates convert2diagno_spi, jorek2_diagno_spi, 
-# jorek2_postproc, and track_largest_pellets.py to fully automate
-# SPI pellet injection tracking and diagnostics.
+# This script orchestrates convert2diagno_spi, jorek2_diagno_spi,
+# jorek2_postproc, track_largest_pellets.py and auto_spi_shard_surfaces.py
+# to fully automate SPI pellet injection tracking and diagnostics.
 #
 export OMP_NUM_THREADS=1
 ulimit -s unlimited
 set -e
 
-# Option / Parameter parsing could be added here, but for now we take defaults.
+# Option / Parameter parsing
+#   --plot-only : skip Steps 1-3 (fragment extraction, ablation history and
+#                 postproc diagnostics) and only produce plots from the
+#                 existing outputs in auto_diagno_spi/
+PLOT_ONLY=false
+POSITIONAL_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --plot-only)
+            PLOT_ONLY=true
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$arg")
+            ;;
+    esac
+done
+set -- "${POSITIONAL_ARGS[@]}"
+
 DIAGNO_BIN=${1:-./jorek2_diagno_spi}
 POSTPROC_BIN=${2:-./jorek2_postproc}
 MACRO_VARS=${3:-./macroscopic_vars.dat}
-NAMELIST=${4:-input_EHL_t2}
+NAMELIST=${4:-jorek_namelist_ntor11}
 
 # Number of parallel workers (adjust based on available cores)
-N_PARALLEL=8
+N_PARALLEL=30
+
+# postproc 在 Step 3 里使用的表达式列表（rectangle / average 共用）。
+# 重要：这也决定了 exprs_Rmin*.h5 里 values 的**变量顺序** ——
+# jorek2_postproc 把 h5 的变量名数组写成了 character(len=1)，变量名会退化成
+# 首字母（P/T/n/n），所以 Step 5 依赖 --expr_order 按位置复原变量名。
+RECT_EXPRS=${RECT_EXPRS:-"Psi_N T_e nimp ne"}
 
 # All outputs go under this directory
 OUTPUT_DIR="auto_diagno_spi"
@@ -40,6 +63,9 @@ echo "       JOREK SPI Diagnostic Suite — Automated Workflow        "
 echo "   (fragment centroid, ablation cloud, q-slice Te, energies)  "
 echo "============================================================"
 echo "Output directory: $OUTPUT_DIR"
+if [ "$PLOT_ONLY" = true ]; then
+    echo "Mode: plot-only (reusing existing diagnostics, Steps 1-3 skipped)"
+fi
 
 # Wrapper to run postproc (single-core, stdin-driven Fortran program)
 run_postproc() {
@@ -47,6 +73,12 @@ run_postproc() {
     local log_file=$2
     "$POSTPROC_BIN" < "$in_file" > "$log_file" 2>&1
 }
+
+# Shared output paths used by Step 4 (also referenced in plot-only mode)
+QPROF_MERGED="$POSTPROC_DIR/qprofile_merged.dat"
+MERGED_OUT="$POSTPROC_DIR/exprs_averaged_merged.dat"
+
+if [ "$PLOT_ONLY" = false ]; then
 
 # SPI start timestep: minimum step from part*.h5 names
 START_STEP_RAW=$(ls part*.h5 2>/dev/null | sed -n 's/^.*part\([0-9]\+\)\.h5.*$/\1/p' | sort -n | head -1)
@@ -61,13 +93,13 @@ echo "[INFO] Detected SPI start step: $START_STEP"
 # ==============================================================================
 # Step 1: Extract 3D fragment positions across all time steps (→ fragments_position_*.csv)
 # ==============================================================================
-echo "[STEP 1/4] Extracting fragment (R,Z,φ) trajectories from all part*.h5 …"
+echo "[STEP 1/5] Extracting fragment (R,Z,φ) trajectories from all part*.h5 …"
 python3 util/convert2diagno_spi.py "$DIAGNO_BIN" "$NAMELIST" "${START_STEP}-99999" -t "$CSV_FOLDER" -j ${N_PARALLEL} --temp-dir "$UNIQUE_TEMP"
 
 # ==============================================================================
 # Step 2: Ablation-rate history from the final restart file
 # ==============================================================================
-echo "[STEP 2/4] Computing ablation-rate history (abl_history.dat) …"
+echo "[STEP 2/5] Computing ablation-rate history (abl_history.dat) …"
 LAST_STEP_RAW=$(ls part*.h5 2>/dev/null | sed -n 's/^.*part\([0-9]\+\)\.h5.*$/\1/p' | sort -n | tail -1)
 LAST_STEP=$((10#$LAST_STEP_RAW))
 echo "[INFO]   Last available step: $LAST_STEP"
@@ -101,7 +133,7 @@ STEPS_PER_WORKER=$(( (TOTAL_STEPS + N_PARALLEL - 1) / N_PARALLEL ))
 #         All three commands run in a single for-loop per worker,
 #         sharing one restart load per time step (≈30–40% less wall time).
 # ==============================================================================
-echo "[STEP 3/4] Unified diagnostics (rectangle + qprofile + average) for all ${TOTAL_STEPS} steps …"
+echo "[STEP 3/5] Unified diagnostics (rectangle + qprofile + average) for all ${TOTAL_STEPS} steps …"
 BOUNDS=$(python3 -c "
 import glob, sys, pandas as pd, re, os
 csvs = glob.glob('$CSV_FOLDER/*.csv')
@@ -134,8 +166,6 @@ fi
 rm -f "$POSTPROC_DIR"/exprs_Rmin*.h5 2>/dev/null
 rm -f "$POSTPROC_DIR"/qprofile_s*.dat 2>/dev/null
 rm -f "$POSTPROC_DIR"/exprs_averaged_s*.dat 2>/dev/null
-QPROF_MERGED="$POSTPROC_DIR/qprofile_merged.dat"
-MERGED_OUT="$POSTPROC_DIR/exprs_averaged_merged.dat"
 rm -f "$QPROF_MERGED" "$MERGED_OUT" 2>/dev/null
 rm -f "$OUTPUT_DIR"/postproc_step3_worker*.in "$OUTPUT_DIR"/postproc_step3_worker*.log 2>/dev/null
 
@@ -160,7 +190,7 @@ for ((w=0; w<N_PARALLEL; w++)); do
 namelist $NAMELIST
 set_postproc_dir $POSTPROC_DIR
 si-units
-expressions Psi_N T_e nimp
+expressions $RECT_EXPRS
 mark_coords 1
 set surfaces 120
 for step $w_start to $w_end do
@@ -225,12 +255,23 @@ else
     echo "[WARN]   No average output files produced; heatmap and Te-evolution will be skipped."
 fi
 
+else   # PLOT_ONLY=true: reuse existing outputs, no Steps 1-3
+
+if [ ! -d "$CSV_FOLDER" ] || [ ! -d "$POSTPROC_DIR" ]; then
+    echo "Error: existing outputs ($CSV_FOLDER, $POSTPROC_DIR) not found."
+    echo "       Run the full workflow once before using --plot-only."
+    exit 1
+fi
+echo "[INFO] Reusing existing outputs from $CSV_FOLDER and $POSTPROC_DIR."
+
+fi   # end of PLOT_ONLY check
+
 
 
 # ==============================================================================
 # Step 4: Python synthesis — centroid tracking, heatmap, event detection, PDF
 # ==============================================================================
-echo "[STEP 4/4] Running track_largest_pellets.py (centroid + cloud heatmap + events) …"
+echo "[STEP 4/5] Running track_largest_pellets.py (centroid + cloud heatmap + events) …"
 TE_PROFILE_ARG=""
 if [ -f "$MERGED_OUT" ]; then
     TE_PROFILE_ARG="--te_profile $MERGED_OUT"
@@ -245,22 +286,67 @@ if [ -f "$QPROF_MERGED" ]; then
 else
     echo "[INFO]   No merged q-profile available; target-q line will be omitted."
 fi
+BOUNDS_ARG=""
+if [ -n "${RMIN:-}" ] && [ -n "${RMAX:-}" ] && [ -n "${ZMIN:-}" ] && [ -n "${ZMAX:-}" ]; then
+    BOUNDS_ARG="--bounds $RMIN $RMAX $ZMIN $ZMAX"
+elif [ "$PLOT_ONLY" = true ]; then
+    echo "[INFO]   No stored bounds; Python will infer them from the fragment CSVs."
+fi
 python3 util/track_largest_pellets.py \
     --csv_dir "$CSV_FOLDER" \
     --rectangle_dir "$POSTPROC_DIR" \
     --abl_file "$OUTPUT_DIR/abl_history.dat" \
     --live_data "$MACRO_VARS" \
-    --max_time_ms 2.0 \
-    --bounds $RMIN $RMAX $ZMIN $ZMAX \
+    --max_time_ms 0.5 \
+    $BOUNDS_ARG \
     $QPROF_ARG \
     $TE_PROFILE_ARG \
     --out_plot "$OUTPUT_DIR/spi_diagnostic_overview.png" \
     --out_csv "$OUTPUT_DIR/pellet_trajectory_summary.csv"
 
+# ==============================================================================
+# Step 5: 3D shard surfaces（火箭效应）
+#   一张合并图：x=碎片编号 i_spi, y=自消融开始时间[ms], z=|ΔV_R|,
+#               颜色 = 碎片见到的量, 透明度 = r/r0（碎片还剩多少）
+#   * 时间轴同样以 macroscopic_vars.dat 的 @sqrt_mu0_rho0 归一化，
+#     并以 abl_history.dat 定位的"消融开始"为零点
+#   * 环境变量：
+#       SURF_COLOR=te|tn|psin|none   颜色场（默认 te）
+#       SURF_LAYOUT=merged|split|both 合并图/分开两张/都要（默认 merged）
+#       SURF_RENDER=surface|lines|both 曲面/逐碎片折线/叠加（默认 surface）
+#       SKIP_SHARD_SURFACES=1        跳过本步
+# ==============================================================================
+if [ "${SKIP_SHARD_SURFACES:-0}" != "1" ]; then
+    SURF_COLOR=${SURF_COLOR:-te}
+    SURF_LAYOUT=${SURF_LAYOUT:-merged}
+    SURF_RENDER=${SURF_RENDER:-surface}
+    echo "[STEP 5/5] Running auto_spi_shard_surfaces.py (color=$SURF_COLOR layout=$SURF_LAYOUT render=$SURF_RENDER) …"
+    mkdir -p "$OUTPUT_DIR/surfaces"
+    # 删除旧缓存，避免复用到上一次运行的数组（缓存仅供手动重画时通过 --cache_npz 复用）
+    rm -f "$OUTPUT_DIR/surfaces/shard_surfaces_cache.npz"
+    python3 util/auto_spi_shard_surfaces.py \
+        --csv_dir "$CSV_FOLDER" \
+        --rectangle_dir "$POSTPROC_DIR" \
+        --abl_file "$OUTPUT_DIR/abl_history.dat" \
+        --live_data "$MACRO_VARS" \
+        --color "$SURF_COLOR" \
+        --layout "$SURF_LAYOUT" \
+        --render "$SURF_RENDER" \
+        --expr_order "$RECT_EXPRS" \
+        $BOUNDS_ARG \
+        --out_dir "$OUTPUT_DIR/surfaces" \
+        --out_prefix shard_surfaces \
+        --cache_npz "$OUTPUT_DIR/surfaces/shard_surfaces_cache.npz" \
+        || echo "[WARN]   auto_spi_shard_surfaces.py 失败或数据不足，已跳过 3D 曲面输出。"
+else
+    echo "[STEP 5/5] SKIP_SHARD_SURFACES=1, 跳过 3D 曲面输出。"
+fi
+
 echo "============================================================"
 echo "[DONE]  SPI diagnostic suite finished successfully."
 echo ""
-echo "  Output directory : $OUTPUT_DIR/"
-echo "  Diagnostic plot  : $OUTPUT_DIR/spi_diagnostic_overview.png"
-echo "  Trajectory CSV   : $OUTPUT_DIR/pellet_trajectory_summary.csv"
+echo "  Output directory        : $OUTPUT_DIR/"
+echo "  Diagnostic plot         : $OUTPUT_DIR/spi_diagnostic_overview.png"
+echo "  Trajectory CSV          : $OUTPUT_DIR/pellet_trajectory_summary.csv"
+echo "  Diagnostic summary      : $OUTPUT_DIR/diagnostic_summary.txt"
 echo "============================================================"
