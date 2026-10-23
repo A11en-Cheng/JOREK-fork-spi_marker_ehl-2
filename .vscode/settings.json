@@ -1,9 +1,10 @@
 {
     "extensions.verifySignature": false,
-    "chat.utilityModel": "deepseek/deepseek-v4-pro",
-    "chat.utilitySmallModel": "deepseek/deepseek-v4-pro",
+    "chat.utilityModel": "deepseek/deepseek-v4-flash",
+    "chat.utilitySmallModel": "deepseek/deepseek-v4-flash",
     "chat.tools.terminal.autoApprove": {
         "uniq": true,
         "git for-each-ref": true
-    }
+    },
+    "chat.permissions.default": "autoApprove"
 }

@@ -21,6 +21,17 @@ SPI 碎片"火箭效应"三维诊断：把每个碎片**看到的**温度与它*
   --render lines   每个碎片画一条 3D 折线，语义上就是"一个弹丸一条线"；
   --render both    两者叠加。
 
+x 轴排序 --x_axis 除默认的碎片编号 index 外，还可按初始半径 r0、初始 Psi_N psi0，
+或按"半径置零"（烧蚀完成）的先后 death 排列：时间窗内越早烧蚀完越靠前；窗口末
+仍未烧蚀完的碎片按末时刻半径升序排在其后。用于观察"烧蚀完成顺序 vs 火箭加速"的关联。
+
+除 ΔV_R 合并图外，默认（--accel on）还会额外出"碎片加速度"合并图（同样的
+x/y/颜色/透明度，只把 z 换成加速度）：
+    z = |a_R| = |dV_R/dt|                       [m/s²]
+它是 ΔV_R 图的"被积函数"（ΔV_R = ∫ a_R dt）：对与 ΔV_R 相同的速度序列按真实时间
+做非等距中心差分。速度带 f12.3 的 1 mm/s 量化阶梯，微分会放大噪声，必要时用
+--smooth 先平滑；--acc_sign {abs,minus,plus} 控制 z 的正负。
+
 物理含义：ΔV_R = V_R(t) - V_R(t_inj) 严格等于模型施加的火箭加速度积分 ∫a_R dt；
 Δr = r(t_inj) - r(t) 是消融掉掉的半径（m = 4/3 π r^3 ρ_atom 因此变小）。
 两者合起来就是 ΔV_R = ∫ p_asymm(T_e,n_e) π r² / m dt 的被积函数分解。
@@ -582,6 +593,31 @@ class RectangleFields:
 # --------------------------------------------------------------------------------------
 # 场量组装
 # --------------------------------------------------------------------------------------
+def _time_derivative(Y, t):
+    """对时间做数值导数 dY/dt（非等距中心差分；NaN/断段自动跳过）。
+
+    Y: (n_shard, n_t)；t: (n_t,) 秒。返回同形状数组。
+    只在 "t 与 Y 都有限" 的连续段内求导，孤立点/断段保持 NaN；
+    段边缘退化为单侧差分（np.gradient 的默认行为）。
+    """
+    Y = np.asarray(Y, dtype=float)
+    t = np.asarray(t, dtype=float)
+    D = np.full(Y.shape, np.nan)
+    for i in range(Y.shape[0]):
+        ok = np.isfinite(Y[i]) & np.isfinite(t)
+        if ok.sum() < 2:
+            continue
+        idx = np.nonzero(ok)[0]
+        for seg in np.split(idx, np.nonzero(np.diff(idx) != 1)[0] + 1):
+            if seg.size < 2:
+                continue
+            tt = t[seg]
+            if np.any(np.diff(tt) <= 0):
+                continue          # 时间不严格递增（数据异常），该段跳过
+            D[i, seg] = np.gradient(Y[i, seg], tt)
+    return D
+
+
 def build_fields(series, time_map, time_scaling, t0, fields: RectangleFields | None,
                  color_mode: str, smooth: int, mask_dead: str,
                  color_var: str = None, color_index: int = None, debug: bool = False):
@@ -590,7 +626,7 @@ def build_fields(series, time_map, time_scaling, t0, fields: RectangleFields | N
     Returns
     -------
     dict with:
-        steps, i_spi, x_index, t_ms, dV_R, dr_mm, color, color_label, n_alive
+        steps, i_spi, t_ms, dV_R, acc, dr_mm, color, color_label, n_alive
     """
     steps = series["steps"]
     n_shard, n_step = series["VR"].shape
@@ -645,6 +681,16 @@ def build_fields(series, time_map, time_scaling, t0, fields: RectangleFields | N
     if smooth and smooth > 1:
         dV_R = pd.DataFrame(dV_R.T).rolling(smooth, min_periods=1, center=True).mean().to_numpy().T
         dr_mm = pd.DataFrame(dr_mm.T).rolling(smooth, min_periods=1, center=True).mean().to_numpy().T
+
+    # --- 火箭加速度 a_R = d(ΔV_R)/dt [m/s²] ---
+    # 与 ΔV_R 图共用同一套（可选平滑后的）速度序列；t_ms 已相对 t0，差分不受零点影响。
+    # 时间轴若退化为 step 序号（未匹配到 @times），无法定标，置 NaN 并提示。
+    if t_label.startswith("Time since ablation start"):
+        acc = _time_derivative(dV_R, t_ms / 1e3)
+    else:
+        acc = np.full_like(dV_R, np.nan)
+        log("[acc] WARNING: 时间轴不是真实时间（未匹配到 @times），"
+            "无法计算加速度 a_R=dV_R/dt，加速度图将跳过。")
 
     # --- 颜色场：每个碎片在每个时刻"看到的"局域量 ---
     color = np.full((n_shard, n_step), np.nan)
@@ -714,6 +760,7 @@ def build_fields(series, time_map, time_scaling, t0, fields: RectangleFields | N
         "t_ms": t_ms,
         "t_label": t_label,
         "dV_R": dV_R,
+        "acc": acc,
         "dr_mm": dr_mm,
         "color": color,
         "color_label": color_label,
@@ -1036,7 +1083,7 @@ def plot_html(x_vals, t_vals, Z, C, norm, title, z_label, color_label,
 # --------------------------------------------------------------------------------------
 def build_parser():
     p = argparse.ArgumentParser(
-        description="SPI 碎片火箭效应三维曲面诊断（ΔV_R / Δr vs 碎片编号 vs 时间，"
+        description="SPI 碎片火箭效应三维曲面诊断（ΔV_R / a_R / Δr vs 碎片编号 vs 时间，"
                     "颜色 = 碎片见到的 T_e）",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -1075,13 +1122,20 @@ def build_parser():
     p.add_argument("--vmin", type=float, default=None, help="颜色下限（两张图共用）")
     p.add_argument("--vmax", type=float, default=None, help="颜色上限（两张图共用）")
 
-    p.add_argument("--x_axis", type=str, default="index", choices=["index", "r0", "psi0"],
-                   help="x 轴排序：index=碎片编号 i_spi（默认）, r0=按初始半径, psi0=按初始 Psi_N")
+    p.add_argument("--x_axis", type=str, default="index",
+                   choices=["index", "r0", "psi0", "death"],
+                   help="x 轴排序：index=碎片编号 i_spi（默认）, r0=按初始半径, psi0=按初始 Psi_N, "
+                        "death=按半径置零(烧蚀完成)的先后（时间窗内越早置零越靠前；"
+                        "窗口末仍未置零的碎片按末时刻半径升序排在其后）")
     p.add_argument("--mask_dead", type=str, default="dr", choices=["dr", "both", "none"],
                    help="把已烧蚀完(r=0)的碎片置 NaN：dr=只作用在 Δr 图, both=两图都置, none=都不置")
     p.add_argument("--dvr_sign", type=str, default="abs", choices=["abs", "minus", "plus"],
                    help="Fig.1 的 z 量：abs=|ΔV_R|=|V_R(t)-V_R(注入)|（默认，即速度衰减幅度）、"
                         "minus=-ΔV_R、plus=+ΔV_R")
+    p.add_argument("--accel", type=str, default="on", choices=["on", "off"],
+                   help="是否额外出碎片加速度合并图（z=|a_R|=|dV_R/dt|，m/s²）")
+    p.add_argument("--acc_sign", type=str, default="abs", choices=["abs", "minus", "plus"],
+                   help="加速度图的 z 量：abs=|a_R|（默认，加速度幅度）、minus=-a_R、plus=+a_R")
     p.add_argument("--layout", type=str, default="merged", choices=["merged", "split", "both"],
                    help="merged=只出合并图（z=|ΔV_R|，颜色=T_e，透明度=半径）；"
                         "split=分别出 ΔV_R 与 Δr 两张图；both=都出")
@@ -1093,7 +1147,8 @@ def build_parser():
     p.add_argument("--alpha_min", type=float, default=0.06, help="透明度下限（已烧蚀完的碎片）")
     p.add_argument("--alpha_max", type=float, default=1.0, help="透明度上限（刚注入的碎片）")
     p.add_argument("--smooth", type=int, default=0,
-                   help="沿时间做移动平均的窗口（0/1=不平滑）；速度字段是 f12.3 量化过的")
+                   help="沿时间做移动平均的窗口（0/1=不平滑）；速度字段是 f12.3 量化过的，"
+                        "时间微分出的加速度图对阶梯噪声尤其敏感，可适当加大该窗口")
     p.add_argument("--max_plotted_shards", type=int, default=0,
                    help="最多绘制多少个碎片（0=全部，>0 时均匀抽稀）")
     p.add_argument("--time_stride", type=int, default=1, help="时间步抽稀间隔")
@@ -1212,6 +1267,16 @@ def main(argv=None):
     dr_mm = fields_arrays["dr_mm"]
     color = fields_arrays["color"]
     n_alive = fields_arrays["n_alive"]
+    if "acc" in fields_arrays:
+        acc_full = np.asarray(fields_arrays["acc"], dtype=float)
+    elif str(t_label).startswith("Time since ablation start"):
+        # 兼容旧版缓存：缺少加速度数组时用 ΔV_R 与时间轴现算（差分只关心时间差）
+        acc_full = _time_derivative(np.asarray(dV_R, dtype=float),
+                                    np.asarray(t_ms, dtype=float) / 1e3)
+        log("[cache] NOTE: 缓存中没有加速度数组，已用 ΔV_R 与时间轴重算 a_R。")
+    else:
+        acc_full = np.full_like(np.asarray(dV_R, dtype=float), np.nan)
+        log("[acc] WARNING: 缓存缺少加速度数组且时间轴不是真实时间，跳过加速度图。")
 
     # ---------- 3. 时间窗裁剪 ----------
     tsel = np.ones_like(t_ms, dtype=bool)
@@ -1226,6 +1291,7 @@ def main(argv=None):
     dV_sel = dV_R[:, tsel]
     dr_sel = dr_mm[:, tsel]
     C_sel = color[:, tsel]
+    acc_sel = acc_full[:, tsel]
     # 半径（用于透明度映射）：r/r0，r0 = 注入时刻每个碎片自己的半径
     if "radius" in fields_arrays:
         r_sel = np.asarray(fields_arrays["radius"], dtype=float)[:, tsel]
@@ -1256,6 +1322,52 @@ def main(argv=None):
             order = np.argsort(np.nan_to_num(key, nan=np.inf))
             x_vals = np.nan_to_num(key[order], nan=0.0)
             x_label = r"Initial $\Psi_N$"
+    elif args.x_axis == "death":
+        # 按"半径置零"（烧蚀完成）的先后排序：
+        #   1) 时间窗内半径首次置零的碎片排在前（越早置零越靠前）；
+        #   2) 窗口结束仍未置零的碎片排在其后，按窗口最后时刻的半径升序
+        #      （越接近烧蚀完越靠前）；
+        #   3) 键完全相同时按原始碎片编号 i_spi 保持稳定。
+        # 注：排序在 --t_min_ms/--t_max_ms 裁剪后的时间窗内进行，窗口外才置零的
+        # 碎片在本次绘图中按"仍存活"处理。
+        rr = np.asarray(r_sel, dtype=float)
+        fin = np.isfinite(rr)
+        if not (fin & (rr > 0)).any():
+            log("[x] WARNING: 时间窗内没有可用的半径数据，death 排序退化为 index 排序。")
+            order = np.argsort(i_spi)
+            x_vals = i_spi[order].astype(float)
+            x_label = "Shard index i_spi"
+        else:
+            n_sh, nt = rr.shape
+            idx_all = np.arange(nt)
+            alive = fin & (rr > 0)
+            # "出生" = 首次出现正半径的索引（从未存活记 nt，避免把注入前的 0 当成置零）
+            birth = np.where(alive.any(axis=1), alive.argmax(axis=1), nt)
+            # 出生之后首次出现 r<=0 的索引 = 该碎片置零（烧蚀完成）的时刻
+            died_mat = fin & (rr <= 0) & (idx_all[None, :] > birth[:, None])
+            died = died_mat.any(axis=1)
+            death_idx = np.where(died, died_mat.argmax(axis=1), nt)
+            # 末时刻半径（取窗口内最后一个有限值），仅作为仍存活碎片的二级排序键
+            fin_rev = fin[:, ::-1]
+            last_idx = nt - 1 - fin_rev.argmax(axis=1)
+            final_r = rr[np.arange(n_sh), last_idx]
+            final_r = np.where(np.isfinite(final_r) & ~died, final_r, 0.0)
+            order = np.lexsort((i_spi, final_r, death_idx))
+            x_vals = np.arange(1, n_sh + 1, dtype=float)
+            x_label = "Shard order (1 = first fully ablated)"
+            n_died = int(died.sum())
+            if n_died:
+                t_die = np.array([t_sel[int(k)] for k in death_idx[died]], dtype=float)
+                log(f"[x] death 排序: {n_died}/{n_sh} 个碎片在时间窗内烧蚀完"
+                    f"（置零于 {t_die.min():.4f} ~ {t_die.max():.4f} ms）；"
+                    f"其余 {n_sh - n_died} 个按末时刻半径升序排在其后。")
+            else:
+                log(f"[x] death 排序: 时间窗内没有碎片烧蚀完，全部按末时刻半径升序排列。")
+            if debug:
+                for rank0, k in enumerate(order[:5], start=1):
+                    when = f"{t_sel[int(death_idx[k])]:.4f} ms" if died[k] else "alive"
+                    log(f"[x][debug] rank {rank0}: i_spi={i_spi[k]}, death={when}, "
+                        f"r_end={final_r[k]:.4e} m")
     else:
         order = np.argsort(i_spi)
         x_vals = i_spi[order].astype(float)
@@ -1265,6 +1377,7 @@ def main(argv=None):
     dr_sel = dr_sel[order, :]
     C_sel = C_sel[order, :]
     r_sel = r_sel[order, :]
+    acc_sel = acc_sel[order, :]
     r0_vec = r0_vec[order]
     n_alive = n_alive[tsel]
 
@@ -1272,8 +1385,8 @@ def main(argv=None):
     if args.max_plotted_shards and 0 < args.max_plotted_shards < len(x_vals):
         xi = np.linspace(0, len(x_vals) - 1, args.max_plotted_shards).astype(int)
         xi = np.unique(xi)
-        x_vals, dV_sel, dr_sel, C_sel, r_sel = (x_vals[xi], dV_sel[xi, :], dr_sel[xi, :],
-                                               C_sel[xi, :], r_sel[xi, :])
+        x_vals, dV_sel, dr_sel, C_sel, r_sel, acc_sel = (
+            x_vals[xi], dV_sel[xi, :], dr_sel[xi, :], C_sel[xi, :], r_sel[xi, :], acc_sel[xi, :])
         r0_vec = r0_vec[xi]
         log(f"[plot] x 方向抽稀到 {len(x_vals)} 个碎片")
 
@@ -1287,6 +1400,21 @@ def main(argv=None):
         dV_plot, dvr_label, dvr_txt = dV_sel, r"$\Delta V_R$  [m/s]", "ΔV_R"
     log(f"[plot] Fig.1 z 轴 = {dvr_txt} [m/s]，"
         f"范围 [{np.nanmin(dV_plot):.3f}, {np.nanmax(dV_plot):.3f}]")
+
+    # 加速度 z 量：a_R = d(ΔV_R)/dt（默认取幅度 |a_R|，与 |ΔV_R| 的约定一致）
+    if args.acc_sign == "abs":
+        acc_plot = np.abs(acc_sel)
+        acc_label, acc_txt = r"$|a_R|$  [m/s$^2$]", "|a_R|"
+    elif args.acc_sign == "minus":
+        acc_plot, acc_label, acc_txt = -acc_sel, r"$-a_R$  [m/s$^2$]", "-a_R"
+    else:
+        acc_plot, acc_label, acc_txt = acc_sel, r"$a_R$  [m/s$^2$]", "a_R"
+    if args.accel == "on":
+        if np.isfinite(acc_plot).any():
+            log(f"[plot] 加速度图 z 轴 = {acc_txt} [m/s²]，"
+                f"范围 [{np.nanmin(acc_plot):.3e}, {np.nanmax(acc_plot):.3e}]")
+        else:
+            log("[plot] 加速度图无有效数据（时间轴退化或速度缺失），将跳过输出。")
 
     # x/y 抽稀步长只算一次，保证两张图的网格完全一致。
     # 注意：--time_stride 默认是 1，此时应当由 --max_t_points 自动决定步长，
@@ -1325,6 +1453,7 @@ def main(argv=None):
     ts = t_sel[ti]
     Z1 = dV_plot[np.ix_(xi, ti)]        # 速度衰减量
     Z2 = dr_sel[np.ix_(xi, ti)]         # 半径损失
+    Z3 = acc_plot[np.ix_(xi, ti)]       # 火箭加速度
     C1 = C_sel[np.ix_(xi, ti)]          # 颜色场
     A1 = alpha_full[np.ix_(xi, ti)]     # 透明度
     log(f"[plot] 网格: {Z1.shape[0]} x {Z1.shape[1]} (碎片 x 时间)")
@@ -1357,6 +1486,22 @@ def main(argv=None):
                            color_label=color_label, t_label=t_min_lbl,
                            out_png=f"{prefix}_merged_2d.png")
 
+    if args.png and args.accel == "on" and np.isfinite(Z3).any():
+        plot_merged_fig(
+            xs, ts, Z3, C1, A1, norm, cmap,
+            title="Rocket acceleration: " + acc_txt + " vs time, color = " + color_txt
+                  + ", opacity = shard radius",
+            z_label=acc_label, x_label=x_label, t_label=t_min_lbl,
+            color_label=color_label, alpha_note=alpha_note,
+            out_png=f"{prefix}_accel.png", elev=args.elev, azim=args.azim,
+            render=args.render,
+        )
+        if args.also2d:
+            plot_merged_2d(xs, ts, Z3, C1, A1, norm, cmap,
+                           title=acc_label, z_label=acc_label,
+                           color_label=color_label, t_label=t_min_lbl,
+                           out_png=f"{prefix}_accel_2d.png")
+
     if args.png and args.layout in ("split", "both"):
         plot_surface_fig(
             xs, ts, Z1, C1, norm, cmap,
@@ -1387,6 +1532,10 @@ def main(argv=None):
         plot_html(xs, ts, Z1, C1, norm,
                   f"Merged  {dvr_txt} (color = {color_txt})", dvr_label, color_label,
                   t_min_lbl, f"{prefix}_merged.html")
+        if args.accel == "on" and np.isfinite(Z3).any():
+            plot_html(xs, ts, Z3, C1, norm,
+                      f"Accel  {acc_txt} (color = {color_txt})", acc_label, color_label,
+                      t_min_lbl, f"{prefix}_accel.html")
         if args.layout in ("split", "both"):
             plot_html(xs, ts, Z2, C1, norm,
                       "Fig.2  Δr (color = seen field)", "Δr [mm]", color_label,
@@ -1406,6 +1555,10 @@ def main(argv=None):
         f"{np.nanmax(Z1) if np.isfinite(Z1).any() else float('nan'):.3f}]")
     log(f"  Δr 范围                 : [{np.nanmin(Z2) if np.isfinite(Z2).any() else float('nan'):.4f}, "
         f"{np.nanmax(Z2) if np.isfinite(Z2).any() else float('nan'):.4f}] mm")
+    if args.accel == "on":
+        log(f"  {acc_txt} [m/s²] 范围       : "
+            f"[{np.nanmin(Z3) if np.isfinite(Z3).any() else float('nan'):.3e}, "
+            f"{np.nanmax(Z3) if np.isfinite(Z3).any() else float('nan'):.3e}]")
     if norm is not None:
         log(f"  颜色范围                : [{norm.vmin:.4g}, {norm.vmax:.4g}]  ({color_label})")
     log("=" * 74)

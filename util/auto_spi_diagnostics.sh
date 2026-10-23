@@ -306,21 +306,29 @@ python3 util/track_largest_pellets.py \
 
 # ==============================================================================
 # Step 5: 3D shard surfaces（火箭效应）
-#   一张合并图：x=碎片编号 i_spi, y=自消融开始时间[ms], z=|ΔV_R|,
+#   一张合并图：x=碎片排序轴（默认按半径置零/烧蚀完成先后，见 SURF_XAXIS）,
+#               y=自消融开始时间[ms], z=|ΔV_R|,
 #               颜色 = 碎片见到的量, 透明度 = r/r0（碎片还剩多少）
+#   默认还额外出"碎片加速度"合并图：z=|a_R|=|dV_R/dt|（见 SURF_ACCEL）
 #   * 时间轴同样以 macroscopic_vars.dat 的 @sqrt_mu0_rho0 归一化，
 #     并以 abl_history.dat 定位的"消融开始"为零点
 #   * 环境变量：
 #       SURF_COLOR=te|tn|psin|none   颜色场（默认 te）
 #       SURF_LAYOUT=merged|split|both 合并图/分开两张/都要（默认 merged）
 #       SURF_RENDER=surface|lines|both 曲面/逐碎片折线/叠加（默认 surface）
+#       SURF_XAXIS=index|r0|psi0|death 碎片排序（默认 death=按半径置零/烧蚀完成的先后：
+#                                     窗口内越早烧蚀完越靠前，窗口末仍存活的按
+#                                     末时刻半径升序排在其后；index=恢复原始编号）
+#       SURF_ACCEL=on|off            碎片加速度 a_R=dV_R/dt 合并图（默认 on）
 #       SKIP_SHARD_SURFACES=1        跳过本步
 # ==============================================================================
 if [ "${SKIP_SHARD_SURFACES:-0}" != "1" ]; then
     SURF_COLOR=${SURF_COLOR:-te}
     SURF_LAYOUT=${SURF_LAYOUT:-merged}
     SURF_RENDER=${SURF_RENDER:-surface}
-    echo "[STEP 5/5] Running auto_spi_shard_surfaces.py (color=$SURF_COLOR layout=$SURF_LAYOUT render=$SURF_RENDER) …"
+    SURF_XAXIS=${SURF_XAXIS:-death}
+    SURF_ACCEL=${SURF_ACCEL:-on}
+    echo "[STEP 5/5] Running auto_spi_shard_surfaces.py (color=$SURF_COLOR layout=$SURF_LAYOUT render=$SURF_RENDER x_axis=$SURF_XAXIS accel=$SURF_ACCEL) …"
     mkdir -p "$OUTPUT_DIR/surfaces"
     # 删除旧缓存，避免复用到上一次运行的数组（缓存仅供手动重画时通过 --cache_npz 复用）
     rm -f "$OUTPUT_DIR/surfaces/shard_surfaces_cache.npz"
@@ -332,6 +340,8 @@ if [ "${SKIP_SHARD_SURFACES:-0}" != "1" ]; then
         --color "$SURF_COLOR" \
         --layout "$SURF_LAYOUT" \
         --render "$SURF_RENDER" \
+        --x_axis "$SURF_XAXIS" \
+        --accel "$SURF_ACCEL" \
         --expr_order "$RECT_EXPRS" \
         $BOUNDS_ARG \
         --out_dir "$OUTPUT_DIR/surfaces" \

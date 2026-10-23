@@ -1165,7 +1165,9 @@ module pellet_module
       if (cos(spi_rotation_01) == 0.) then
         spi_rotation_02 = 0.
       else
-        spi_rotation_02 = acos(spi_Vel_RxZref/(spi_Vel_totref*cos(spi_rotation_01)))
+        ! atan2 preserves the sign of the R reference velocity.  Using
+        ! acos here maps +R and -R to the same rotation angle.
+        spi_rotation_02 = atan2(-spi_Vel_Rref, spi_Vel_RxZref)
       end if
 
       write(*,*) "Rotational transform: ", spi_rotation_01, spi_rotation_02
