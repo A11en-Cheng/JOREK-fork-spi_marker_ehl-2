@@ -51,6 +51,9 @@ real*8    :: physical_particles, weight
 integer   :: n_particles_local, n_steps, ifail
 integer   :: n_reflect
 integer   :: j, seed, i_rng, n_stream
+! --- Interval (in JOREK timesteps) for writing the particle restart part0*.h5 files.
+!     Decoupled from 'nout' (fluid restart) and 'nout_projection' (projections).
+integer, parameter :: nout_particles = 10
 
 logical   :: CE_marker
 
@@ -794,8 +797,8 @@ do while (.not. sim%stop_now)
                                         pressure+kin_par_tot+all_energy, pressure, all_energy, kin_par_tot
   endif
 
-! --- Write a restart file every nout timesteps
-  if (mod(index_now,nout) == 0) then
+! --- Write a particle restart file every nout_particles timesteps
+  if (mod(index_now,nout_particles) == 0) then
     write(part_fileout,'(A4,i5.5,A3)') 'part',index_now,'.h5'
     partwriter = event(write_action(filename=trim(part_fileout)))
     call with(sim, partwriter) 
