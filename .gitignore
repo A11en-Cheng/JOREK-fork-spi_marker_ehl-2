@@ -92,3 +92,4 @@ recombination_*
 .github/*
 marker*/algexpr2fort
 /poincare
+/algexpr2fort
