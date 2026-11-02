@@ -90,4 +90,5 @@ jorek2_wall_forces
 kinetic_neutrals
 recombination_*
 .github/*
-marker*
+marker*/algexpr2fort
+/poincare
